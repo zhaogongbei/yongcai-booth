@@ -60,19 +60,17 @@ components:
             type: string
     SessionStartRequest:
       type: object
-      required: [mode, campaignId]
+      required: [sessionId, eventId, mode, deviceId]
       properties:
+        sessionId:
+          type: string
+        eventId:
+          type: string
         mode:
           type: string
-          enum: [print, gif, boomerang, video, digital]
-        campaignId:
+          enum: [Print, Gif, Boomerang, Video, Digital]
+        deviceId:
           type: string
-        templateVersionId:
-          type: string
-          nullable: true
-        guestContext:
-          type: object
-          additionalProperties: true
     SessionStartResponse:
       type: object
       required: [sessionId, status, nextAction]
@@ -81,17 +79,64 @@ components:
           type: string
         status:
           type: string
-          enum: [ready, countdown, capturing]
+          enum: [ready, countdown, capturing, cancelled, completed, failed]
         nextAction:
           type: string
+    CaptureShotRequest:
+      type: object
+      properties:
+        preferredShotId:
+          type: string
+          nullable: true
+        sourceLabel:
+          type: string
+          nullable: true
+        aiPickScore:
+          type: number
+          format: double
+          nullable: true
+    CaptureShotResponse:
+      type: object
+      required: [sessionId, shotId, shotIndex, rawAssetPath, capturedAtUtc]
+      properties:
+        sessionId:
+          type: string
+        shotId:
+          type: string
+        shotIndex:
+          type: integer
+        rawAssetPath:
+          type: string
+        capturedAtUtc:
+          type: string
+          format: date-time
+    ShotDetails:
+      type: object
+      required: [shotId, sessionId, shotIndex, rawAssetPath, capturedAtUtc]
+      properties:
+        shotId:
+          type: string
+        sessionId:
+          type: string
+        shotIndex:
+          type: integer
+        rawAssetPath:
+          type: string
+        capturedAtUtc:
+          type: string
+          format: date-time
+        aiPickScore:
+          type: number
+          format: double
+          nullable: true
     ShareChannel:
       type: object
-      required: [type, to]
+      required: [type, recipient]
       properties:
         type:
           type: string
-          enum: [email, sms, qr, whatsapp]
-        to:
+          enum: [email, sms, qr, whatsapp, airdrop]
+        recipient:
           type: string
     ShareJobsRequest:
       type: object
@@ -131,13 +176,113 @@ components:
           nullable: true
     PrintJobResponse:
       type: object
+      required: [jobId, jobType, status]
+      properties:
+        jobId:
+          type: string
+        jobType:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+    JobDetails:
+      type: object
+      required: [jobId, jobType, aggregateId, status, priority, attemptCount, scheduledAtUtc]
+      properties:
+        jobId:
+          type: string
+        jobType:
+          type: string
+        aggregateId:
+          type: string
+        status:
+          type: string
+        priority:
+          type: integer
+        attemptCount:
+          type: integer
+        scheduledAtUtc:
+          type: string
+          format: date-time
+        payloadJson:
+          type: string
+          nullable: true
+        createdAssetId:
+          type: string
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+    OutputAsset:
+      type: object
+      required: [assetId, sessionId, assetType, storageScope, createdAtUtc]
+      properties:
+        assetId:
+          type: string
+        sessionId:
+          type: string
+        assetType:
+          type: string
+        storageScope:
+          type: string
+        localPath:
+          type: string
+          nullable: true
+        remoteUrl:
+          type: string
+          nullable: true
+        createdAtUtc:
+          type: string
+          format: date-time
+    JobExecutionResponse:
+      type: object
       required: [jobId, status]
       properties:
         jobId:
           type: string
         status:
           type: string
-          enum: [queued]
+        createdAssetId:
+          type: string
+          nullable: true
+    SessionDetailsResponse:
+      type: object
+      required: [sessionId, eventId, mode, status, deviceId, startedAtUtc, retryCount, shots, jobs, assets]
+      properties:
+        sessionId:
+          type: string
+        eventId:
+          type: string
+        mode:
+          type: string
+        status:
+          type: string
+        deviceId:
+          type: string
+        startedAtUtc:
+          type: string
+          format: date-time
+        completedAtUtc:
+          type: string
+          nullable: true
+          format: date-time
+        retryCount:
+          type: integer
+        shots:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShotDetails'
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobDetails'
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutputAsset'
 paths:
   /v1/health:
     get:
@@ -208,8 +353,76 @@ paths:
           schema:
             type: string
       responses:
-        "202":
-          description: Cancellation accepted
+        "200":
+          description: Session cancelled
+  /v1/sessions/{sessionId}:
+    get:
+      tags: [Sessions]
+      summary: Get session aggregate details
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session aggregate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetailsResponse'
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/sessions/{sessionId}/shots:
+    post:
+      tags: [Shots]
+      summary: Capture one shot into session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureShotRequest'
+      responses:
+        "200":
+          description: Shot captured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureShotResponse'
+        "404":
+          description: Session not found
+    get:
+      tags: [Shots]
+      summary: List shots for session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session shots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShotDetails'
+        "404":
+          description: Session not found
   /v1/print/jobs:
     post:
       tags: [Jobs]
@@ -244,3 +457,95 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShareJobsResponse'
+  /v1/jobs/{jobId}:
+    get:
+      tags: [Jobs]
+      summary: Get queued job status
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetails'
+        "404":
+          description: Job not found
+  /v1/jobs/{jobId}/execute:
+    post:
+      tags: [Jobs]
+      summary: Execute queued job in local runtime
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobExecutionResponse'
+        "404":
+          description: Job not found
+  /v1/sessions/{sessionId}/assets:
+    get:
+      tags: [Assets]
+      summary: List generated assets for session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutputAsset'
+        "404":
+          description: Session not found
+  /v1/assets/{assetId}:
+    get:
+      tags: [Assets]
+      summary: Get asset details
+      parameters:
+        - name: assetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutputAsset'
+        "404":
+          description: Asset not found
+    delete:
+      tags: [Assets]
+      summary: Soft delete asset
+      parameters:
+        - name: assetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset deleted
+        "404":
+          description: Asset not found

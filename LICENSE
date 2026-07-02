@@ -1,0 +1,98 @@
+MIT License
+
+Copyright (c) 2026 咏彩科技 (Yongcai Technology)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## 第三方许可证声明
+
+本软件使用了以下开源组件：
+
+### Backend (Python)
+- FastAPI - MIT License
+- SQLAlchemy - MIT License
+- Pydantic - MIT License
+- uvicorn - BSD License
+- Celery - BSD License
+- Redis-py - MIT License
+- Pillow - HPND License
+- OpenCV - Apache 2.0 License
+- MediaPipe - Apache 2.0 License
+
+### Frontend (TypeScript/React)
+- React - MIT License
+- Vite - MIT License
+- TailwindCSS - MIT License
+- Radix UI - MIT License
+- Lucide React - ISC License
+- Recharts - MIT License
+
+### Runtime (.NET)
+- ASP.NET Core - MIT License
+- Microsoft.EntityFrameworkCore.Sqlite - MIT License
+
+详细的第三方许可证信息请参阅各组件的官方文档。
+
+---
+
+## 商业使用限制
+
+尽管本软件采用 MIT 许可证，以下情况需要额外授权：
+
+1. **商业分发**: 将本软件作为商业产品销售或分发
+2. **SaaS 服务**: 基于本软件提供云服务
+3. **OEM 集成**: 将本软件集成到硬件产品中
+4. **品牌使用**: 使用"咏彩Booth"或"D-Booth"品牌名称
+
+如需商业授权，请联系: license@dbooth.ai
+
+---
+
+## 免责声明
+
+本软件"按原样"提供，不提供任何明示或暗示的保证，包括但不限于：
+
+- 适销性
+- 特定用途适用性
+- 非侵权性
+
+在任何情况下，作者或版权持有人均不对因使用本软件而产生的任何索赔、损害或其他责任负责。
+
+---
+
+## 出口管制
+
+本软件可能受到出口管制法律的约束。用户有责任确保遵守所有适用的出口管制法律法规。
+
+---
+
+## 隐私声明
+
+本软件处理用户照片和个人信息。部署者有责任：
+
+- 遵守 GDPR、CCPA 等数据保护法规
+- 获取必要的用户同意
+- 实施适当的数据安全措施
+- 提供数据删除机制
+
+---
+
+For questions about licensing, please contact: legal@dbooth.ai

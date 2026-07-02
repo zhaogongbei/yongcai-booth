@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Booth.Runtime.JobApp</AssemblyName>
+    <RootNamespace>Booth.Runtime.JobApp</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\Booth.Infra.Storage.Sqlite\Booth.Infra.Storage.Sqlite.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,75 @@
+@baseUrl = http://127.0.0.1:17890
+
+### Health
+GET {{baseUrl}}/v1/health
+
+### Start Session
+POST {{baseUrl}}/v1/session/start
+Content-Type: application/json
+
+{
+  "sessionId": "ses_http_001",
+  "eventId": "evt_http_001",
+  "mode": "Print",
+  "deviceId": "dev_http_001"
+}
+
+### Get Session Details
+GET {{baseUrl}}/v1/sessions/ses_http_001
+
+### Capture Shot
+POST {{baseUrl}}/v1/sessions/ses_http_001/shots
+Content-Type: application/json
+
+{
+  "preferredShotId": "shot_http_001",
+  "sourceLabel": "http-demo",
+  "aiPickScore": 0.92
+}
+
+### List Session Shots
+GET {{baseUrl}}/v1/sessions/ses_http_001/shots
+
+### Cancel Session
+POST {{baseUrl}}/v1/session/ses_http_001/cancel
+
+### Queue Print Job
+POST {{baseUrl}}/v1/print/jobs
+Content-Type: application/json
+
+{
+  "sessionId": "ses_http_001",
+  "copies": 2,
+  "printerProfileId": "printer_default"
+}
+
+### Execute Job
+POST {{baseUrl}}/v1/jobs/job_print_replace_me/execute
+
+### Queue Share Jobs
+POST {{baseUrl}}/v1/share/jobs
+Content-Type: application/json
+
+{
+  "sessionId": "ses_http_001",
+  "consentToken": "consent_demo",
+  "channels": [
+    {
+      "type": "email",
+      "recipient": "guest@example.com"
+    },
+    {
+      "type": "sms",
+      "recipient": "+15551234567"
+    }
+  ]
+}
+
+### Get Session Assets
+GET {{baseUrl}}/v1/sessions/ses_http_001/assets
+
+### Get Asset
+GET {{baseUrl}}/v1/assets/asset_replace_me
+
+### Delete Asset
+DELETE {{baseUrl}}/v1/assets/asset_replace_me

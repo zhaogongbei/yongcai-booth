@@ -8,5 +8,7 @@ public static class ErrorCodes
     public const string SyncUnavailable = "SYN_UNAVAILABLE";
     public const string AiModelUnavailable = "AI_MODEL_UNAVAILABLE";
     public const string ConfigurationInvalid = "CFG_INVALID";
+    public const string SessionNotFound = "SES_NOT_FOUND";
+    public const string JobNotFound = "JOB_NOT_FOUND";
     public const string SecurityDenied = "SEC_DENIED";
 }

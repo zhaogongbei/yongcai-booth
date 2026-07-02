@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Booth.Runtime.ApiHost</AssemblyName>
+    <RootNamespace>Booth.Runtime.ApiHost</RootNamespace>
+    <TargetFramework>net8.0-windows</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Booth.Runtime.JobApp\Booth.Runtime.JobApp.csproj" />
+    <ProjectReference Include="..\Booth.Runtime.SessionApp\Booth.Runtime.SessionApp.csproj" />
+    <ProjectReference Include="..\Booth.Infra.Storage.Sqlite\Booth.Infra.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+</Project>

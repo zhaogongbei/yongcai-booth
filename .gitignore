@@ -23,6 +23,17 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+coverage/
+coverage.cobertura.xml
+
 # 数据库（本地开发数据）
 *.db
 *.sqlite

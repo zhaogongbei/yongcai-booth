@@ -15,6 +15,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Infra.Storage.Sqlite"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Plugin.Abstractions", "src\Booth.Plugin.Abstractions\Booth.Plugin.Abstractions.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F006}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Runtime.ApiHost", "src\Booth.Runtime.ApiHost\Booth.Runtime.ApiHost.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F007}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Runtime.Tests", "tests\Booth.Runtime.Tests\Booth.Runtime.Tests.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F008}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Runtime.JobApp", "src\Booth.Runtime.JobApp\Booth.Runtime.JobApp.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F009}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|Any CPU = Debug|Any CPU
@@ -45,5 +51,17 @@ Global
         {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Release|Any CPU.ActiveCfg = Release|Any CPU
         {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F007}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F007}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F007}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F007}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F008}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F008}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F009}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F009}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F009}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F009}.Release|Any CPU.Build.0 = Release|Any CPU
     EndGlobalSection
 EndGlobal

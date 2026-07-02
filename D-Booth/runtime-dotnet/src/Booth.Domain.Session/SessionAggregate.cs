@@ -7,13 +7,28 @@ public sealed class SessionAggregate
     private readonly List<Shot> _shots = new();
 
     public SessionAggregate(string id, string eventId, SessionMode mode, string deviceId)
+        : this(id, eventId, mode, deviceId, SessionStatus.Ready, DateTimeOffset.UtcNow, null, 0)
+    {
+    }
+
+    private SessionAggregate(
+        string id,
+        string eventId,
+        SessionMode mode,
+        string deviceId,
+        SessionStatus status,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset? completedAtUtc,
+        int retryCount)
     {
         Id = id;
         EventId = eventId;
         Mode = mode;
         DeviceId = deviceId;
-        Status = SessionStatus.Ready;
-        StartedAtUtc = DateTimeOffset.UtcNow;
+        Status = status;
+        StartedAtUtc = startedAtUtc;
+        CompletedAtUtc = completedAtUtc;
+        RetryCount = retryCount;
     }
 
     public string Id { get; }
@@ -23,7 +38,21 @@ public sealed class SessionAggregate
     public SessionStatus Status { get; private set; }
     public DateTimeOffset StartedAtUtc { get; }
     public DateTimeOffset? CompletedAtUtc { get; private set; }
+    public int RetryCount { get; private set; }
     public IReadOnlyList<Shot> Shots => _shots;
+
+    public static SessionAggregate Rehydrate(
+        string id,
+        string eventId,
+        SessionMode mode,
+        string deviceId,
+        SessionStatus status,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset? completedAtUtc,
+        int retryCount)
+    {
+        return new SessionAggregate(id, eventId, mode, deviceId, status, startedAtUtc, completedAtUtc, retryCount);
+    }
 
     public void BeginCountdown() => Status = SessionStatus.Countdown;
 
@@ -32,6 +61,8 @@ public sealed class SessionAggregate
     public void AddShot(Shot shot) => _shots.Add(shot);
 
     public void BeginRendering() => Status = SessionStatus.Rendering;
+
+    public void IncrementRetryCount() => RetryCount++;
 
     public void Complete()
     {
