@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Booth.Domain.Session</AssemblyName>
+    <RootNamespace>Booth.Domain.Session</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+  </ItemGroup>
+</Project>

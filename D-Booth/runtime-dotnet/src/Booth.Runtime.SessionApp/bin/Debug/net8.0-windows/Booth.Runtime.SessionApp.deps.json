@@ -1,0 +1,56 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "Booth.Runtime.SessionApp/1.0.0": {
+        "dependencies": {
+          "Booth.Domain.Session": "1.0.0",
+          "Booth.Shared.Contracts": "1.0.0"
+        },
+        "runtime": {
+          "Booth.Runtime.SessionApp.dll": {}
+        }
+      },
+      "Booth.Domain.Session/1.0.0": {
+        "dependencies": {
+          "Booth.Shared.Contracts": "1.0.0"
+        },
+        "runtime": {
+          "Booth.Domain.Session.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Booth.Shared.Contracts/1.0.0": {
+        "runtime": {
+          "Booth.Shared.Contracts.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Booth.Runtime.SessionApp/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Booth.Domain.Session/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Booth.Shared.Contracts/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

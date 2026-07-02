@@ -1,0 +1,49 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Runtime.App", "src\Booth.Runtime.App\Booth.Runtime.App.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Runtime.SessionApp", "src\Booth.Runtime.SessionApp\Booth.Runtime.SessionApp.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Domain.Session", "src\Booth.Domain.Session\Booth.Domain.Session.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F003}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Shared.Contracts", "src\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Infra.Storage.Sqlite", "src\Booth.Infra.Storage.Sqlite\Booth.Infra.Storage.Sqlite.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F005}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Booth.Plugin.Abstractions", "src\Booth.Plugin.Abstractions\Booth.Plugin.Abstractions.csproj", "{F4A1F565-4D39-4C37-8E61-4D6D1C94F006}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F001}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F001}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F002}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F003}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F003}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F004}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F004}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F005}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F005}.Release|Any CPU.Build.0 = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {F4A1F565-4D39-4C37-8E61-4D6D1C94F006}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal

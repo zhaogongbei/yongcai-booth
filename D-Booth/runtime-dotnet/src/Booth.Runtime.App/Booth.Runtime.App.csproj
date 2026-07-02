@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Booth.Runtime.App</AssemblyName>
+    <RootNamespace>Booth.Runtime.App</RootNamespace>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Booth.Runtime.SessionApp\Booth.Runtime.SessionApp.csproj" />
+    <ProjectReference Include="..\Booth.Infra.Storage.Sqlite\Booth.Infra.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+  </ItemGroup>
+</Project>

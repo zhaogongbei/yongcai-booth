@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: aibooth_db
+    environment:
+      POSTGRES_USER: aibooth
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      POSTGRES_DB: aibooth
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aibooth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: aibooth_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aibooth_backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aibooth:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/aibooth
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  # Celery Worker (optional)
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aibooth_celery_worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aibooth:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/aibooth
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      - db
+      - redis
+    command: celery -A app.celery_app worker --loglevel=info
+
+  # Celery Beat (Scheduled Tasks)
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aibooth_celery_beat
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aibooth:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/aibooth
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - celery_beat_schedule:/var/lib/celery/beat
+    command: celery -A app.celery_app beat --loglevel=info --schedule=/var/lib/celery/beat/celerybeat-schedule
+
+volumes:
+  postgres_data:
+  celery_beat_schedule:

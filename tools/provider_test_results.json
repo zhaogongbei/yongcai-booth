@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-06-26T09:35:48",
+  "results": [
+    {
+      "provider": "Ark",
+      "model": "Claude Opus 4.8",
+      "status": "FAIL",
+      "ms": 980,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"model_not_found\",\"message\":\"No available channel for model claude-opus-4-8 under g"
+    },
+    {
+      "provider": "Ark",
+      "model": "DeepSeek-V3.2",
+      "status": "FAIL",
+      "ms": 1057,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"model_not_found\",\"message\":\"No available channel for model deepseek-ai/DeepSeek-V3"
+    },
+    {
+      "provider": "Ark",
+      "model": "Doubao Seed 2.0 Pro",
+      "status": "OK",
+      "ms": 5963,
+      "code": 200,
+      "sample": ""
+    },
+    {
+      "provider": "君",
+      "model": "Claude Opus 4.8",
+      "status": "FAIL",
+      "ms": 926,
+      "code": 401,
+      "err": "{\"error\":{\"code\":\"\",\"message\":\"Invalid token (request id: 202606260135127511355908268d9d69lt8ioxC)\","
+    },
+    {
+      "provider": "黑与白",
+      "model": "claude-opus-4-8",
+      "status": "FAIL",
+      "ms": 1107,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"bad_response_status_code\",\"message\":\"来自上游渠道的报错: bad response status code 503 (requ"
+    },
+    {
+      "provider": "New Provider",
+      "model": "DeepSeek V4 Pro",
+      "status": "FAIL",
+      "ms": 1199,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"model_not_found\",\"message\":\"No available channel for model deepseek-v4-pro under g"
+    },
+    {
+      "provider": "New Provider",
+      "model": "GLM-5.1",
+      "status": "FAIL",
+      "ms": 1012,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"model_not_found\",\"message\":\"No available channel for model glm-5.1 under group 国产模"
+    },
+    {
+      "provider": "黑（gemini）",
+      "model": "Gemini 3.5 Flash",
+      "status": "FAIL",
+      "ms": 1173,
+      "code": 200,
+      "err": "{\"id\":\"healthcheck\",\"object\":\"chat.completion\",\"created\":1782437722,\"model\":\"gemini-3.5-flash-low\",\""
+    },
+    {
+      "provider": "Lanln",
+      "model": "Claude Opus 4.6 Fast",
+      "status": "FAIL",
+      "ms": 1069,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"model_not_found\",\"message\":\"No available channel for model claude-opus-4-6-fast un"
+    },
+    {
+      "provider": "Lanln",
+      "model": "claude-sonnet-4-6",
+      "status": "OK",
+      "ms": 2714,
+      "code": 200,
+      "sample": ""
+    },
+    {
+      "provider": "黑与白（国模）",
+      "model": "GLM 5.1",
+      "status": "FAIL",
+      "ms": 1268,
+      "code": 503,
+      "err": "{\"error\":{\"code\":\"one_hub_error\",\"message\":\"当前分组 默认分组 下对于模型 zai/glm-5.1 无可用渠道 (request id: 202606260"
+    },
+    {
+      "provider": "黑与白（国模）",
+      "model": "DeepSeek V4 Pro",
+      "status": "OK",
+      "ms": 4303,
+      "code": 200,
+      "sample": ""
+    },
+    {
+      "provider": "黑与白（国模）",
+      "model": "DeepSeek V4 Flash",
+      "status": "OK",
+      "ms": 1540,
+      "code": 200,
+      "sample": ""
+    },
+    {
+      "provider": "干草铺",
+      "model": "GPT-5.5",
+      "status": "OK",
+      "ms": 4806,
+      "code": 200,
+      "sample": "Hi"
+    },
+    {
+      "provider": "干草铺",
+      "model": "GPT-5.4",
+      "status": "OK",
+      "ms": 6441,
+      "code": 200,
+      "sample": ""
+    }
+  ]
+}

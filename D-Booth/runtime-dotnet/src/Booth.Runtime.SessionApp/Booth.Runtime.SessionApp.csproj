@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Booth.Runtime.SessionApp</AssemblyName>
+    <RootNamespace>Booth.Runtime.SessionApp</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Booth.Domain.Session\Booth.Domain.Session.csproj" />
+    <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+  </ItemGroup>
+</Project>

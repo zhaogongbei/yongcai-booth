@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Booth.Shared.Contracts</AssemblyName>
+    <RootNamespace>Booth.Shared.Contracts</RootNamespace>
+  </PropertyGroup>
+</Project>

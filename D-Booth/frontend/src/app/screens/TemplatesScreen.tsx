@@ -1,0 +1,200 @@
+import { useState } from "react";
+import { Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter } from "lucide-react";
+import { motion } from "motion/react";
+import { GlassCard } from "../components/GlassCard";
+import { NeonBadge } from "../components/NeonBadge";
+import { GlowBtn } from "../components/GlowBtn";
+import type { Screen } from "../types";
+
+export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const [activeCategory, setActiveCategory] = useState("全部");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedRatio, setSelectedRatio] = useState("全部");
+  const [selectedStyle, setSelectedStyle] = useState("全部");
+  const [selectedScene, setSelectedScene] = useState("全部");
+
+  const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
+  const categoryCards = [
+    { label: "婚礼模板", count: 128, icon: Heart, color: "from-pink-600 to-rose-800", filter: "婚礼" },
+    { label: "生日模板", count: 96, icon: Star, color: "from-yellow-600 to-orange-800", filter: "生日" },
+    { label: "企业模板", count: 88, icon: Building, color: "from-blue-600 to-indigo-800", filter: "企业" },
+    { label: "毕业模板", count: 74, icon: Trophy, color: "from-emerald-600 to-teal-800", filter: "毕业" },
+    { label: "节日模板", count: 112, icon: Sparkles, color: "from-violet-600 to-purple-800", filter: "节日" },
+    { label: "自定义模板", count: 256, icon: Grid3X3, color: "from-gray-600 to-slate-800", filter: "自定义" },
+  ];
+  const templates = [
+    { name: "花漾时光", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-couple-booth.webp' },
+    { name: "浪漫白花", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-guests-fun.webp' },
+    { name: "粉色心情", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/birthday-party-fun.webp' },
+    { name: "夏日派对", ratio: "2×6", type: "推荐", category: "节日", img: '/images/scenes/festival-outdoor-booth.webp' },
+    { name: "企业活动", ratio: "4×6", type: "推荐", category: "企业", img: '/images/scenes/corporate-event-group.webp' },
+    { name: "生日快乐", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/kids-birthday-booth.webp' },
+  ];
+
+  const filteredTemplates = templates.filter(t => {
+    if (searchTerm && !t.name.includes(searchTerm)) return false;
+    if (selectedCategory && t.category !== selectedCategory) return false;
+    return true;
+  });
+
+  return (
+    <div className="flex-1 flex overflow-hidden">
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* Search */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+            <input className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:border-violet-500/50"
+              placeholder="搜索模板名称、风格、标签..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+          <GlowBtn size="sm" variant="ghost" onClick={() => setShowFilters(f => !f)}>
+            <Filter size={14} />筛选
+          </GlowBtn>
+        </div>
+
+        {/* Category tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {categories.map(c => (
+            <button key={c} onClick={() => { setActiveCategory(c); setSelectedCategory(c === "全部" ? null : c); }}
+              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm transition-all ${activeCategory === c ? "bg-violet-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]" : "bg-white/5 text-white/60 hover:bg-white/10"}`}>
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Category cards */}
+        <div className="grid grid-cols-6 gap-3">
+          {categoryCards.map(c => (
+            <motion.div key={c.label}
+              className={`relative rounded-2xl p-4 text-center cursor-pointer overflow-hidden bg-gradient-to-br ${c.color} ${selectedCategory === c.filter ? "ring-2 ring-white/60" : ""}`}
+              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              onClick={() => setSelectedCategory(selectedCategory === c.filter ? null : c.filter)}
+            >
+              <c.icon size={28} className="text-white mx-auto mb-2" />
+              <div className="text-xs font-semibold text-white">{c.label}</div>
+              <div className="text-[10px] text-white/60 mt-0.5">{c.count} 套模板</div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Featured templates */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-white">推荐模板</span>
+              <span className="text-lg">🔥</span>
+            </div>
+            <button className="text-xs text-violet-400 hover:text-violet-300" onClick={() => setSelectedCategory(null)}>查看全部</button>
+          </div>
+          <div className="grid grid-cols-6 gap-4">
+            {filteredTemplates.map(t => (
+              <motion.div key={t.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+                onClick={() => navigate("template-editor")}>
+                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-violet-500/40 transition-all">
+                  <img src={t.img}
+                    alt={t.name} className="w-full h-full object-cover" loading="lazy" />
+                  <div className="absolute top-2 right-2">
+                    <NeonBadge color="purple">VIP</NeonBadge>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                    <GlowBtn size="sm" variant="primary" className="w-full justify-center">使用</GlowBtn>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <div className="text-xs font-medium text-white">{t.name}</div>
+                  <div className="text-[10px] text-white/40">{t.ratio}</div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hot templates */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-semibold text-white">热门模板</span>
+            <NeonBadge color="pink">HOT</NeonBadge>
+          </div>
+          <div className="grid grid-cols-8 gap-3">
+            {[
+              { img: '/images/products/photo-prints-showcase.webp', label: '高显' },
+              { img: '/images/products/polaroid-style-prints.webp', label: '前途' },
+              { img: '/images/scenes/conference-networking.webp', label: '复古怀旧' },
+              { img: '/images/backgrounds/attract-screen-corporate.webp', label: '清新淡雅' },
+              { img: '/images/backgrounds/attract-screen-elegant.webp', label: '新系图斯' },
+              { img: '/images/backgrounds/attract-screen-01.webp', label: '日系小清新' },
+              { img: '/images/products/camera-equipment.webp', label: '多系' },
+              { img: '/images/scenes/brand-popup-mall.webp', label: '韩系' },
+            ].map((item, i) => (
+              <motion.div key={i} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+                onClick={() => navigate("template-editor")}>
+                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-pink-500/40 transition-all">
+                  <img src={item.img}
+                    alt={`${item.label}模板`} className="w-full h-full object-cover" loading="lazy" />
+                </div>
+                <div className="text-[10px] text-white/50 mt-1.5 text-center">{item.label}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right filter panel */}
+      <GlassCard className={`w-48 rounded-none border-l border-white/5 p-4 space-y-4 overflow-y-auto transition-all ${showFilters ? "" : "hidden"}`}>
+        <div className="text-xs font-semibold text-white/60 uppercase tracking-wider">筛选条件</div>
+        {[
+          { label: "比例", key: "ratio", options: ["全部", "2×6", "4×6", "6×8", "其他"] },
+          { label: "风格", key: "style", options: ["全部", "清新", "复古", "国潮", "欧美", "日系"] },
+          { label: "场景", key: "scene", options: ["全部", "户外", "室内", "工作室"] },
+          { label: "颜色", special: "colors" },
+        ].map(f => (
+          <div key={f.label} className="space-y-2">
+            <div className="text-xs text-white/50">{f.label}</div>
+            {f.special === "colors" ? (
+              <div className="flex flex-wrap gap-1.5">
+                {["#ec4899", "#8b5cf6", "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#f97316", "#fff", "#333"].map(c => (
+                  <div key={c}
+                    className={`w-5 h-5 rounded-full cursor-pointer border hover:scale-110 transition-transform ${selectedColor === c ? "border-white ring-2 ring-white/50" : "border-white/10"}`}
+                    style={{ background: c }}
+                    onClick={() => setSelectedColor(selectedColor === c ? null : c)} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {f.options?.map(o => {
+                  const isSelected = (f.key === "ratio" && selectedRatio === o)
+                    || (f.key === "style" && selectedStyle === o)
+                    || (f.key === "scene" && selectedScene === o);
+                  return (
+                    <button key={o}
+                      className={`px-2 py-0.5 rounded text-[10px] ${isSelected ? "bg-violet-500/20 text-violet-400 border border-violet-500/30" : "bg-white/5 text-white/40 hover:bg-white/10"}`}
+                      onClick={() => {
+                        if (f.key === "ratio") setSelectedRatio(o);
+                        else if (f.key === "style") setSelectedStyle(o);
+                        else if (f.key === "scene") setSelectedScene(o);
+                      }}>
+                      {o}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+        <GlowBtn size="sm" variant="primary" className="w-full justify-center"
+          onClick={() => {
+            setSelectedCategory(null);
+            setActiveCategory("全部");
+          }}>
+          应用筛选
+        </GlowBtn>
+      </GlassCard>
+    </div>
+  );
+}

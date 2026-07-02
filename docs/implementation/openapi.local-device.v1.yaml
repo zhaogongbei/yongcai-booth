@@ -1,0 +1,246 @@
+openapi: 3.1.0
+info:
+  title: Booth Local Device API
+  version: 1.0.0
+  description: >
+    下一代 AI Photo Booth 本地设备控制 API 草案。
+    该 API 面向 Booth Runtime 本机自动化与受控外部集成。
+servers:
+  - url: http://localhost:{port}
+    variables:
+      port:
+        default: "17890"
+security:
+  - boothToken: []
+tags:
+  - name: Health
+  - name: Devices
+  - name: Sessions
+  - name: Jobs
+components:
+  securitySchemes:
+    boothToken:
+      type: http
+      scheme: bearer
+      bearerFormat: BoothScopedToken
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [errorCode, message]
+      properties:
+        errorCode:
+          type: string
+          example: CAM_DEVICE_NOT_READY
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    DeviceSummary:
+      type: object
+      required: [deviceId, deviceType, status]
+      properties:
+        deviceId:
+          type: string
+        deviceType:
+          type: string
+          example: camera
+        vendor:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [disconnected, connecting, ready, previewing, busy, error]
+        capabilities:
+          type: array
+          items:
+            type: string
+    SessionStartRequest:
+      type: object
+      required: [mode, campaignId]
+      properties:
+        mode:
+          type: string
+          enum: [print, gif, boomerang, video, digital]
+        campaignId:
+          type: string
+        templateVersionId:
+          type: string
+          nullable: true
+        guestContext:
+          type: object
+          additionalProperties: true
+    SessionStartResponse:
+      type: object
+      required: [sessionId, status, nextAction]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [ready, countdown, capturing]
+        nextAction:
+          type: string
+    ShareChannel:
+      type: object
+      required: [type, to]
+      properties:
+        type:
+          type: string
+          enum: [email, sms, qr, whatsapp]
+        to:
+          type: string
+    ShareJobsRequest:
+      type: object
+      required: [sessionId, channels]
+      properties:
+        sessionId:
+          type: string
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShareChannel'
+        consentToken:
+          type: string
+          nullable: true
+    ShareJobsResponse:
+      type: object
+      required: [jobIds, status]
+      properties:
+        jobIds:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [queued]
+    PrintJobRequest:
+      type: object
+      required: [sessionId, copies]
+      properties:
+        sessionId:
+          type: string
+        copies:
+          type: integer
+          minimum: 1
+        printerProfileId:
+          type: string
+          nullable: true
+    PrintJobResponse:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Get runtime health summary
+      responses:
+        "200":
+          description: Health summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  runtimeVersion:
+                    type: string
+                  checks:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+  /v1/devices:
+    get:
+      tags: [Devices]
+      summary: List connected devices
+      responses:
+        "200":
+          description: Connected devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceSummary'
+  /v1/session/start:
+    post:
+      tags: [Sessions]
+      summary: Start booth session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionStartRequest'
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStartResponse'
+        "409":
+          description: Session cannot start
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/session/{sessionId}/cancel:
+    post:
+      tags: [Sessions]
+      summary: Cancel active session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Cancellation accepted
+  /v1/print/jobs:
+    post:
+      tags: [Jobs]
+      summary: Queue print job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrintJobRequest'
+      responses:
+        "202":
+          description: Print job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrintJobResponse'
+  /v1/share/jobs:
+    post:
+      tags: [Jobs]
+      summary: Queue share jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareJobsRequest'
+      responses:
+        "202":
+          description: Share jobs queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShareJobsResponse'

@@ -1,0 +1,176 @@
+{
+  "version": 3,
+  "targets": {
+    "net8.0-windows7.0": {
+      "Booth.Domain.Session/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "Booth.Shared.Contracts": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/Booth.Domain.Session.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Booth.Domain.Session.dll": {}
+        }
+      },
+      "Booth.Infra.Storage.Sqlite/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "Booth.Domain.Session": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/Booth.Infra.Storage.Sqlite.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Booth.Infra.Storage.Sqlite.dll": {}
+        }
+      },
+      "Booth.Runtime.SessionApp/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "Booth.Domain.Session": "1.0.0",
+          "Booth.Shared.Contracts": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/Booth.Runtime.SessionApp.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Booth.Runtime.SessionApp.dll": {}
+        }
+      },
+      "Booth.Shared.Contracts/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "compile": {
+          "bin/placeholder/Booth.Shared.Contracts.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Booth.Shared.Contracts.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Booth.Domain.Session/1.0.0": {
+      "type": "project",
+      "path": "../Booth.Domain.Session/Booth.Domain.Session.csproj",
+      "msbuildProject": "../Booth.Domain.Session/Booth.Domain.Session.csproj"
+    },
+    "Booth.Infra.Storage.Sqlite/1.0.0": {
+      "type": "project",
+      "path": "../Booth.Infra.Storage.Sqlite/Booth.Infra.Storage.Sqlite.csproj",
+      "msbuildProject": "../Booth.Infra.Storage.Sqlite/Booth.Infra.Storage.Sqlite.csproj"
+    },
+    "Booth.Runtime.SessionApp/1.0.0": {
+      "type": "project",
+      "path": "../Booth.Runtime.SessionApp/Booth.Runtime.SessionApp.csproj",
+      "msbuildProject": "../Booth.Runtime.SessionApp/Booth.Runtime.SessionApp.csproj"
+    },
+    "Booth.Shared.Contracts/1.0.0": {
+      "type": "project",
+      "path": "../Booth.Shared.Contracts/Booth.Shared.Contracts.csproj",
+      "msbuildProject": "../Booth.Shared.Contracts/Booth.Shared.Contracts.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net8.0-windows7.0": [
+      "Booth.Infra.Storage.Sqlite >= 1.0.0",
+      "Booth.Runtime.SessionApp >= 1.0.0",
+      "Booth.Shared.Contracts >= 1.0.0"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\Administrator\\.nuget\\packages\\": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Runtime.App\\Booth.Runtime.App.csproj",
+      "projectName": "Booth.Runtime.App",
+      "projectPath": "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Runtime.App\\Booth.Runtime.App.csproj",
+      "packagesPath": "C:\\Users\\Administrator\\.nuget\\packages\\",
+      "outputPath": "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Runtime.App\\obj\\",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "C:\\Users\\Administrator\\AppData\\Roaming\\NuGet\\NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net8.0-windows"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net8.0-windows7.0": {
+          "targetAlias": "net8.0-windows",
+          "projectReferences": {
+            "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Infra.Storage.Sqlite\\Booth.Infra.Storage.Sqlite.csproj": {
+              "projectPath": "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Infra.Storage.Sqlite\\Booth.Infra.Storage.Sqlite.csproj"
+            },
+            "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Runtime.SessionApp\\Booth.Runtime.SessionApp.csproj": {
+              "projectPath": "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Runtime.SessionApp\\Booth.Runtime.SessionApp.csproj"
+            },
+            "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Shared.Contracts\\Booth.Shared.Contracts.csproj": {
+              "projectPath": "D:\\安装包归档\\咏彩booth\\D-Booth\\runtime-dotnet\\src\\Booth.Shared.Contracts\\Booth.Shared.Contracts.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "10.0.200"
+    },
+    "frameworks": {
+      "net8.0-windows7.0": {
+        "targetAlias": "net8.0-windows",
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.AspNetCore.App.Ref",
+            "version": "[8.0.25, 8.0.25]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Host.win-x64",
+            "version": "[8.0.25, 8.0.25]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[8.0.25, 8.0.25]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Ref",
+            "version": "[8.0.25, 8.0.25]"
+          }
+        ],
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}
