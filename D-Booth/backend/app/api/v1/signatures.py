@@ -1,14 +1,15 @@
 import uuid
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.logging import logger
 from app.models.models import Signature
-from app.schemas.signature import SignatureCreate, SignatureResponse
+from app.schemas.signature import SignatureResponse
 from app.services.storage_service import r2_storage
 
 router = APIRouter(prefix="/signatures", tags=["signatures"])
@@ -44,6 +45,8 @@ async def upload_signature(
 
         return signature
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"上传签名失败: {str(e)}")
         await db.rollback()
@@ -53,18 +56,16 @@ async def upload_signature(
 @router.get("/session/{session_id}", response_model=List[SignatureResponse])
 async def get_session_signatures(session_id: UUID, db: AsyncSession = Depends(get_db)):
     """获取指定会话的所有签名"""
-    result = await db.execute(
-        Signature.__table__.select().where(Signature.session_id == session_id)
-    )
-    signatures = result.all()
+    result = await db.execute(select(Signature).where(Signature.session_id == session_id))
+    signatures = result.scalars().all()
     return [SignatureResponse.from_orm(sig) for sig in signatures]
 
 
 @router.delete("/{signature_id}", status_code=204)
 async def delete_signature(signature_id: UUID, db: AsyncSession = Depends(get_db)):
     """删除指定签名"""
-    result = await db.execute(Signature.__table__.select().where(Signature.id == signature_id))
-    signature = result.first()
+    result = await db.execute(select(Signature).where(Signature.id == signature_id))
+    signature = result.scalar_one_or_none()
 
     if not signature:
         raise HTTPException(status_code=404, detail="签名不存在")
@@ -74,7 +75,7 @@ async def delete_signature(signature_id: UUID, db: AsyncSession = Depends(get_db
         await r2_storage.delete_file(signature.signature_url)
 
         # 删除数据库记录
-        await db.execute(Signature.__table__.delete().where(Signature.id == signature_id))
+        await db.delete(signature)
         await db.commit()
 
     except Exception as e:

@@ -2,6 +2,7 @@ import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -20,8 +21,8 @@ router = APIRouter(prefix="/disclaimers", tags=["disclaimers"])
 @router.get("/event/{event_id}", response_model=DisclaimerResponse)
 async def get_event_disclaimer(event_id: UUID, db: AsyncSession = Depends(get_db)):
     """获取事件的免责声明"""
-    result = await db.execute(Disclaimer.__table__.select().where(Disclaimer.event_id == event_id))
-    disclaimer = result.first()
+    result = await db.execute(select(Disclaimer).where(Disclaimer.event_id == event_id))
+    disclaimer = result.scalar_one_or_none()
 
     if not disclaimer:
         # 创建默认免责声明
@@ -47,15 +48,17 @@ async def update_event_disclaimer(
     """更新事件的免责声明"""
     try:
         result = await db.execute(
-            Disclaimer.__table__.select().where(Disclaimer.event_id == event_id)
+            select(Disclaimer).where(Disclaimer.event_id == event_id)
         )
-        disclaimer = result.first()
+        disclaimer = result.scalar_one_or_none()
 
         if not disclaimer:
-            disclaimer = Disclaimer(id=uuid.uuid4(), event_id=event_id, **disclaimer_data.dict())
+            disclaimer = Disclaimer(
+                id=uuid.uuid4(), event_id=event_id, **disclaimer_data.model_dump()
+            )
             db.add(disclaimer)
         else:
-            for field, value in disclaimer_data.dict().items():
+            for field, value in disclaimer_data.model_dump().items():
                 setattr(disclaimer, field, value)
 
         await db.commit()
@@ -74,29 +77,36 @@ async def accept_disclaimer(
 ):
     """记录来宾确认免责声明"""
     try:
+        disclaimer_result = await db.execute(
+            select(Disclaimer.id).where(Disclaimer.event_id == acceptance_data.event_id)
+        )
+        disclaimer_id = disclaimer_result.scalar_one_or_none()
+        if not disclaimer_id:
+            raise HTTPException(status_code=404, detail="免责声明不存在")
+
         # 检查是否已经接受过
         existing = await db.execute(
-            DisclaimerAcceptance.__table__.select()
+            select(DisclaimerAcceptance.id)
             .where(DisclaimerAcceptance.event_id == acceptance_data.event_id)
             .where(DisclaimerAcceptance.session_id == acceptance_data.session_id)
         )
-        if existing.first():
+        if existing.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="已经接受过免责声明")
 
         acceptance = DisclaimerAcceptance(
             id=uuid.uuid4(),
             event_id=acceptance_data.event_id,
             session_id=acceptance_data.session_id,
+            disclaimer_id=disclaimer_id,
         )
 
         db.add(acceptance)
         await db.commit()
-        await db.refresh(acceptance)
         return acceptance
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"记录免责声明接受失败: {str(e)}")
         await db.rollback()
-        if "已经接受过免责声明" in str(e):
-            raise
         raise HTTPException(status_code=500, detail=f"提交失败: {str(e)}")

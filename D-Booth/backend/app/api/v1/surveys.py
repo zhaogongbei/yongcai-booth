@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -24,8 +25,8 @@ router = APIRouter(prefix="/surveys", tags=["surveys"])
 @router.get("/event/{event_id}", response_model=SurveyResponseSchema)
 async def get_event_survey(event_id: UUID, db: AsyncSession = Depends(get_db)):
     """获取事件的调查配置"""
-    result = await db.execute(Survey.__table__.select().where(Survey.event_id == event_id))
-    survey = result.first()
+    result = await db.execute(select(Survey).where(Survey.event_id == event_id))
+    survey = result.scalar_one_or_none()
 
     if not survey:
         # 创建默认调查
@@ -45,14 +46,14 @@ async def update_event_survey(
 ):
     """更新事件的调查配置"""
     try:
-        result = await db.execute(Survey.__table__.select().where(Survey.event_id == event_id))
-        survey = result.first()
+        result = await db.execute(select(Survey).where(Survey.event_id == event_id))
+        survey = result.scalar_one_or_none()
 
         if not survey:
-            survey = Survey(id=uuid.uuid4(), event_id=event_id, **survey_data.dict())
+            survey = Survey(id=uuid.uuid4(), event_id=event_id, **survey_data.model_dump())
             db.add(survey)
         else:
-            for field, value in survey_data.dict().items():
+            for field, value in survey_data.model_dump().items():
                 setattr(survey, field, value)
 
         await db.commit()
@@ -93,9 +94,9 @@ async def submit_survey_response(
 async def get_session_survey_responses(session_id: UUID, db: AsyncSession = Depends(get_db)):
     """获取某次会话的回答"""
     result = await db.execute(
-        SurveyResponse.__table__.select().where(SurveyResponse.session_id == session_id)
+        select(SurveyResponse).where(SurveyResponse.session_id == session_id)
     )
-    responses = result.all()
+    responses = result.scalars().all()
     return [SurveyAnswerResponse.from_orm(resp) for resp in responses]
 
 
@@ -105,18 +106,18 @@ async def export_survey_responses(event_id: UUID, db: AsyncSession = Depends(get
     try:
         # 获取调查配置
         survey_result = await db.execute(
-            Survey.__table__.select().where(Survey.event_id == event_id)
+            select(Survey).where(Survey.event_id == event_id)
         )
-        survey = survey_result.first()
+        survey = survey_result.scalar_one_or_none()
 
         if not survey:
             raise HTTPException(status_code=404, detail="该事件没有调查配置")
 
         # 获取所有回答
         responses_result = await db.execute(
-            SurveyResponse.__table__.select().where(SurveyResponse.event_id == event_id)
+            select(SurveyResponse).where(SurveyResponse.event_id == event_id)
         )
-        responses = responses_result.all()
+        responses = responses_result.scalars().all()
 
         # 创建CSV
         output = StringIO()
@@ -147,6 +148,8 @@ async def export_survey_responses(event_id: UUID, db: AsyncSession = Depends(get
             },
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"导出调查回答失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
