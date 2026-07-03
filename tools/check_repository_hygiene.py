@@ -56,9 +56,30 @@ BLOCKED_TEXT = {
     "Makefile": [
         "black . && isort . && mypy app/ && ruff check app/",
     ],
+    "CLAUDE.md": [
+        "pnpm typecheck",
+        "pnpm test",
+        "pnpm lint",
+        "mypy app/",
+    ],
+    "CONTRIBUTING.md": [
+        "推荐使用 pnpm",
+        "pnpm install",
+        "pnpm dev",
+        "pnpm typecheck",
+        "pnpm lint",
+        "pnpm format",
+        "使用 ESLint + Prettier",
+        "mypy app",
+    ],
     "SECURITY.md": [
         "safety check",
         "pnpm audit",
+    ],
+    "TECH_STACK.md": [
+        "**Safety** - Python 依赖安全检查",
+        "**ESLint** - 代码检查",
+        "**Prettier** - 代码格式化",
     ],
 }
 

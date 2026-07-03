@@ -350,8 +350,8 @@ const className = clsx(
 
 ### 开发工具
 
-**ESLint** - 代码检查
-**Prettier** - 代码格式化
+**TypeScript** - 类型检查
+**Vite** - 前端构建
 **Vitest** - 单元测试
 
 ---
@@ -548,7 +548,7 @@ gunicorn app.main:app \
 
 ## 安全工具
 
-**Safety** - Python 依赖安全检查
+**pip-audit** - Python 依赖安全检查
 **npm audit** - Node.js 依赖审计
 **Trivy** - 容器镜像扫描
 **OWASP ZAP** - Web 应用安全测试
