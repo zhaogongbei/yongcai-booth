@@ -113,6 +113,7 @@
 ### 变更
 - 前端 CI 与本地文档统一使用 `npm ci`、`npm run typecheck` 和 `npm run build`，匹配已提交的 `package-lock.json`。
 - 移除前端残留 pnpm 配置，并同步 Makefile/README 中的前端命令到 npm。
+- 前端页面层统一通过 `tokenStorage` 获取访问令牌，减少认证存储迁移成本。
 
 ### 修复
 - 新增仓库卫生检查，阻止 `bin/`、`obj/`、`dist/`、`node_modules/` 等生成产物进入版本控制。

@@ -5,6 +5,7 @@ import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
 import { NeonBadge } from "../components/NeonBadge";
 import { toast } from "sonner";
+import { tokenStorage } from "../../lib/api";
 import type { Screen } from "../types";
 
 interface BoothDevice {
@@ -44,7 +45,7 @@ export function BoothManagerScreen({ navigate }: { navigate: (s: Screen) => void
   const [error, setError] = useState<string | null>(null);
 
   const loadBooths = useCallback(async () => {
-    const token = localStorage.getItem("aibooth.access_token");
+    const token = tokenStorage.access;
     if (!token) {
       setLoading(false);
       setBooths([]);
@@ -69,7 +70,7 @@ export function BoothManagerScreen({ navigate }: { navigate: (s: Screen) => void
   }, [loadBooths]);
 
   const handleLockBooth = async (boothId: string) => {
-    const token = localStorage.getItem("aibooth.access_token");
+    const token = tokenStorage.access;
     if (!token) return;
     try {
       await toggleBoothLock(boothId, true, token);

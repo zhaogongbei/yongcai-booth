@@ -6,7 +6,7 @@ import { GlowBtn } from "../components/GlowBtn";
 import { SimpleBarChart } from "../components/SimpleBarChart";
 import { showToast } from "../stores/useToast";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
-import { createPhotoSession, getEvents, type EventResponse } from "../../lib/api";
+import { createPhotoSession, getEvents, tokenStorage, type EventResponse } from "../../lib/api";
 import type { Screen } from "../types";
 
 interface EventsScreenProps {
@@ -46,7 +46,7 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
   const [usingMock, setUsingMock] = useState(true);
 
   const loadEvents = useCallback(async () => {
-    const token = localStorage.getItem("aibooth.access_token");
+    const token = tokenStorage.access;
     if (!token) { setUsingMock(true); setEvents(DEMO_EVENTS); return; }
     setLoading(true);
     try {
@@ -72,7 +72,7 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
 
   // 进入某活动的拍照流程：注入 eventId + token，跳转相机屏
   const enterCapture = async (eventId: string, eventName: string) => {
-    const token = localStorage.getItem("aibooth.access_token");
+    const token = tokenStorage.access;
     if (!token || usingMock) {
       setCaptureContext({ eventId, sessionId: null, authToken: token });
       showToast.success(`已进入「${eventName}」拍照模式（演示数据，上传会失败）`);

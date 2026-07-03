@@ -3,7 +3,7 @@ import { Camera, Printer, CalendarDays, TrendingUp, RefreshCw } from "lucide-rea
 import { GlassCard } from "../components/GlassCard";
 import { DualAreaChart } from "../components/DualAreaChart";
 import { DonutChart } from "../components/DonutChart";
-import { getMyTeams, getAnalyticsOverview } from "../../lib/api";
+import { getMyTeams, getAnalyticsOverview, tokenStorage } from "../../lib/api";
 import type { Screen } from "../types";
 
 interface AnalyticsScreenProps {
@@ -22,7 +22,7 @@ export function AnalyticsScreen({ navigate }: AnalyticsScreenProps) {
   });
 
   const loadAnalytics = useCallback(async () => {
-    const token = localStorage.getItem("aibooth.access_token");
+    const token = tokenStorage.access;
     if (!token) { setUsingMock(true); return; }
     setLoading(true);
     try {
