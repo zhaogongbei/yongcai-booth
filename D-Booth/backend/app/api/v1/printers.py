@@ -68,8 +68,11 @@ async def print_test_page(printer_name: str):
 async def save_calibration(printer_name: str, params: CalibrationParams):
     """保存打印机校准参数"""
     try:
-        # TODO: 保存到数据库或配置文件
-        # 暂时返回成功
-        return {"success": True, "message": "Calibration parameters saved", "params": params}
+        raise HTTPException(
+            status_code=501,
+            detail="Printer calibration persistence is not implemented",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save calibration: {str(e)}")

@@ -34,3 +34,21 @@ async def test_print_test_page_driver_failure_returns_400(
 
     assert response.status_code == 400
     assert response.json()["error"]["message"] == "Failed to print test page"
+
+
+@pytest.mark.anyio
+async def test_save_calibration_reports_not_implemented(client: AsyncClient):
+    response = await client.put(
+        "/api/v1/printers/Booth%20Printer/calibration",
+        json={
+            "scale": 1.0,
+            "offset_x": 0,
+            "offset_y": 0,
+            "rotation": 0,
+        },
+    )
+
+    assert response.status_code == 501
+    assert response.json()["error"]["message"] == (
+        "Printer calibration persistence is not implemented"
+    )
