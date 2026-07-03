@@ -41,6 +41,7 @@ BLOCKED_PATHS = {
     "ACTUAL_PROGRESS_REPORT.md",
     "CODE_IMPLEMENTATION_PROGRESS.md",
     "COMPREHENSIVE_FINAL_REPORT.md",
+    "CLAUDE.md.backup",
     "CONTINUE_FROM_HERE.md",
     "D-Booth/backend/app/services/VERSION",
     "D-Booth/backend/.github/workflows/ci.yml",
@@ -110,6 +111,15 @@ BLOCKED_TEXT = {
         "pnpm format",
         "使用 ESLint + Prettier",
         "mypy app",
+    ],
+    "DEPLOYMENT.md": [
+        "pnpm",
+        "pnpm-lock.yaml",
+    ],
+    "DEVELOPER_GUIDE.md": [
+        "pnpm",
+        "pnpm-lock.yaml",
+        "mypy app/",
     ],
     "SECURITY.md": [
         "safety check",

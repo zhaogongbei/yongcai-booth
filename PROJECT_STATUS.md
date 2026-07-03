@@ -15,6 +15,7 @@
 
 - 根目录 `.github/workflows/ci.yml` 是唯一权威 CI workflow。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
+- 前端文档、部署示例和开发指南不得回退到 pnpm/yarn。
 - 前端是应用而不是库，`react` 和 `react-dom` 必须作为直接 runtime dependencies 声明。
 - 前端 React runtime 与 `@types/react` / `@types/react-dom` 必须保持同一主版本。
 - 后端 pytest 配置集中在 `D-Booth/backend/pyproject.toml`。
@@ -41,6 +42,7 @@
 - 已将 React 类型包从 19.x 收敛到 18.x，避免类型面领先运行时。
 - 已移除后端未使用的 `python-magic` 运行时依赖，减少镜像依赖面。
 - 已固定 CI 安全扫描里的 Python 依赖审计运行版本，避免 runner 默认 Python 漂移。
+- 已清理部署/开发指南中的旧 pnpm 指令，并删除过期 AI 指令备份文件。
 
 ## 已知债务
 

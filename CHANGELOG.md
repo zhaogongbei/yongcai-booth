@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 修复
+- 清理部署和开发指南中的旧 pnpm 指令，并删除已过期的 `CLAUDE.md.backup`，避免 AI 与开发者读取冲突工作流。
 - 固定 CI 安全扫描中的 Python 依赖审计运行版本，避免 GitHub runner 默认 Python 漂移。
 - 将前端 React 类型包收敛到 18.x，与 React 18 runtime 保持一致。
 - 移除后端未使用的 `python-magic` 运行时依赖，降低镜像依赖面。
