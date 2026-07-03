@@ -1,6 +1,7 @@
 import json
 import redis.asyncio as redis
 from functools import wraps
+from time import monotonic
 from typing import Callable, Optional, Any
 from uuid import UUID
 
@@ -12,27 +13,41 @@ class RedisCache:
     """Redis cache client"""
 
     _client: Optional[redis.Redis] = None
+    _disabled_until: float = 0.0
+    _failure_backoff_seconds: float = 30.0
 
     @classmethod
     async def get_client(cls) -> Optional[redis.Redis]:
         """Get Redis client instance"""
+        if monotonic() < cls._disabled_until:
+            return None
+
         if cls._client is None and settings.REDIS_URL:
             try:
-                cls._client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+                cls._client = redis.from_url(
+                    settings.REDIS_URL,
+                    decode_responses=True,
+                    socket_connect_timeout=0.2,
+                    socket_timeout=0.2,
+                )
                 # Test connection
                 await cls._client.ping()
                 logger.info("Redis connection established")
             except Exception as e:
                 logger.warning(f"Failed to connect to Redis: {e}")
+                if cls._client:
+                    await cls._client.aclose()
                 cls._client = None
+                cls._disabled_until = monotonic() + cls._failure_backoff_seconds
         return cls._client
 
     @classmethod
     async def close(cls) -> None:
         """Close Redis connection"""
         if cls._client:
-            await cls._client.close()
+            await cls._client.aclose()
             cls._client = None
+            cls._disabled_until = 0.0
             logger.info("Redis connection closed")
 
     @classmethod

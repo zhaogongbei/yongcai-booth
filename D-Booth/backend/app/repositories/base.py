@@ -78,7 +78,7 @@ def log_query_performance(threshold_ms: float = 100.0):
                 result = await func(*args, **kwargs)
                 duration_ms = (time.perf_counter() - start_time) * 1000
 
-                if duration_ms > threshold_ms:
+                if duration_ms >= threshold_ms:
                     logger.warning(
                         f"Slow query detected: {func.__name__} took {duration_ms:.2f}ms "
                         f"(threshold: {threshold_ms}ms)"

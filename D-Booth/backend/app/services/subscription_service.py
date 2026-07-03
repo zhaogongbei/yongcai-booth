@@ -124,7 +124,7 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
         limit = plan["limits"]["max_events"]
         current = await EventRepository(self.db).count_by_team(team_id)
         if self._limit_exceeded(current, limit):
-            raise BusinessRuleError(
+            raise ValueError(
                 f"Event quota exceeded for plan '{plan['id']}' "
                 f"({current}/{limit})"
             )
@@ -135,7 +135,7 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
         limit = plan["limits"]["photos_per_event"]
         current = await PhotoRepository(self.db).count_by_event(event_id)
         if self._limit_exceeded(current, limit):
-            raise BusinessRuleError(
+            raise ValueError(
                 f"Photo quota exceeded for plan '{plan['id']}' "
                 f"({current}/{limit} photos per event)"
             )
@@ -152,7 +152,7 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
             period_end,
         )
         if self._limit_exceeded(current, limit):
-            raise BusinessRuleError(
+            raise ValueError(
                 f"AI credit quota exceeded for plan '{plan['id']}' "
                 f"({current}/{limit})"
             )

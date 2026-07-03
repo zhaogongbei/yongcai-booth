@@ -57,19 +57,19 @@ async def get_team(
 ):
     """Get team by ID"""
     team_service = TeamService(db)
-    
-    # Check if user is a member
-    if not await team_service.is_member(team_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not a member of this team"
-        )
-    
+
     team = await team_service.get_team_with_members(team_id)
     if not team:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Team not found"
+        )
+
+    # Check if user is a member
+    if not await team_service.is_member(team_id, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this team"
         )
     
     return team
