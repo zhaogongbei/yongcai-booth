@@ -31,6 +31,9 @@ BLOCKED_SUFFIXES = {
 BLOCKED_FILENAMES = {
     ".env",
     ".env.local",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "yarn.lock",
 }
 
 

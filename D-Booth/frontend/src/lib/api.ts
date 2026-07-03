@@ -1,12 +1,15 @@
 /**
  * Unified API client for D-Booth
  *
+ * Features:
  * - Base URL from VITE_API_BASE_URL, defaults to http://localhost:8000/api/v1
  * - Auto attaches Bearer token from tokenStorage (localStorage)
  * - Auto attaches CSRF token on POST/PUT/DELETE/PATCH requests
  * - 401 triggers token refresh; refresh failure dispatches aibooth:unauthorized
  * - 403 CSRF invalidation triggers automatic CSRF token refresh and retry
  * - All fetch requests use credentials: 'include' for CSRF cookie
+ * - Configurable retry logic for transient failures
+ * - Request/response interceptors support
  *
  * Usage:
  *   import { initCsrfToken, request, tokenStorage, loginForm, ... } from "@/lib/api";
@@ -17,6 +20,112 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/ap
 const ROOT_BASE_URL = BASE_URL.replace(/\/api\/v1$/, "");
 const TOKEN_KEY = "aibooth.access_token";
 const REFRESH_KEY = "aibooth.refresh_token";
+
+// ─── Configuration ────────────────────────────────────────────────────────────
+
+/**
+ * Global API configuration
+ */
+export interface ApiConfig {
+  /** Maximum number of retry attempts for failed requests (default: 3) */
+  maxRetries: number;
+  /** Base delay between retries in milliseconds (default: 1000) */
+  retryDelay: number;
+  /** HTTP status codes that trigger a retry (default: [408, 429, 500, 502, 503, 504]) */
+  retryableStatuses: number[];
+  /** Request timeout in milliseconds (default: 30000) */
+  timeout: number;
+}
+
+let apiConfig: ApiConfig = {
+  maxRetries: 3,
+  retryDelay: 1000,
+  retryableStatuses: [408, 429, 500, 502, 503, 504],
+  timeout: 30000,
+};
+
+/**
+ * Update global API configuration
+ *
+ * @param config - Partial configuration to merge with defaults
+ *
+ * @example
+ * ```ts
+ * setApiConfig({ maxRetries: 5, timeout: 60000 });
+ * ```
+ */
+export function setApiConfig(config: Partial<ApiConfig>): void {
+  apiConfig = { ...apiConfig, ...config };
+}
+
+/**
+ * Get current API configuration
+ */
+export function getApiConfig(): Readonly<ApiConfig> {
+  return { ...apiConfig };
+}
+
+// ─── Interceptors ─────────────────────────────────────────────────────────────
+
+type RequestInterceptor = (config: RequestInit, path: string) => RequestInit | Promise<RequestInit>;
+type ResponseInterceptor = (response: Response) => Response | Promise<Response>;
+type ErrorInterceptor = (error: Error) => Error | Promise<Error>;
+
+const requestInterceptors: RequestInterceptor[] = [];
+const responseInterceptors: ResponseInterceptor[] = [];
+const errorInterceptors: ErrorInterceptor[] = [];
+
+/**
+ * Add a request interceptor
+ *
+ * @param interceptor - Function to modify request config before sending
+ * @returns Function to remove the interceptor
+ *
+ * @example
+ * ```ts
+ * const removeInterceptor = addRequestInterceptor((config, path) => {
+ *   console.log('Sending request to:', path);
+ *   return config;
+ * });
+ *
+ * // Later: removeInterceptor();
+ * ```
+ */
+export function addRequestInterceptor(interceptor: RequestInterceptor): () => void {
+  requestInterceptors.push(interceptor);
+  return () => {
+    const index = requestInterceptors.indexOf(interceptor);
+    if (index > -1) requestInterceptors.splice(index, 1);
+  };
+}
+
+/**
+ * Add a response interceptor
+ *
+ * @param interceptor - Function to process response before parsing
+ * @returns Function to remove the interceptor
+ */
+export function addResponseInterceptor(interceptor: ResponseInterceptor): () => void {
+  responseInterceptors.push(interceptor);
+  return () => {
+    const index = responseInterceptors.indexOf(interceptor);
+    if (index > -1) responseInterceptors.splice(index, 1);
+  };
+}
+
+/**
+ * Add an error interceptor
+ *
+ * @param interceptor - Function to process errors before throwing
+ * @returns Function to remove the interceptor
+ */
+export function addErrorInterceptor(interceptor: ErrorInterceptor): () => void {
+  errorInterceptors.push(interceptor);
+  return () => {
+    const index = errorInterceptors.indexOf(interceptor);
+    if (index > -1) errorInterceptors.splice(index, 1);
+  };
+}
 
 // ─── Token Storage ────────────────────────────────────────────────────────────
 

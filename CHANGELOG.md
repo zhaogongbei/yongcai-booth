@@ -110,6 +110,13 @@
 
 ## [Unreleased]
 
+### 变更
+- 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
+- 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
+
+### 修复
+- 修复 Makefile 和根 README 中残留的 pnpm 命令，避免本地开发、CI 与 AI 协作说明不一致。
+
 ### 计划中
 - 多机位同步拍摄
 - 4K 视频录制
