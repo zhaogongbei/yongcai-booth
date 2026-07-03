@@ -1,13 +1,14 @@
 import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import check_team_member, get_current_active_user
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.models import Disclaimer, DisclaimerAcceptance
+from app.models.models import Disclaimer, DisclaimerAcceptance, Event, User
 from app.schemas.disclaimer import (
     DisclaimerAcceptanceCreate,
     DisclaimerAcceptanceResponse,
@@ -16,6 +17,19 @@ from app.schemas.disclaimer import (
 )
 
 router = APIRouter(prefix="/disclaimers", tags=["disclaimers"])
+
+
+async def _ensure_event_access(
+    db: AsyncSession,
+    event_id: UUID,
+    current_user: User,
+) -> None:
+    result = await db.execute(select(Event.team_id).where(Event.id == event_id))
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    await check_team_member(team_id, current_user, db)
 
 
 @router.get("/event/{event_id}", response_model=DisclaimerResponse)
@@ -43,9 +57,14 @@ async def get_event_disclaimer(event_id: UUID, db: AsyncSession = Depends(get_db
 
 @router.put("/event/{event_id}", response_model=DisclaimerResponse)
 async def update_event_disclaimer(
-    event_id: UUID, disclaimer_data: DisclaimerUpdate, db: AsyncSession = Depends(get_db)
+    event_id: UUID,
+    disclaimer_data: DisclaimerUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """更新事件的免责声明"""
+    await _ensure_event_access(db, event_id, current_user)
+
     try:
         result = await db.execute(
             select(Disclaimer).where(Disclaimer.event_id == event_id)

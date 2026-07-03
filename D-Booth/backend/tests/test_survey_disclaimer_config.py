@@ -1,7 +1,9 @@
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
+
+from app.main import app
 
 
 async def _create_event(client: AsyncClient, slug: str) -> dict:
@@ -59,6 +61,16 @@ async def test_survey_config_can_update_after_default_get(
 
 
 @pytest.mark.anyio
+async def test_survey_config_update_requires_authentication(client: AsyncClient):
+    response = await client.put(
+        f"/api/v1/surveys/event/{uuid4()}",
+        json={"enabled": True, "title": "Visitor Feedback", "questions": []},
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
 async def test_disclaimer_config_can_update_after_default_get(
     authenticated_client: AsyncClient,
 ):
@@ -85,6 +97,62 @@ async def test_disclaimer_config_can_update_after_default_get(
 
 
 @pytest.mark.anyio
+async def test_disclaimer_config_update_requires_authentication(client: AsyncClient):
+    response = await client.put(
+        f"/api/v1/disclaimers/event/{uuid4()}",
+        json={
+            "enabled": True,
+            "title": "Event Terms",
+            "text": "Please accept the event terms.",
+            "require_signature": True,
+        },
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_survey_and_disclaimer_config_reject_non_member(
+    authenticated_client: AsyncClient,
+):
+    event = await _create_event(authenticated_client, "config-non-member")
+
+    other_user_data = {
+        "email": "config-other@example.com",
+        "password": "OtherPass123!@",
+        "full_name": "Config Other",
+    }
+    await authenticated_client.post("/api/v1/auth/register", json=other_user_data)
+    login_response = await authenticated_client.post(
+        "/api/v1/auth/login",
+        data={"username": other_user_data["email"], "password": other_user_data["password"]},
+    )
+    other_token = login_response.json()["access_token"]
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {other_token}"},
+    ) as other_client:
+        survey_response = await other_client.put(
+            f"/api/v1/surveys/event/{event['id']}",
+            json={"enabled": True, "title": "Visitor Feedback", "questions": []},
+        )
+        disclaimer_response = await other_client.put(
+            f"/api/v1/disclaimers/event/{event['id']}",
+            json={
+                "enabled": True,
+                "title": "Event Terms",
+                "text": "Please accept the event terms.",
+                "require_signature": True,
+            },
+        )
+
+    assert survey_response.status_code == 403
+    assert disclaimer_response.status_code == 403
+
+
+@pytest.mark.anyio
 async def test_survey_export_without_config_returns_404(
     authenticated_client: AsyncClient,
 ):
@@ -94,6 +162,13 @@ async def test_survey_export_without_config_returns_404(
 
     assert response.status_code == 404
     assert response.json()["error"]["message"] == "该事件没有调查配置"
+
+
+@pytest.mark.anyio
+async def test_survey_export_requires_authentication(client: AsyncClient):
+    response = await client.get(f"/api/v1/surveys/responses/export/{uuid4()}")
+
+    assert response.status_code == 401
 
 
 @pytest.mark.anyio

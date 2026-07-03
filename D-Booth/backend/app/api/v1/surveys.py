@@ -4,14 +4,15 @@ from io import StringIO
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import check_team_member, get_current_active_user
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.models import Survey, SurveyResponse
+from app.models.models import Event, Survey, SurveyResponse, User
 from app.schemas.survey import (
     SurveyAnswerResponse,
     SurveyAnswerSubmit,
@@ -20,6 +21,19 @@ from app.schemas.survey import (
 )
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
+
+
+async def _ensure_event_access(
+    db: AsyncSession,
+    event_id: UUID,
+    current_user: User,
+) -> None:
+    result = await db.execute(select(Event.team_id).where(Event.id == event_id))
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    await check_team_member(team_id, current_user, db)
 
 
 @router.get("/event/{event_id}", response_model=SurveyResponseSchema)
@@ -42,9 +56,14 @@ async def get_event_survey(event_id: UUID, db: AsyncSession = Depends(get_db)):
 
 @router.put("/event/{event_id}", response_model=SurveyResponseSchema)
 async def update_event_survey(
-    event_id: UUID, survey_data: SurveyUpdate, db: AsyncSession = Depends(get_db)
+    event_id: UUID,
+    survey_data: SurveyUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """更新事件的调查配置"""
+    await _ensure_event_access(db, event_id, current_user)
+
     try:
         result = await db.execute(select(Survey).where(Survey.event_id == event_id))
         survey = result.scalar_one_or_none()
@@ -119,8 +138,14 @@ async def get_session_survey_responses(session_id: UUID, db: AsyncSession = Depe
 
 
 @router.get("/responses/export/{event_id}")
-async def export_survey_responses(event_id: UUID, db: AsyncSession = Depends(get_db)):
+async def export_survey_responses(
+    event_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """导出调查回答为CSV"""
+    await _ensure_event_access(db, event_id, current_user)
+
     try:
         # 获取调查配置
         survey_result = await db.execute(
