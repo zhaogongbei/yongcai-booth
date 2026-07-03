@@ -72,10 +72,26 @@ async def submit_survey_response(
 ):
     """提交调查回答"""
     try:
+        survey_result = await db.execute(
+            select(Survey.id).where(Survey.event_id == answer_data.event_id)
+        )
+        survey_id = survey_result.scalar_one_or_none()
+        if not survey_id:
+            raise HTTPException(status_code=404, detail="该事件没有调查配置")
+
+        existing = await db.execute(
+            select(SurveyResponse.id)
+            .where(SurveyResponse.event_id == answer_data.event_id)
+            .where(SurveyResponse.session_id == answer_data.session_id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="已经提交过调查回答")
+
         response = SurveyResponse(
             id=uuid.uuid4(),
             event_id=answer_data.event_id,
             session_id=answer_data.session_id,
+            survey_id=survey_id,
             answers=answer_data.answers,
         )
 
@@ -84,6 +100,8 @@ async def submit_survey_response(
         await db.refresh(response)
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"提交调查回答失败: {str(e)}")
         await db.rollback()

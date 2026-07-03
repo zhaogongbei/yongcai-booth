@@ -134,3 +134,80 @@ async def test_accepting_disclaimer_without_config_returns_404(
 
     assert response.status_code == 404
     assert response.json()["error"]["message"] == "免责声明不存在"
+
+
+@pytest.mark.anyio
+async def test_submit_survey_response_links_existing_survey(
+    authenticated_client: AsyncClient,
+):
+    event = await _create_event(authenticated_client, "survey-submit")
+    get_response = await authenticated_client.get(f"/api/v1/surveys/event/{event['id']}")
+    assert get_response.status_code == 200
+
+    session_response = await authenticated_client.post(
+        "/api/v1/photos/sessions",
+        json={"event_id": event["id"]},
+    )
+    assert session_response.status_code == 201
+
+    response = await authenticated_client.post(
+        "/api/v1/surveys/responses",
+        json={
+            "event_id": event["id"],
+            "session_id": session_response.json()["id"],
+            "answers": {"q1": "Great"},
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["event_id"] == event["id"]
+    assert data["session_id"] == session_response.json()["id"]
+    assert data["answers"] == {"q1": "Great"}
+
+
+@pytest.mark.anyio
+async def test_submit_survey_response_twice_returns_400(
+    authenticated_client: AsyncClient,
+):
+    event = await _create_event(authenticated_client, "survey-duplicate")
+    get_response = await authenticated_client.get(f"/api/v1/surveys/event/{event['id']}")
+    assert get_response.status_code == 200
+
+    session_response = await authenticated_client.post(
+        "/api/v1/photos/sessions",
+        json={"event_id": event["id"]},
+    )
+    assert session_response.status_code == 201
+
+    payload = {
+        "event_id": event["id"],
+        "session_id": session_response.json()["id"],
+        "answers": {"q1": "Great"},
+    }
+
+    first_response = await authenticated_client.post("/api/v1/surveys/responses", json=payload)
+    second_response = await authenticated_client.post("/api/v1/surveys/responses", json=payload)
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 400
+    assert second_response.json()["error"]["message"] == "已经提交过调查回答"
+
+
+@pytest.mark.anyio
+async def test_submit_survey_response_without_config_returns_404(
+    authenticated_client: AsyncClient,
+):
+    event = await _create_event(authenticated_client, "survey-missing")
+
+    response = await authenticated_client.post(
+        "/api/v1/surveys/responses",
+        json={
+            "event_id": event["id"],
+            "session_id": str(uuid4()),
+            "answers": {"q1": "Great"},
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["message"] == "该事件没有调查配置"
