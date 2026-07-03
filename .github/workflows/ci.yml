@@ -184,12 +184,10 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
           python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict
-        continue-on-error: true
 
       - name: Node.js dependency audit
         working-directory: D-Booth/frontend
         run: npm run audit:security
-        continue-on-error: true
 
   # Docker Build
   docker-build:

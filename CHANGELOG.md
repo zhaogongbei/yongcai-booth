@@ -27,6 +27,7 @@
 - Python 依赖安全扫描从未固定的 `safety check` 切换为随开发依赖固定版本的 `pip-audit`。
 - 优化 `useAuth` 初始化和 unauthorized 事件处理，减少未认证闪烁并确保会话失效时清理 token。
 - 新增 `useToggle` / `useMultiToggle` 前端 hooks，并同步导出与 hooks 文档。
+- 固定后端 CI lint 所需的 `isort` 依赖，并让 Python/Node 依赖审计在发现问题时阻断 CI。
 
 ### 变更
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
