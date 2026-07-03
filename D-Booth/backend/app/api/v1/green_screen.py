@@ -2,9 +2,7 @@
 Green Screen API Endpoints
 """
 
-import io
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 from uuid import UUID, uuid4
@@ -12,11 +10,13 @@ from uuid import UUID, uuid4
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.repositories.event_repository import EventRepository
+from app.models.models import Event, GreenScreenBackgroundAsset, GreenScreenSettings
 from app.schemas.green_screen import (
     BackgroundAnalysisResult,
     GreenScreenBackground,
@@ -50,6 +50,97 @@ def _save_local_green_screen_file(
     target = relative_folder / stored_name
     target.write_bytes(file_data)
     return f"/uploads/green-screen/{event_id}/{folder}/{stored_name}"
+
+
+def _delete_local_green_screen_file(file_url: Optional[str]) -> None:
+    if not file_url or not file_url.startswith("/uploads/green-screen/"):
+        return
+
+    uploads_root = (Path.cwd() / "uploads").resolve()
+    target = (Path.cwd() / file_url.lstrip("/")).resolve()
+    if target.is_file() and str(target).startswith(str(uploads_root)):
+        target.unlink()
+
+
+def _background_response(background: GreenScreenBackgroundAsset) -> GreenScreenBackground:
+    return GreenScreenBackground(
+        id=background.id,
+        name=background.name,
+        background_url=background.background_url,
+        overlay_url=background.overlay_url,
+        order=background.sort_order or 0,
+        created_at=background.created_at,
+    )
+
+
+def _settings_response(settings: GreenScreenSettings) -> GreenScreenSettingsResponse:
+    return GreenScreenSettingsResponse(
+        id=settings.id,
+        event_id=settings.event_id,
+        enabled=bool(settings.enabled),
+        mode=settings.mode or "auto",
+        color_to_remove=settings.color_to_remove or "#00FF00",
+        sensitivity=int(settings.sensitivity or 50),
+        smoothness=int(settings.smoothness or 30),
+        use_flash=bool(settings.use_flash),
+        background_mode=settings.background_mode or "rotate",
+        output_size=settings.output_size or "template",
+        current_background_index=settings.current_background_index or 0,
+        backgrounds=[_background_response(background) for background in settings.backgrounds],
+        created_at=settings.created_at,
+        updated_at=settings.updated_at,
+    )
+
+
+async def _get_settings_for_event(
+    db: AsyncSession,
+    event_id: UUID,
+) -> Optional[GreenScreenSettings]:
+    result = await db.execute(
+        select(GreenScreenSettings)
+        .options(selectinload(GreenScreenSettings.backgrounds))
+        .where(GreenScreenSettings.event_id == event_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _ensure_event_exists(db: AsyncSession, event_id: UUID) -> None:
+    result = await db.execute(select(Event.id).where(Event.id == event_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+
+async def _get_or_create_settings_for_event(
+    db: AsyncSession,
+    event_id: UUID,
+) -> GreenScreenSettings:
+    await _ensure_event_exists(db, event_id)
+    settings = await _get_settings_for_event(db, event_id)
+    if settings:
+        return settings
+
+    settings = GreenScreenSettings(
+        id=uuid4(),
+        event_id=event_id,
+        enabled=False,
+        mode="auto",
+        color_to_remove="#00FF00",
+        sensitivity=50,
+        smoothness=30,
+        use_flash=False,
+        background_mode="rotate",
+        output_size="template",
+        current_background_index=0,
+    )
+    db.add(settings)
+    await db.commit()
+    created = await _get_settings_for_event(db, event_id)
+    if not created:
+        raise RuntimeError("Failed to create green screen settings")
+    return created
 
 
 @router.post("/preview", response_class=Response)
@@ -105,6 +196,8 @@ async def preview_green_screen(
 
     except json.JSONDecodeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid settings JSON")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Green screen preview failed: {str(e)}")
         raise HTTPException(
@@ -145,24 +238,10 @@ async def get_green_screen_settings(
 ):
     """Get green screen settings for an event"""
     try:
-        # TODO: Implement actual database retrieval
-        # For now return default settings
-        return GreenScreenSettingsResponse(
-            id=UUID(int=0),
-            event_id=event_id,
-            enabled=False,
-            mode="auto",
-            color_to_remove="#00FF00",
-            sensitivity=50,
-            smoothness=30,
-            use_flash=False,
-            background_mode="rotate",
-            output_size="template",
-            current_background_index=0,
-            backgrounds=[],
-            created_at="2024-01-01T00:00:00",
-            updated_at="2024-01-01T00:00:00",
-        )
+        settings = await _get_or_create_settings_for_event(db, event_id)
+        return _settings_response(settings)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get green screen settings: {str(e)}")
         raise HTTPException(
@@ -179,14 +258,21 @@ async def update_green_screen_settings(
 ):
     """Update green screen settings for an event"""
     try:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Green screen settings persistence is not implemented",
-        )
+        settings_model = await _get_or_create_settings_for_event(db, event_id)
+        update_data = settings.model_dump()
+        for field, value in update_data.items():
+            setattr(settings_model, field, value)
+
+        await db.commit()
+        updated = await _get_settings_for_event(db, event_id)
+        if not updated:
+            raise RuntimeError("Failed to load updated green screen settings")
+        return _settings_response(updated)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to update green screen settings: {str(e)}")
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update settings: {str(e)}",
@@ -209,6 +295,8 @@ async def upload_background(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Background file is empty"
             )
+
+        settings = await _get_or_create_settings_for_event(db, event_id)
 
         # Upload to storage
         filename = file.filename or f"{uuid4().hex}.jpg"
@@ -248,20 +336,24 @@ async def upload_background(
                         "overlays",
                     )
 
-        # TODO: Save to database
-        return GreenScreenBackground(
+        background = GreenScreenBackgroundAsset(
             id=uuid4(),
+            settings_id=settings.id,
             name=name,
             background_url=background_url,
             overlay_url=overlay_url,
-            order=0,
-            created_at=datetime.now(timezone.utc),
+            sort_order=len(settings.backgrounds),
         )
+        db.add(background)
+        await db.commit()
+        await db.refresh(background)
+        return _background_response(background)
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to upload background: {str(e)}")
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload background: {str(e)}",
@@ -276,14 +368,35 @@ async def delete_background(
 ):
     """Delete a background image"""
     try:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Green screen background deletion is not implemented",
+        result = await db.execute(
+            select(GreenScreenBackgroundAsset)
+            .join(GreenScreenSettings)
+            .where(GreenScreenBackgroundAsset.id == background_id)
+            .where(GreenScreenSettings.event_id == event_id)
         )
+        background = result.scalar_one_or_none()
+        if not background:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Green screen background not found",
+            )
+
+        if r2_storage.is_available():
+            await r2_storage.delete_file(background.background_url)
+            if background.overlay_url:
+                await r2_storage.delete_file(background.overlay_url)
+        else:
+            _delete_local_green_screen_file(background.background_url)
+            _delete_local_green_screen_file(background.overlay_url)
+
+        await db.delete(background)
+        await db.commit()
+        return {"success": True}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to delete background: {str(e)}")
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete background: {str(e)}",
@@ -325,6 +438,8 @@ async def analyze_test_photo(
 
         return BackgroundAnalysisResult(**analysis)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Test photo analysis failed: {str(e)}")
         raise HTTPException(

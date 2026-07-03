@@ -12,19 +12,40 @@ def _png_bytes(color: tuple[int, int, int] = (0, 255, 0)) -> bytes:
     return buf.getvalue()
 
 
+async def _create_event(client: AsyncClient, slug: str) -> dict:
+    team_response = await client.post(
+        "/api/v1/teams",
+        json={"name": f"Green Screen Team {slug}", "slug": f"green-screen-team-{slug}"},
+    )
+    assert team_response.status_code == 201
+
+    event_response = await client.post(
+        "/api/v1/events",
+        json={
+            "name": f"Green Screen Event {slug}",
+            "team_id": team_response.json()["id"],
+            "start_date": "2026-07-01T10:00:00Z",
+            "end_date": "2026-07-01T18:00:00Z",
+        },
+    )
+    assert event_response.status_code == 201
+    return event_response.json()
+
+
 @pytest.mark.anyio
 async def test_upload_background_saves_local_files(
-    client: AsyncClient,
+    authenticated_client: AsyncClient,
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.chdir(tmp_path)
-    event_id = uuid4()
+    event = await _create_event(authenticated_client, "upload")
+    event_id = event["id"]
 
-    response = await client.post(
+    response = await authenticated_client.post(
         "/api/v1/green-screen/backgrounds",
         data={
-            "event_id": str(event_id),
+            "event_id": event_id,
             "name": "Stage Backdrop",
         },
         files={
@@ -40,6 +61,12 @@ async def test_upload_background_saves_local_files(
     assert data["overlay_url"].startswith(f"/uploads/green-screen/{event_id}/overlays/")
     assert (tmp_path / data["background_url"].lstrip("/")).is_file()
     assert (tmp_path / data["overlay_url"].lstrip("/")).is_file()
+
+    settings_response = await authenticated_client.get(f"/api/v1/green-screen/settings/{event_id}")
+    assert settings_response.status_code == 200
+    settings = settings_response.json()
+    assert settings["backgrounds"][0]["id"] == data["id"]
+    assert settings["backgrounds"][0]["background_url"] == data["background_url"]
 
 
 @pytest.mark.anyio
@@ -58,16 +85,61 @@ async def test_upload_background_rejects_empty_file(client: AsyncClient):
 
 
 @pytest.mark.anyio
-async def test_delete_background_reports_not_implemented(client: AsyncClient):
-    response = await client.delete(
-        f"/api/v1/green-screen/backgrounds/{uuid4()}",
-        params={"event_id": str(uuid4())},
+async def test_get_green_screen_settings_returns_404_for_missing_event(client: AsyncClient):
+    response = await client.get(f"/api/v1/green-screen/settings/{uuid4()}")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["message"] == "Event not found"
+
+
+@pytest.mark.anyio
+async def test_analyze_test_photo_rejects_empty_file_with_400(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/green-screen/test-photo",
+        files={"file": ("empty.png", b"", "image/png")},
     )
 
-    assert response.status_code == 501
-    assert response.json()["error"]["message"] == (
-        "Green screen background deletion is not implemented"
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Image file is empty"
+
+
+@pytest.mark.anyio
+async def test_delete_background_removes_persisted_background(
+    authenticated_client: AsyncClient,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.chdir(tmp_path)
+    event = await _create_event(authenticated_client, "delete")
+    event_id = event["id"]
+
+    upload_response = await authenticated_client.post(
+        "/api/v1/green-screen/backgrounds",
+        data={
+            "event_id": event_id,
+            "name": "Deletable Backdrop",
+        },
+        files={"file": ("background.png", _png_bytes(), "image/png")},
     )
+    assert upload_response.status_code == 200
+    background = upload_response.json()
+    background_path = tmp_path / background["background_url"].lstrip("/")
+    assert background_path.is_file()
+
+    response = await authenticated_client.delete(
+        f"/api/v1/green-screen/backgrounds/{background['id']}",
+        params={"event_id": event_id},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert not background_path.exists()
+
+    settings_response = await authenticated_client.get(
+        f"/api/v1/green-screen/settings/{event_id}"
+    )
+    assert settings_response.status_code == 200
+    assert settings_response.json()["backgrounds"] == []
 
 
 @pytest.mark.anyio
@@ -103,9 +175,12 @@ async def test_process_photos_reports_not_implemented(client: AsyncClient):
 
 
 @pytest.mark.anyio
-async def test_update_green_screen_settings_reports_not_implemented(client: AsyncClient):
-    response = await client.put(
-        f"/api/v1/green-screen/settings/{uuid4()}",
+async def test_update_green_screen_settings_persists(authenticated_client: AsyncClient):
+    event = await _create_event(authenticated_client, "settings")
+    event_id = event["id"]
+
+    response = await authenticated_client.put(
+        f"/api/v1/green-screen/settings/{event_id}",
         json={
             "enabled": True,
             "mode": "auto",
@@ -119,7 +194,13 @@ async def test_update_green_screen_settings_reports_not_implemented(client: Asyn
         },
     )
 
-    assert response.status_code == 501
-    assert response.json()["error"]["message"] == (
-        "Green screen settings persistence is not implemented"
-    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enabled"] is True
+    assert data["sensitivity"] == 50
+    assert data["background_mode"] == "rotate"
+
+    get_response = await authenticated_client.get(f"/api/v1/green-screen/settings/{event_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["id"] == data["id"]
+    assert get_response.json()["enabled"] is True

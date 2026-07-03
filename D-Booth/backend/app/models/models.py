@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import JSON, Boolean, Column, DateTime
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -271,6 +271,55 @@ class DisclaimerAcceptance(Base, TimestampMixin, SoftDeleteMixin):
     disclaimer = relationship("Disclaimer", back_populates="acceptances", lazy="joined")
 
 
+# Green Screen Settings Model
+class GreenScreenSettings(Base, TimestampMixin):
+    __tablename__ = "green_screen_settings"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    event_id = Column(
+        GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    enabled = Column(Boolean, default=False)
+    mode = Column(String(50), default="auto")
+    color_to_remove = Column(String(20), default="#00FF00")
+    sensitivity = Column(Float, default=50)
+    smoothness = Column(Float, default=30)
+    use_flash = Column(Boolean, default=False)
+    background_mode = Column(String(20), default="rotate")
+    output_size = Column(String(20), default="template")
+    current_background_index = Column(Integer, default=0)
+
+    # Relationships
+    event = relationship("Event", back_populates="green_screen_settings", lazy="noload")
+    backgrounds = relationship(
+        "GreenScreenBackgroundAsset",
+        back_populates="settings",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        order_by="GreenScreenBackgroundAsset.sort_order",
+    )
+
+
+# Green Screen Background Model
+class GreenScreenBackgroundAsset(Base, TimestampMixin):
+    __tablename__ = "green_screen_backgrounds"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    settings_id = Column(
+        GUID(), ForeignKey("green_screen_settings.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(255), nullable=False)
+    background_url = Column(String(500), nullable=False)
+    overlay_url = Column(String(500))
+    sort_order = Column(Integer, default=0)
+
+    # Indexes
+    __table_args__ = (Index("ix_green_screen_backgrounds_settings_id", "settings_id"),)
+
+    # Relationships
+    settings = relationship("GreenScreenSettings", back_populates="backgrounds", lazy="noload")
+
+
 # Event Model
 class Event(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "events"
@@ -305,6 +354,13 @@ class Event(Base, TimestampMixin, SoftDeleteMixin):
     sessions = relationship("PhotoSession", back_populates="event", lazy="selectin")
     survey = relationship("Survey", back_populates="event", lazy="joined", uselist=False)
     disclaimer = relationship("Disclaimer", back_populates="event", lazy="joined", uselist=False)
+    green_screen_settings = relationship(
+        "GreenScreenSettings",
+        back_populates="event",
+        lazy="selectin",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 # Template Model
