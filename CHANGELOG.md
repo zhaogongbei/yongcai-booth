@@ -9,6 +9,7 @@
 
 ### 修复
 - 将前端 React 类型包收敛到 18.x，与 React 18 runtime 保持一致。
+- 移除后端未使用的 `python-magic` 运行时依赖，降低镜像依赖面。
 - 升级 `fastapi-csrf-protect` 到 Pydantic v2 兼容版本，消除后端测试中的第三方 validator 弃用警告。
 - 恢复后端服务层对旧 API 异常语义的兼容，确保 AI 任务与订阅配额错误继续按 `ValueError` 进入路由 400 处理。
 - 修复团队删除后详情查询先返回 403 的顺序问题，已删除资源现在返回 404。
