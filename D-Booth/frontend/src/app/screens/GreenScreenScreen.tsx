@@ -655,8 +655,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
             variant="primary"
             size="sm"
             onClick={() => {
-              toast.success("绿幕设置已保存");
-              navigate("settings");
+              toast.error("绿幕设置保存暂不可用");
             }}
             className="w-full"
           >
