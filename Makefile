@@ -13,7 +13,7 @@ install: ## Install all dependencies (backend + frontend + runtime)
 	@echo "Installing Backend dependencies..."
 	cd D-Booth/backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt
 	@echo "Installing Frontend dependencies..."
-	cd D-Booth/frontend && pnpm install
+	cd D-Booth/frontend && npm ci
 	@echo "Installing Runtime dependencies..."
 	cd D-Booth/runtime-dotnet && dotnet restore
 
@@ -195,7 +195,7 @@ health: ## Check all services health
 # Documentation
 docs: ## Generate documentation
 	cd D-Booth/backend && source venv/bin/activate && pdoc --html --output-dir docs app/
-	cd D-Booth/frontend && pnpm run docs
+	@echo "Frontend documentation generator is not configured yet."
 
 docs-serve: ## Serve documentation locally
 	cd docs && python -m http.server 8080

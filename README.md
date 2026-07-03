@@ -184,7 +184,7 @@ docker-compose up -d
 
 # Frontend (静态构建)
 cd frontend
-pnpm build
+npm run build
 # 部署 dist/ 到 CDN 或 Nginx
 ```
 

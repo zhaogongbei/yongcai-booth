@@ -46,10 +46,5 @@
     "react-dom": {
       "optional": true
     }
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "6.3.5"
-    }
   }
 }
