@@ -38,6 +38,7 @@ BLOCKED_FILENAMES = {
 }
 
 BLOCKED_PATHS = {
+    "D-Booth/backend/.github/workflows/ci.yml",
     "D-Booth/backend/app/models/types.py",
 }
 
