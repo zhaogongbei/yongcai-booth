@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -192,6 +193,10 @@ def read_repo_text(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def read_repo_json(path: str):
+    return json.loads(read_repo_text(path))
+
+
 def content_offenders() -> list[str]:
     offenders: list[str] = []
 
@@ -223,6 +228,22 @@ def content_offenders() -> list[str]:
             if config_default not in config:
                 offenders.append(
                     f"D-Booth/backend/app/core/config.py VERSION default must match VERSION: {project_version}."
+                )
+
+            frontend_package = read_repo_json("D-Booth/frontend/package.json")
+            frontend_lock = read_repo_json("D-Booth/frontend/package-lock.json")
+            lock_root = frontend_lock.get("packages", {}).get("", {})
+            if frontend_package.get("name") != "dbooth-frontend":
+                offenders.append("D-Booth/frontend/package.json name must be dbooth-frontend.")
+            if frontend_package.get("version") != project_version:
+                offenders.append(
+                    f"D-Booth/frontend/package.json version must match VERSION: {project_version}."
+                )
+            if frontend_lock.get("name") != "dbooth-frontend" or lock_root.get("name") != "dbooth-frontend":
+                offenders.append("D-Booth/frontend/package-lock.json root name must be dbooth-frontend.")
+            if frontend_lock.get("version") != project_version or lock_root.get("version") != project_version:
+                offenders.append(
+                    f"D-Booth/frontend/package-lock.json root version must match VERSION: {project_version}."
                 )
 
     for path, patterns in EXPECTED_TEXT.items():

@@ -15,6 +15,7 @@
 
 - 根目录 `.github/workflows/ci.yml` 是唯一权威 CI workflow。
 - 根目录 `VERSION` 是项目默认版本源；README 徽章和后端 `settings.VERSION` 默认值必须与它一致。
+- 前端 `package.json` 和 `package-lock.json` 根包名必须是 `dbooth-frontend`，版本必须与根 `VERSION` 一致。
 - 仓库卫生检查同时覆盖已跟踪和未跟踪的生成型报告/本地产物。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
 - 前端文档、部署示例和开发指南不得回退到 pnpm/yarn。
@@ -34,6 +35,7 @@
 - 外部版本报告提交带回旧 Safety、pnpm、全量 mypy、旧 release action 和生成报告入库后，已恢复 CI/CD、文档、版本源和仓库卫生门禁。
 - 已修复外部提交回退导致的活动统计打印和分享数量固定为 0 的数据回归。
 - 已修复外部提交回退导致的团队最后 owner 可被移除/降级、Props API `X-Team-Id` 解析 500 的回归。
+- 已修复前端 package 元数据中的 Figma 占位包名和版本漂移，并加入仓库卫生检查。
 - 已新增前端生产 Docker 镜像配置。
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。
