@@ -68,6 +68,7 @@ EXPECTED_TEXT = {
         "permissions:",
         "gh release create",
         "aquasecurity/trivy-action@v0.36.0",
+        "Set up Python for dependency audit",
         "needs: [backend-test, frontend-test, runtime-test, security-scan]",
         "${{ secrets.DOCKER_USERNAME }}/dbooth-backend",
         "${{ secrets.DOCKER_USERNAME }}/dbooth-frontend",

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 修复
+- 固定 CI 安全扫描中的 Python 依赖审计运行版本，避免 GitHub runner 默认 Python 漂移。
 - 将前端 React 类型包收敛到 18.x，与 React 18 runtime 保持一致。
 - 移除后端未使用的 `python-magic` 运行时依赖，降低镜像依赖面。
 - 升级 `fastapi-csrf-protect` 到 Pydantic v2 兼容版本，消除后端测试中的第三方 validator 弃用警告。

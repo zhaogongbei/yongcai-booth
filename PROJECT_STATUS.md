@@ -24,6 +24,7 @@
 - Docker 发布必须等待后端、前端、Runtime 和安全扫描全部通过，镜像命名空间来自 `DOCKER_USERNAME` secret。
 - GitHub Release 由生产发布 job 使用 `gh release create` 创建，不使用旧 release action。
 - CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
+- CI 安全扫描中的 Python 依赖审计必须使用项目声明的 `PYTHON_VERSION`，不能依赖 runner 默认 Python。
 
 ## 近期完成
 
@@ -39,6 +40,7 @@
 - 已将 React 运行时依赖从 optional peer 声明改为直接依赖，保证干净 `npm ci` 环境可复现。
 - 已将 React 类型包从 19.x 收敛到 18.x，避免类型面领先运行时。
 - 已移除后端未使用的 `python-magic` 运行时依赖，减少镜像依赖面。
+- 已固定 CI 安全扫描里的 Python 依赖审计运行版本，避免 runner 默认 Python 漂移。
 
 ## 已知债务
 
