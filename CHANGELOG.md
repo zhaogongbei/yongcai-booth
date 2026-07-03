@@ -39,6 +39,7 @@
 - 修复前端统一 API 客户端在调用方传入 `AbortSignal` 时内部 timeout 失效、且取消请求被误包装为 timeout 错误的问题。
 - 修复分享设置后端 WhatsApp 号码字段拼写为 `whatssapp_number` 导致前后端契约不一致的问题，并兼容历史拼错配置。
 - 修复后端本地媒体读取和 Green Screen 本地资产删除使用字符串前缀判断路径归属的问题，避免同前缀兄弟目录绕过上传目录边界。
+- 修复本地部署下 Green Screen 背景资产返回 `/uploads/...` 但后端未提供对应静态路由导致前端缩略图和预览背景加载失败的问题，并兼容历史 `/uploads/green-screen/...` URL。
 
 ### 优化
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。

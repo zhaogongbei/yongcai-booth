@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -28,6 +28,9 @@ from app.services.green_screen_service import green_screen_service
 from app.services.storage_service import r2_storage
 
 router = APIRouter()
+LOCAL_ASSET_URL_PREFIX = "/api/v1/green-screen/assets"
+LEGACY_LOCAL_ASSET_URL_PREFIX = "/uploads/green-screen"
+LOCAL_ASSET_FOLDERS = {"backgrounds", "overlays"}
 
 # Try to import OpenCV for image decoding
 try:
@@ -42,6 +45,9 @@ except ImportError:
 def _save_local_green_screen_file(
     file_data: bytes, filename: str, event_id: UUID, folder: str
 ) -> str:
+    if folder not in LOCAL_ASSET_FOLDERS:
+        raise ValueError("Invalid green screen asset folder")
+
     safe_name = Path(filename or "upload").name
     safe_suffix = Path(safe_name).suffix or ".jpg"
     stored_name = f"{uuid4().hex}{safe_suffix}"
@@ -49,18 +55,40 @@ def _save_local_green_screen_file(
     relative_folder.mkdir(parents=True, exist_ok=True)
     target = relative_folder / stored_name
     target.write_bytes(file_data)
-    return f"/uploads/green-screen/{event_id}/{folder}/{stored_name}"
+    return f"{LOCAL_ASSET_URL_PREFIX}/{event_id}/{folder}/{stored_name}"
 
 
-def _delete_local_green_screen_file(file_url: Optional[str]) -> None:
-    if not file_url or not file_url.startswith("/uploads/green-screen/"):
-        return
+def _local_green_screen_path_from_url(file_url: Optional[str]) -> Optional[Path]:
+    if not file_url:
+        return None
+
+    if file_url.startswith(f"{LOCAL_ASSET_URL_PREFIX}/"):
+        relative_parts = file_url.removeprefix(f"{LOCAL_ASSET_URL_PREFIX}/").split("/")
+    elif file_url.startswith(f"{LEGACY_LOCAL_ASSET_URL_PREFIX}/"):
+        relative_parts = file_url.removeprefix(f"{LEGACY_LOCAL_ASSET_URL_PREFIX}/").split("/")
+    else:
+        return None
+
+    if len(relative_parts) != 3:
+        return None
+
+    event_id, folder, filename = relative_parts
+    if folder not in LOCAL_ASSET_FOLDERS:
+        return None
 
     uploads_root = (Path.cwd() / "uploads").resolve()
-    target = (Path.cwd() / file_url.lstrip("/")).resolve()
+    target = (uploads_root / "green-screen" / event_id / folder / Path(filename).name).resolve()
     try:
         target.relative_to(uploads_root)
     except ValueError:
+        return None
+
+    return target
+
+
+def _delete_local_green_screen_file(file_url: Optional[str]) -> None:
+    target = _local_green_screen_path_from_url(file_url)
+    if not target:
         return
 
     if target.is_file():
@@ -146,6 +174,19 @@ async def _get_or_create_settings_for_event(
     if not created:
         raise RuntimeError("Failed to create green screen settings")
     return created
+
+
+@router.get("/assets/{event_id}/{folder}/{filename}", response_class=FileResponse)
+async def serve_local_green_screen_asset(event_id: UUID, folder: str, filename: str):
+    if folder not in LOCAL_ASSET_FOLDERS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    file_url = f"{LOCAL_ASSET_URL_PREFIX}/{event_id}/{folder}/{filename}"
+    target = _local_green_screen_path_from_url(file_url)
+    if not target or not target.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    return FileResponse(target)
 
 
 @router.post("/preview", response_class=Response)

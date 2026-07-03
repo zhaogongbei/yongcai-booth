@@ -59,10 +59,23 @@ async def test_upload_background_saves_local_files(
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Stage Backdrop"
-    assert data["background_url"].startswith(f"/uploads/green-screen/{event_id}/backgrounds/")
-    assert data["overlay_url"].startswith(f"/uploads/green-screen/{event_id}/overlays/")
-    assert (tmp_path / data["background_url"].lstrip("/")).is_file()
-    assert (tmp_path / data["overlay_url"].lstrip("/")).is_file()
+    assert data["background_url"].startswith(
+        f"/api/v1/green-screen/assets/{event_id}/backgrounds/"
+    )
+    assert data["overlay_url"].startswith(f"/api/v1/green-screen/assets/{event_id}/overlays/")
+
+    background_filename = data["background_url"].rsplit("/", 1)[-1]
+    overlay_filename = data["overlay_url"].rsplit("/", 1)[-1]
+    assert (
+        tmp_path / "uploads" / "green-screen" / event_id / "backgrounds" / background_filename
+    ).is_file()
+    assert (
+        tmp_path / "uploads" / "green-screen" / event_id / "overlays" / overlay_filename
+    ).is_file()
+
+    asset_response = await authenticated_client.get(data["background_url"])
+    assert asset_response.status_code == 200
+    assert asset_response.content == _png_bytes()
 
     settings_response = await authenticated_client.get(f"/api/v1/green-screen/settings/{event_id}")
     assert settings_response.status_code == 200
@@ -125,7 +138,10 @@ async def test_delete_background_removes_persisted_background(
     )
     assert upload_response.status_code == 200
     background = upload_response.json()
-    background_path = tmp_path / background["background_url"].lstrip("/")
+    background_filename = background["background_url"].rsplit("/", 1)[-1]
+    background_path = (
+        tmp_path / "uploads" / "green-screen" / event_id / "backgrounds" / background_filename
+    )
     assert background_path.is_file()
 
     response = await authenticated_client.delete(

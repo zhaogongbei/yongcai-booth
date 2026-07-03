@@ -435,6 +435,9 @@ export async function getBackendHealth(): Promise<BackendHealthResponse> {
 
 export function resolveBackendUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("/uploads/green-screen/")) {
+    return `${BASE_URL}/green-screen/assets/${path.slice("/uploads/green-screen/".length)}`;
+  }
   return `${ROOT_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
