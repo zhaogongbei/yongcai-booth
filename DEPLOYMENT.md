@@ -31,7 +31,7 @@
 ### Frontend
 
 - **Node.js**: 20+
-- **包管理器**: pnpm 9+
+- **包管理器**: npm 10+（使用 package-lock.json）
 - **Web 服务器**: Nginx 1.24+ / Caddy 2.7+
 
 ### Runtime (.NET)
@@ -91,14 +91,14 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd D-Booth/frontend
 
-# 安装依赖（使用 pnpm）
-pnpm install
+# 安装依赖
+npm ci
 
 # 启动开发服务器
-pnpm dev
+npm run dev
 
 # 构建生产版本
-pnpm build
+npm run build
 ```
 
 ### 3. Runtime 设置
@@ -222,7 +222,7 @@ gunicorn app.main:app -c gunicorn_conf.py
 cd D-Booth/frontend
 
 # 构建生产版本
-pnpm build
+npm run build
 
 # 输出目录: dist/
 ```
@@ -562,10 +562,10 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--worker
 FROM node:20-alpine AS builder
 
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
-RUN pnpm build
+RUN npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

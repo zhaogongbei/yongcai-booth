@@ -20,8 +20,8 @@ dotnet --version
 # Docker Desktop
 docker --version
 
-# pnpm
-npm install -g pnpm
+# npm
+npm --version
 
 # Git
 git --version
@@ -45,7 +45,7 @@ alembic upgrade head
 
 # 3. 设置 Frontend
 cd ../frontend
-pnpm install
+npm ci
 
 # 4. 设置 Runtime
 cd ../runtime-dotnet
@@ -61,7 +61,7 @@ cd backend && source venv/bin/activate
 uvicorn app.main:app --reload
 
 # 终端 2: Frontend
-cd frontend && pnpm dev
+cd frontend && npm run dev
 
 # 终端 3: Runtime (Windows)
 cd runtime-dotnet && dotnet run --project src/Booth.Runtime.ApiHost
@@ -235,7 +235,7 @@ git checkout -b feature/your-feature-name
 
 # 3. 编写测试
 # Backend: pytest tests/
-# Frontend: pnpm test
+# Frontend: npm test
 # Runtime: dotnet test
 
 # 4. 代码检查
@@ -636,17 +636,17 @@ pip install -r requirements.txt
 **Q: 依赖安装失败**
 ```bash
 # 清理缓存
-rm -rf node_modules pnpm-lock.yaml
-pnpm install
+rm -rf node_modules
+npm ci
 ```
 
 **Q: 类型错误**
 ```bash
 # 运行类型检查
-pnpm typecheck
+npm run typecheck
 
 # 生成类型定义
-pnpm run generate-types
+npm run generate-types
 ```
 
 ### Runtime

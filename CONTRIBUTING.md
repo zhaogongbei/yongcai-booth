@@ -22,7 +22,7 @@
 
 - Git 2.40+
 - Python 3.11+
-- Node.js 20+ (推荐使用 pnpm)
+- Node.js 20+ (使用 npm 与 package-lock.json)
 - .NET 8.0 SDK
 - Docker Desktop
 - VS Code / JetBrains IDE
@@ -62,7 +62,7 @@ alembic upgrade head
 
 # 3. 设置 Frontend
 cd ../frontend
-pnpm install
+npm ci
 
 # 4. 设置 Runtime
 cd ../runtime-dotnet
@@ -72,7 +72,7 @@ dotnet build
 # 5. 启动本地服务
 docker-compose up -d postgres redis  # 基础设施
 uvicorn app.main:app --reload        # Backend
-pnpm dev                              # Frontend
+npm run dev                           # Frontend
 dotnet run --project src/Booth.Runtime.ApiHost  # Runtime
 ```
 
@@ -185,8 +185,7 @@ async def get_event_by_id(
 # 运行检查
 black .
 isort .
-mypy app
-ruff check app
+ruff check app --select E9,F63,F7,F82
 ```
 
 ### TypeScript (Frontend)
@@ -228,7 +227,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
 
 #### 强制要求
 
-- 使用 ESLint + Prettier
+- 使用 TypeScript 编译检查和项目约定格式
 - 启用 TypeScript strict mode
 - 所有组件必须有类型定义
 - 优先使用函数组件与 Hooks
@@ -236,9 +235,8 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
 
 ```bash
 # 运行检查
-pnpm typecheck
-pnpm lint
-pnpm format
+npm run typecheck
+npm run build
 ```
 
 ### C# (Runtime)

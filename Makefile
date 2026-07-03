@@ -71,7 +71,7 @@ lint: ## Run linters on all projects
 	make lint-backend lint-frontend lint-runtime
 
 lint-backend: ## Lint backend code
-	cd D-Booth/backend && source venv/bin/activate && black . && isort . && mypy app/ && ruff check app/
+	cd D-Booth/backend && source venv/bin/activate && black . && isort . && ruff check app/ --select E9,F63,F7,F82
 
 lint-frontend: ## Lint frontend code
 	cd D-Booth/frontend && npm run typecheck

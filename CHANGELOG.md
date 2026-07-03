@@ -7,10 +7,17 @@
 
 ## [Unreleased]
 
+### 变更
+- 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
+- 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
+
 ### 修复
 - 恢复后端服务层对旧 API 异常语义的兼容，确保 AI 任务与订阅配额错误继续按 `ValueError` 进入路由 400 处理。
 - 修复团队删除后详情查询先返回 403 的顺序问题，已删除资源现在返回 404。
 - 修复性能日志阈值边界，查询耗时达到阈值时记录慢查询 warning。
+- 恢复 CI/CD 安全门禁、Docker 镜像命名空间和发布流程，避免旧版占位部署与弱安全审计回归。
+- 修复 Makefile、README、协作文档和部署文档中的旧工作流命令，保持 npm、pip-audit 与仓库卫生规则一致。
+- 同步 README badge 与后端配置默认版本到根 `VERSION`。
 
 ### 优化
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。
@@ -115,17 +122,6 @@
 - 安全响应头
 - 密码哈希（bcrypt）
 - 敏感信息脱敏
-
----
-
-## [Unreleased]
-
-### 变更
-- 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
-- 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
-
-### 修复
-- 修复 Makefile 和根 README 中残留的 pnpm 命令，避免本地开发、CI 与 AI 协作说明不一致。
 
 ### 计划中
 - 多机位同步拍摄
