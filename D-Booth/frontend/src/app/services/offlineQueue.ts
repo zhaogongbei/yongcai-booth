@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { createPrintJob, tokenStorage, uploadPhoto as uploadPhotoToServer } from '../../lib/api';
 
 export interface CapturedPhoto {
   id: string;
@@ -329,49 +330,33 @@ class OfflineQueue {
    * Upload photo to server
    */
   private async uploadPhoto(photo: CapturedPhoto): Promise<any> {
-    const formData = new FormData();
-    formData.append('file', photo.blob, `photo_${photo.id}.jpg`);
-    formData.append('event_id', photo.eventId);
-    if (photo.sessionId) {
-      formData.append('session_id', photo.sessionId);
-    }
-    Object.entries(photo.metadata).forEach(([key, value]) => {
-      formData.append(`metadata[${key}]`, String(value));
-    });
-
-    const response = await fetch('/api/v1/photos/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed with status ${response.status}`);
+    const token = tokenStorage.access;
+    if (!token) {
+      throw new Error('Authentication required to sync offline photo');
     }
 
-    return response.json();
+    return uploadPhotoToServer({
+      eventId: photo.eventId,
+      sessionId: photo.sessionId,
+      file: photo.blob,
+      token,
+    });
   }
 
   /**
    * Send print job to server
    */
   private async sendPrintJob(job: PrintJob): Promise<any> {
-    const response = await fetch('/api/v1/print', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        photo_id: job.photoId,
-        copies: job.copies,
-        template_id: job.templateId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Print job failed with status ${response.status}`);
+    const token = tokenStorage.access;
+    if (!token) {
+      throw new Error('Authentication required to sync offline print job');
     }
 
-    return response.json();
+    return createPrintJob({
+      photoId: job.photoId,
+      copies: job.copies,
+      token,
+    });
   }
 
   /**
