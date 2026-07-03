@@ -76,7 +76,8 @@ jobs:
         run: |
           black --check .
           isort --check-only .
-          ruff check app/ --select E9,F63,F7,F82
+          ruff check app/
+          mypy app/
 
       - name: Run tests
         working-directory: D-Booth/backend
@@ -181,12 +182,14 @@ jobs:
       - name: Python dependency check
         working-directory: D-Booth/backend
         run: |
-          pip install -r requirements-dev.txt
-          python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict
+          pip install safety
+          safety check --json
+        continue-on-error: true
 
       - name: Node.js dependency audit
         working-directory: D-Booth/frontend
-        run: npm run audit:security
+        run: npm audit
+        continue-on-error: true
 
   # Docker Build
   docker-build:

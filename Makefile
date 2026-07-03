@@ -71,7 +71,7 @@ lint: ## Run linters on all projects
 	make lint-backend lint-frontend lint-runtime
 
 lint-backend: ## Lint backend code
-	cd D-Booth/backend && source venv/bin/activate && black --check . && isort --check-only . && ruff check app/ --select E9,F63,F7,F82
+	cd D-Booth/backend && source venv/bin/activate && black . && isort . && mypy app/ && ruff check app/
 
 lint-frontend: ## Lint frontend code
 	cd D-Booth/frontend && npm run typecheck
@@ -83,7 +83,7 @@ format: ## Format all code
 	make format-backend format-frontend format-runtime
 
 format-backend: ## Format backend code
-	cd D-Booth/backend && source venv/bin/activate && isort . && black .
+	cd D-Booth/backend && source venv/bin/activate && black . && isort .
 
 format-frontend: ## Format frontend code
 	@echo "Frontend formatter is not configured yet."

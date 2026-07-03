@@ -150,9 +150,9 @@ docs: 更新部署文档
 
 ### 代码规范
 
-- **Python**: PEP 8, Black, isort, Ruff fatal checks
-- **TypeScript**: TypeScript strict mode
-- **C#**: .editorconfig, `dotnet build` / `dotnet test`
+- **Python**: PEP 8, Black, isort, mypy
+- **TypeScript**: ESLint, Prettier, strict mode
+- **C#**: .editorconfig, StyleCop
 
 详见 [CLAUDE.md](./CLAUDE.md)。
 
@@ -167,7 +167,6 @@ pytest --cov=app --cov-report=html
 cd frontend
 npm run typecheck
 npm run build
-npm run audit:security
 
 # Runtime 测试
 cd runtime-dotnet
