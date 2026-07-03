@@ -18,7 +18,7 @@ export interface ApiState<T> {
 /**
  * API hook options
  */
-export interface UseApiOptions<T> extends Omit<RequestOptions, 'method' | 'body'> {
+export interface UseApiOptions<T> extends Omit<RequestOptions, 'body'> {
   /** Whether to execute the request immediately on mount (default: true) */
   immediate?: boolean;
   /** Callback invoked on successful response */

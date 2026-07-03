@@ -76,7 +76,7 @@ const DISPLAY_SCALE = 0.45;
 
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
-  const undoRedo = useUndoRedo<TemplateLayout>(createDefaultLayout(), 50);
+  const undoRedo = useUndoRedo<TemplateLayout>(createDefaultLayout(), { maxHistory: 50 });
   const layout = undoRedo.present;
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

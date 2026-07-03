@@ -11,9 +11,26 @@
 - 恢复后端服务层对旧 API 异常语义的兼容，确保 AI 任务与订阅配额错误继续按 `ValueError` 进入路由 400 处理。
 - 修复团队删除后详情查询先返回 403 的顺序问题，已删除资源现在返回 404。
 - 修复性能日志阈值边界，查询耗时达到阈值时记录慢查询 warning。
+- 修复前端 hooks 类型门禁，允许 `useApi` 内部方法包装器传递 HTTP method，并收敛 `useForm` 泛型状态写入。
+- 修复模板编辑器 `useUndoRedo` 调用签名，使其匹配 hooks 当前 options API。
+- 修复 Makefile 和根 README 中残留的 pnpm 命令，避免本地开发、CI 与 AI 协作说明不一致。
 
 ### 优化
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。
+- 前端 hooks README 补齐已导出的 `useFetch` helper，并同步当前 hooks 使用方式。
+
+### 变更
+- 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
+- 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
+
+### 计划中
+- 多机位同步拍摄
+- 4K 视频录制
+- AR 滤镜引擎
+- 云端模板市场
+- AI 生成式背景
+- 微信小程序集成
+- 区块链照片存证
 
 ## [1.0.0] - 2026-07-02
 
@@ -115,26 +132,6 @@
 - 安全响应头
 - 密码哈希（bcrypt）
 - 敏感信息脱敏
-
----
-
-## [Unreleased]
-
-### 变更
-- 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
-- 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
-
-### 修复
-- 修复 Makefile 和根 README 中残留的 pnpm 命令，避免本地开发、CI 与 AI 协作说明不一致。
-
-### 计划中
-- 多机位同步拍摄
-- 4K 视频录制
-- AR 滤镜引擎
-- 云端模板市场
-- AI 生成式背景
-- 微信小程序集成
-- 区块链照片存证
 
 ---
 

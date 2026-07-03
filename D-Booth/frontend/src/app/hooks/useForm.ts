@@ -168,12 +168,13 @@ export function useForm<T extends Record<string, any>>(
     onBlur: (e: React.FocusEvent<any>) => void;
   };
 } {
-  const { initialValues, fields = {}, validate, onSubmit } = config;
+  const { initialValues, validate, onSubmit } = config;
+  const fields = (config.fields ?? {}) as Partial<Record<keyof T, Omit<FieldConfig, 'initialValue'>>>;
 
   const [values, setValuesState] = useState<T>(initialValues);
   const [errors, setErrorsState] = useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouchedState] = useState<Partial<Record<keyof T, boolean>>>({});
-  const [dirty, setDirtyState] = useState<Partial<Record<keyof T, boolean>>>();
+  const [dirty, setDirtyState] = useState<Partial<Record<keyof T, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [submitCount, setSubmitCount] = useState(0);
@@ -197,7 +198,7 @@ export function useForm<T extends Record<string, any>>(
       setDirtyState((prev) => ({
         ...prev,
         [field]: value !== initialValuesRef.current[field],
-      }));
+      }) as Partial<Record<keyof T, boolean>>);
 
       // Validate on change if configured
       const fieldConfig = fields[field];
@@ -234,11 +235,13 @@ export function useForm<T extends Record<string, any>>(
   const setValues = useCallback((newValues: Partial<T>) => {
     setValuesState((prev) => ({ ...prev, ...newValues }));
     setDirtyState((prev) => {
-      const newDirty = { ...prev };
-      for (const key in newValues) {
-        newDirty[key] = newValues[key] !== initialValuesRef.current[key];
-      }
-      return newDirty;
+      const updates = Object.fromEntries(
+        (Object.keys(newValues) as Array<keyof T>).map((key) => [
+          key,
+          newValues[key] !== initialValuesRef.current[key],
+        ])
+      );
+      return { ...prev, ...updates } as Partial<Record<keyof T, boolean>>;
     });
   }, []);
 
@@ -316,7 +319,7 @@ export function useForm<T extends Record<string, any>>(
     let isValid = true;
 
     // Run field-level validations
-    for (const field in fields) {
+    for (const field of Object.keys(fields) as Array<keyof T>) {
       const fieldConfig = fields[field];
       if (!fieldConfig?.validate) continue;
 
@@ -328,12 +331,14 @@ export function useForm<T extends Record<string, any>>(
         try {
           const error = await validator(values[field]);
           if (error) {
-            newErrors[field] = error;
+            Object.assign(newErrors, { [field]: error });
             isValid = false;
             break;
           }
         } catch (err) {
-          newErrors[field] = err instanceof Error ? err.message : 'Validation error';
+          Object.assign(newErrors, {
+            [field]: err instanceof Error ? err.message : 'Validation error',
+          });
           isValid = false;
           break;
         }
