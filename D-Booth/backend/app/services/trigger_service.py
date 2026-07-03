@@ -6,7 +6,7 @@ import time
 import hashlib
 import hmac
 import secrets
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -14,19 +14,76 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.trigger_repository import TriggerConfigRepository, TriggerLogRepository
 from app.models.models import TriggerConfig, TriggerLog, TriggerType, TriggerAction
+from app.schemas.trigger import TriggerConfigCreate, TriggerConfigUpdate
+from app.services.base_service import BaseService, BusinessRuleError, ValidationError
 from app.core.logging import logger
 
 
-class TriggerService:
-    """Service for executing event-driven triggers"""
+class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConfigUpdate]):
+    """
+    Service for executing event-driven triggers.
+
+    This service manages trigger configurations and execution logs,
+    supporting HTTP callbacks and application execution triggers.
+    """
 
     def __init__(self, db: AsyncSession):
-        self.db = db
         self.config_repo = TriggerConfigRepository(db)
         self.log_repo = TriggerLogRepository(db)
+        super().__init__(self.config_repo, db)
 
-    async def execute_triggers(self, event_type: Union[TriggerType, str], context: dict) -> List[TriggerLog]:
-        """Execute all enabled triggers matching the event_type
+    async def validate_create(self, obj_in: TriggerConfigCreate) -> None:
+        """
+        Validate trigger configuration before creation.
+
+        Args:
+            obj_in: Trigger configuration to validate
+
+        Raises:
+            ValidationError: If configuration is invalid
+            BusinessRuleError: If business rules are violated
+        """
+        if not obj_in.target:
+            raise ValidationError("Trigger target cannot be empty")
+
+        if obj_in.action_type == TriggerAction.HTTP_CALLBACK:
+            if not obj_in.target.startswith(("http://", "https://")):
+                raise ValidationError("HTTP callback target must be a valid URL")
+
+        if obj_in.timeout <= 0:
+            raise ValidationError("Timeout must be greater than 0")
+
+        if obj_in.retry < 1:
+            raise ValidationError("Retry count must be at least 1")
+
+    async def validate_update(self, existing: TriggerConfig, obj_in: TriggerConfigUpdate) -> None:
+        """
+        Validate trigger configuration before update.
+
+        Args:
+            existing: Current trigger configuration
+            obj_in: Update data
+
+        Raises:
+            ValidationError: If update data is invalid
+        """
+        if obj_in.target is not None:
+            if not obj_in.target:
+                raise ValidationError("Trigger target cannot be empty")
+
+            if obj_in.action_type == TriggerAction.HTTP_CALLBACK:
+                if not obj_in.target.startswith(("http://", "https://")):
+                    raise ValidationError("HTTP callback target must be a valid URL")
+
+        if obj_in.timeout is not None and obj_in.timeout <= 0:
+            raise ValidationError("Timeout must be greater than 0")
+
+        if obj_in.retry is not None and obj_in.retry < 1:
+            raise ValidationError("Retry count must be at least 1")
+
+    async def execute_triggers(self, event_type: Union[TriggerType, str], context: Dict[str, Any]) -> List[TriggerLog]:
+        """
+        Execute all enabled triggers matching the event_type.
 
         Args:
             event_type: TriggerType enum value or string matching a TriggerType
@@ -34,6 +91,9 @@ class TriggerService:
 
         Returns:
             List of TriggerLog entries recording each execution
+
+        Raises:
+            ValidationError: If context is invalid
         """
         event_id_str = context.get("event_id")
         if not event_id_str:
@@ -66,8 +126,23 @@ class TriggerService:
 
         return logs
 
-    async def _execute_single_trigger(self, config: TriggerConfig, event_type: TriggerType, context: dict) -> Optional[TriggerLog]:
-        """Execute a single trigger with retry logic"""
+    async def _execute_single_trigger(
+        self,
+        config: TriggerConfig,
+        event_type: TriggerType,
+        context: Dict[str, Any]
+    ) -> Optional[TriggerLog]:
+        """
+        Execute a single trigger with retry logic.
+
+        Args:
+            config: Trigger configuration to execute
+            event_type: Type of event that triggered execution
+            context: Event context data
+
+        Returns:
+            TriggerLog entry recording the execution result
+        """
         start_time = int(time.time() * 1000)
         attempt = 0
         max_attempts = config.retry
@@ -116,11 +191,16 @@ class TriggerService:
 
         return log_entry
 
-    async def _execute_url_callback(self, config: TriggerConfig, context: dict) -> tuple:
-        """HTTP POST to configured URL
+    async def _execute_url_callback(self, config: TriggerConfig, context: Dict[str, Any]) -> tuple:
+        """
+        HTTP POST to configured URL.
+
+        Args:
+            config: Trigger configuration with target URL
+            context: Event context to send as payload
 
         Returns:
-            (status_code, error_message) - error_message is None on success
+            Tuple of (status_code, error_message) - error_message is None on success
         """
         payload = self._build_payload(config, context)
         timeout = httpx.Timeout(config.timeout)
@@ -142,11 +222,16 @@ class TriggerService:
         except Exception as e:
             return None, str(e)
 
-    async def _execute_app_trigger(self, config: TriggerConfig, context: dict) -> tuple:
-        """Execute a local executable/script
+    async def _execute_app_trigger(self, config: TriggerConfig, context: Dict[str, Any]) -> tuple:
+        """
+        Execute a local executable/script.
+
+        Args:
+            config: Trigger configuration with executable path
+            context: Event context to pass as JSON payload
 
         Returns:
-            (exit_code, error_message) - error_message is None on success
+            Tuple of (exit_code, error_message) - error_message is None on success
         """
         payload_json = json.dumps(self._build_payload(config, context))
 
@@ -174,8 +259,17 @@ class TriggerService:
         except Exception as e:
             return None, str(e)
 
-    def _build_payload(self, config: TriggerConfig, context: dict) -> dict:
-        """Build the payload by merging template with context"""
+    def _build_payload(self, config: TriggerConfig, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build the payload by merging template with context.
+
+        Args:
+            config: Trigger configuration with optional payload template
+            context: Event context data
+
+        Returns:
+            Complete payload dictionary
+        """
         payload = {
             "event_type": config.event_type.value if hasattr(config.event_type, "value") else str(config.event_type),
             "timestamp": int(time.time()),
@@ -186,7 +280,15 @@ class TriggerService:
         return payload
 
     async def test_trigger(self, config: TriggerConfig) -> TriggerLog:
-        """Test a single trigger with a dummy context"""
+        """
+        Test a single trigger with a dummy context.
+
+        Args:
+            config: Trigger configuration to test
+
+        Returns:
+            TriggerLog entry with test execution results
+        """
         context = {
             "test": True,
             "timestamp": int(time.time()),
@@ -194,11 +296,34 @@ class TriggerService:
         return await self._execute_single_trigger(config, config.event_type, context)
 
     async def get_configs(self, event_id: UUID) -> List[TriggerConfig]:
-        """Get all trigger configs for an event"""
+        """
+        Get all trigger configs for an event.
+
+        Args:
+            event_id: Event UUID
+
+        Returns:
+            List of trigger configurations
+        """
         return await self.config_repo.get_by_event_id(event_id)
 
-    async def update_config(self, event_id: UUID, configs: List[dict]) -> List[TriggerConfig]:
-        """Replace all trigger configs for an event"""
+    async def update_config(self, event_id: UUID, configs: List[Dict[str, Any]]) -> List[TriggerConfig]:
+        """
+        Replace all trigger configs for an event.
+
+        Args:
+            event_id: Event UUID
+            configs: List of trigger configuration dictionaries
+
+        Returns:
+            List of created trigger configurations
+
+        Raises:
+            ValidationError: If configuration data is invalid
+        """
+        if not isinstance(configs, list):
+            raise ValidationError("Configs must be a list")
+
         existing = await self.config_repo.get_by_event_id(event_id)
         for cfg in existing:
             await self.config_repo.delete(cfg.id)
@@ -213,12 +338,27 @@ class TriggerService:
         return created
 
     async def get_logs(self, event_id: UUID, skip: int = 0, limit: int = 100) -> List[TriggerLog]:
-        """Get trigger execution logs for an event"""
+        """
+        Get trigger execution logs for an event.
+
+        Args:
+            event_id: Event UUID
+            skip: Number of records to skip (pagination)
+            limit: Maximum number of records to return
+
+        Returns:
+            List of trigger execution logs
+        """
         return await self.log_repo.get_by_event_id(event_id, skip, limit)
 
 
 class WebhookService:
-    """Service for dispatching outgoing webhooks"""
+    """
+    Service for dispatching outgoing webhooks.
+
+    This service manages webhook configurations and dispatches
+    HTTP callbacks with signature verification.
+    """
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -228,15 +368,31 @@ class WebhookService:
 
     @staticmethod
     def compute_signature(payload_bytes: bytes, secret: str) -> str:
-        """Compute HMAC-SHA256 signature"""
+        """
+        Compute HMAC-SHA256 signature for webhook verification.
+
+        Args:
+            payload_bytes: Raw payload bytes
+            secret: Shared secret key
+
+        Returns:
+            Hex-encoded signature string
+        """
         return hmac.new(
             secret.encode("utf-8"),
             payload_bytes,
             hashlib.sha256
         ).hexdigest()
 
-    async def dispatch(self, event_type: str, payload: dict, team_id: UUID) -> None:
-        """Find matching webhooks, generate signature, POST, and log"""
+    async def dispatch(self, event_type: str, payload: Dict[str, Any], team_id: UUID) -> None:
+        """
+        Find matching webhooks, generate signature, POST, and log.
+
+        Args:
+            event_type: Type of event to dispatch
+            payload: Event payload data
+            team_id: Team UUID
+        """
         webhooks = await self.webhook_repo.get_by_event_type(team_id, event_type)
         if not webhooks:
             return
@@ -248,8 +404,15 @@ class WebhookService:
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _dispatch_single(self, webhook, event_type: str, payload: dict) -> None:
-        """Dispatch to a single webhook with retry"""
+    async def _dispatch_single(self, webhook, event_type: str, payload: Dict[str, Any]) -> None:
+        """
+        Dispatch to a single webhook with retry.
+
+        Args:
+            webhook: Webhook configuration
+            event_type: Event type being dispatched
+            payload: Event payload data
+        """
         from app.models.models import Webhook
         start_time = int(time.time() * 1000)
         payload_bytes = json.dumps(payload).encode("utf-8")
@@ -304,22 +467,56 @@ class WebhookService:
         if not success:
             logger.warning(f"Webhook {webhook.url} failed after {attempt} attempts: {last_error}")
 
-    async def create_webhook(self, data: dict) -> Webhook:
-        """Create a webhook"""
+    async def create_webhook(self, data: Dict[str, Any]):
+        """
+        Create a webhook.
+
+        Args:
+            data: Webhook configuration data
+
+        Returns:
+            Created webhook instance
+        """
         from app.models.models import Webhook
         data["id"] = uuid4()
         if "secret" not in data:
             data["secret"] = secrets.token_hex(32)
         return await self.webhook_repo.create(data)
 
-    async def get_webhooks(self, team_id: UUID) -> list:
-        """Get all webhooks for a team"""
+    async def get_webhooks(self, team_id: UUID) -> List:
+        """
+        Get all webhooks for a team.
+
+        Args:
+            team_id: Team UUID
+
+        Returns:
+            List of webhook configurations
+        """
         return await self.webhook_repo.get_by_team_id(team_id)
 
     async def delete_webhook(self, webhook_id: UUID) -> bool:
-        """Delete a webhook"""
+        """
+        Delete a webhook.
+
+        Args:
+            webhook_id: Webhook UUID
+
+        Returns:
+            True if deleted, False if not found
+        """
         return await self.webhook_repo.delete(webhook_id)
 
-    async def get_webhook_logs(self, webhook_id: UUID, skip: int = 0, limit: int = 100) -> list:
-        """Get webhook dispatch logs"""
+    async def get_webhook_logs(self, webhook_id: UUID, skip: int = 0, limit: int = 100) -> List:
+        """
+        Get webhook dispatch logs.
+
+        Args:
+            webhook_id: Webhook UUID
+            skip: Number of records to skip (pagination)
+            limit: Maximum number of records to return
+
+        Returns:
+            List of webhook execution logs
+        """
         return await self.log_repo.get_by_webhook_id(webhook_id, skip, limit)

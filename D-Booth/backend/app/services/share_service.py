@@ -1,24 +1,75 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.repositories.share_repository import ShareRepository
 from app.schemas.share import ShareCreate
 from app.models.models import Share, Photo
+from app.services.base_service import BaseService, ValidationError, BusinessRuleError
 
 
-class ShareService:
-    """Service for share business logic"""
+class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
+    """
+    Service for share link business logic.
+
+    Manages photo sharing links with short codes, expiration tracking,
+    and view count analytics.
+    """
 
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.repository = ShareRepository(db)
+        repository = ShareRepository(db)
+        super().__init__(repository, db)
+
+    # ── Validation Hooks ──────────────────────────────────────
+
+    async def validate_create(self, obj_in: ShareCreate) -> None:
+        """Validate share creation business rules."""
+        # Verify photo exists
+        photo = await self.db.get(Photo, obj_in.photo_id)
+        if not photo:
+            raise ValidationError("Photo not found")
+
+    async def validate_delete(self, existing: Share) -> None:
+        """No special deletion constraints for shares."""
+        pass
+
+    # ── Transformation Hooks ──────────────────────────────────
+
+    async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Transform share data before creation.
+
+        Generates unique short code, full URL, and sets default expiration.
+        """
+        # Generate unique short code
+        short_code = self.generate_short_code()
+        while await self.repository.get_by_short_code(short_code):
+            short_code = self.generate_short_code()
+
+        # Set base_url from config or default
+        base_url = obj_dict.pop("base_url", "https://aibooth.app")
+        full_url = f"{base_url}/s/{short_code}"
+
+        # Set default expiration if not provided (7 days)
+        if "expires_at" not in obj_dict or obj_dict["expires_at"] is None:
+            obj_dict["expires_at"] = datetime.now(timezone.utc) + timedelta(days=7)
+
+        obj_dict.update({
+            "short_code": short_code,
+            "full_url": full_url,
+            "view_count": 0,
+        })
+
+        return obj_dict
+
+    # ── Business Logic Methods ────────────────────────────────
 
     @staticmethod
     def generate_short_code(length: int = 8) -> str:
-        """Generate a random short code"""
+        """Generate a random short code."""
         return secrets.token_urlsafe(length)[:length]
 
     async def create_share(
@@ -26,39 +77,34 @@ class ShareService:
         share_in: ShareCreate,
         base_url: str = "https://aibooth.app"
     ) -> Share:
-        """Create a new share link"""
-        # Generate unique short code
-        short_code = self.generate_short_code()
+        """
+        Create a new share link.
 
-        # Ensure uniqueness
-        while await self.repository.get_by_short_code(short_code):
-            short_code = self.generate_short_code()
+        Args:
+            share_in: Share creation schema
+            base_url: Base URL for generating full share link
 
-        # Generate full URL
-        full_url = f"{base_url}/s/{short_code}"
+        Returns:
+            Created share instance
+        """
+        # Inject base_url into creation flow
+        share_dict = share_in.model_dump()
+        share_dict["base_url"] = base_url
 
-        # Set default expiration if not provided (7 days)
-        expires_at = share_in.expires_at
-        if not expires_at:
-            expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        # Use a temporary schema-like object to pass through create()
+        from pydantic import BaseModel
+        class ShareCreateWithBase(BaseModel):
+            photo_id: UUID
+            channel: Optional[str] = None
+            expires_at: Optional[datetime] = None
+            base_url: str = "https://aibooth.app"
 
-        share_data = {
-            **share_in.model_dump(exclude={"expires_at"}),
-            "short_code": short_code,
-            "full_url": full_url,
-            "expires_at": expires_at,
-            "view_count": 0,
-        }
-
-        return await self.repository.create(share_data)
+        extended_in = ShareCreateWithBase(**share_dict)
+        return await self.create(extended_in)
 
     async def get_share_by_code(self, short_code: str) -> Optional[Share]:
-        """Get share by short code"""
+        """Get share by short code."""
         return await self.repository.get_by_short_code(short_code)
-
-    async def get_share(self, share_id: UUID) -> Optional[Share]:
-        """Get share by ID"""
-        return await self.repository.get(share_id)
 
     async def get_shares(
         self,
@@ -105,18 +151,17 @@ class ShareService:
         return await self.repository.get_visible_to_user(user_id, channel, skip, limit)
 
     async def increment_view(self, share_id: UUID) -> Optional[Share]:
-        """Increment view count"""
+        """Increment view count."""
         return await self.repository.increment_view_count(share_id)
 
-    # Alias to match route layer naming convention
     async def increment_view_count(self, share_id: UUID) -> Optional[Share]:
-        """Increment view count (alias)"""
+        """Increment view count (alias for route compatibility)."""
         return await self.increment_view(share_id)
 
     async def is_expired(self, share_id: UUID) -> bool:
-        """Check if share is expired"""
+        """Check if share is expired."""
         return await self.repository.is_expired(share_id)
 
     async def delete_share(self, share_id: UUID) -> bool:
-        """Delete a share"""
-        return await self.repository.delete(share_id)
+        """Delete a share (alias for route compatibility)."""
+        return await self.delete(share_id)

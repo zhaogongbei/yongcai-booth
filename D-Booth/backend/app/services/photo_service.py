@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import UploadFile
@@ -12,11 +12,17 @@ from app.schemas.photo import PhotoCreate, PhotoUpdate, PhotoSessionCreate
 from app.models.models import Photo, PhotoSession
 from app.services.storage_service import r2_storage
 from app.services.beauty_service import BeautyParams, beauty_processor
+from app.services.base_service import BaseService, ValidationError, BusinessRuleError
 from app.core.logging import logger
 
 
-class PhotoService:
-    """Service for photo and session business logic"""
+class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
+    """
+    Service for photo and session business logic.
+
+    Manages photo uploads, processing, storage, thumbnail generation,
+    and photo session lifecycle.
+    """
     
     ALLOWED_TYPES = {'image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/gif'}
     IMAGE_FORMAT_TYPES = {
@@ -43,15 +49,58 @@ class PhotoService:
     }
 
     WEBP_QUALITY = 80
-    
+
     def __init__(self, db: AsyncSession):
-        self.db = db
         self.photo_repo = PhotoRepository(db)
         self.session_repo = PhotoSessionRepository(db)
-    
+        super().__init__(self.photo_repo, db)
+
+    # ── Validation Hooks ──────────────────────────────────────
+
+    async def validate_create(self, obj_in: PhotoCreate) -> None:
+        """Validate photo creation business rules."""
+        if obj_in.session_id:
+            session = await self.session_repo.get(obj_in.session_id)
+            if not session:
+                raise ValidationError("Photo session not found")
+            if session.event_id != obj_in.event_id:
+                raise ValidationError("Photo session does not belong to this event")
+
+    async def validate_delete(self, existing: Photo) -> None:
+        """No special constraints for photo deletion."""
+        pass
+
+    # ── Transformation Hooks ──────────────────────────────────
+
+    async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform photo data before creation."""
+        # Map metadata field name for database
+        if "metadata" in obj_dict:
+            obj_dict["metadata_"] = obj_dict.pop("metadata")
+        return obj_dict
+
+    async def before_update(self, existing: Photo, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform photo update data."""
+        # Map metadata field name for database
+        if "metadata" in obj_dict:
+            obj_dict["metadata_"] = obj_dict.pop("metadata")
+        return obj_dict
+
+    async def before_delete(self, existing: Photo) -> None:
+        """Clean up storage files before deletion."""
+        if r2_storage.is_available():
+            try:
+                await r2_storage.delete_file(existing.original_url)
+                if existing.thumbnail_url:
+                    await r2_storage.delete_file(existing.thumbnail_url)
+            except Exception as e:
+                logger.error(f"Failed to delete photo files: {e}")
+
+    # ── Business Logic Methods ────────────────────────────────
+
     async def get_photo(self, photo_id: UUID) -> Optional[Photo]:
-        """Get photo by ID"""
-        return await self.photo_repo.get(photo_id)
+        """Get photo by ID (alias for route compatibility)."""
+        return await self.get(photo_id)
     
     async def get_photos(
         self,
@@ -69,18 +118,8 @@ class PhotoService:
             return await self.photo_repo.get_all(skip, limit)
     
     async def create_photo(self, photo_in: PhotoCreate) -> Photo:
-        """Create a new photo record"""
-        if photo_in.session_id:
-            session = await self.session_repo.get(photo_in.session_id)
-            if not session:
-                raise ValueError("Photo session not found")
-            if session.event_id != photo_in.event_id:
-                raise ValueError("Photo session does not belong to this event")
-
-        photo_data = photo_in.model_dump()
-        if "metadata" in photo_data:
-            photo_data["metadata_"] = photo_data.pop("metadata")
-        return await self.photo_repo.create(photo_data)
+        """Create a new photo record (alias for route compatibility)."""
+        return await self.create(photo_in)
     
     async def upload_photo(
         self,
@@ -395,29 +434,12 @@ class PhotoService:
         photo_id: UUID,
         photo_in: PhotoUpdate
     ) -> Optional[Photo]:
-        """Update photo metadata"""
-        update_data = photo_in.model_dump(exclude_unset=True)
-        if "metadata" in update_data:
-            update_data["metadata_"] = update_data.pop("metadata")
-        return await self.photo_repo.update(photo_id, update_data)
-    
+        """Update photo metadata (alias for route compatibility)."""
+        return await self.update(photo_id, photo_in)
+
     async def delete_photo(self, photo_id: UUID) -> bool:
-        """Delete a photo and its files"""
-        photo = await self.get_photo(photo_id)
-        if not photo:
-            return False
-        
-        # Delete from storage
-        if r2_storage.is_available():
-            try:
-                await r2_storage.delete_file(photo.original_url)
-                if photo.thumbnail_url:
-                    await r2_storage.delete_file(photo.thumbnail_url)
-            except Exception as e:
-                logger.error(f"Failed to delete photo files: {e}")
-        
-        # Delete database record
-        return await self.photo_repo.delete(photo_id)
+        """Delete a photo and its files (alias for route compatibility)."""
+        return await self.delete(photo_id)
     
     async def create_session(
         self,

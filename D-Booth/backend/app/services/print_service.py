@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,14 +14,42 @@ from app.services.sharpen_service import SharpenService
 from app.services.watermark_service import WatermarkService
 from app.services.printer_driver_service import PrinterDriverService
 from app.schemas.printer import PrinterStatus
+from app.services.base_service import BaseService, ValidationError, BusinessRuleError
 
 
-class PrintService:
-    """Service for print job business logic"""
+class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
+    """
+    Service for print job business logic.
+
+    Manages print job lifecycle, image processing (sharpening, watermarking),
+    printer communication, and job status tracking.
+    """
 
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.repository = PrintJobRepository(db)
+        repository = PrintJobRepository(db)
+        super().__init__(repository, db)
+
+    # ── Validation Hooks ──────────────────────────────────────
+
+    async def validate_create(self, obj_in: PrintJobCreate) -> None:
+        """Validate print job creation business rules."""
+        # No specific validation needed for print jobs
+        pass
+
+    async def validate_update(self, existing: PrintJob, obj_in: PrintJobUpdate) -> None:
+        """Validate print job update business rules."""
+        # No specific validation needed for updates
+        pass
+
+    # ── Transformation Hooks ──────────────────────────────────
+
+    async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform print job data before creation."""
+        # Always start in PENDING status
+        obj_dict["status"] = PrintJobStatus.PENDING
+        return obj_dict
+
+    # ── Business Logic Methods ────────────────────────────────
 
     @staticmethod
     async def process_image_for_print(
@@ -29,7 +57,7 @@ class PrintService:
         sharpen_profile: str = "medium",
         watermark_settings: Optional[dict] = None
     ) -> bytes:
-        """Process image for printing: apply sharpening and watermark if configured"""
+        """Process image for printing: apply sharpening and watermark if configured."""
         # Download original image
         async with httpx.AsyncClient() as client:
             response = await client.get(image_url)
@@ -68,8 +96,8 @@ class PrintService:
         return image_bytes
 
     async def get_print_job(self, job_id: UUID) -> Optional[PrintJob]:
-        """Get print job by ID"""
-        return await self.repository.get(job_id)
+        """Get print job by ID (alias for route compatibility)."""
+        return await self.get(job_id)
 
     async def get_print_jobs(
         self,
@@ -123,10 +151,8 @@ class PrintService:
         return await self.repository.get_visible_to_user(user_id, status, skip, limit)
 
     async def create_print_job(self, job_in: PrintJobCreate) -> PrintJob:
-        """Create a new print job"""
-        job_data = job_in.model_dump()
-        job_data["status"] = PrintJobStatus.PENDING
-        return await self.repository.create(job_data)
+        """Create a new print job (alias for route compatibility)."""
+        return await self.create(job_in)
 
     async def batch_create_print_jobs(
         self,
@@ -178,10 +204,10 @@ class PrintService:
         job_id: UUID,
         job_in: PrintJobUpdate
     ) -> Optional[PrintJob]:
-        """Update print job fields (status, error_message, etc.)"""
+        """Update print job fields (status, error_message, etc.)."""
         update_data = job_in.model_dump(exclude_unset=True)
         if not update_data:
-            return await self.repository.get(job_id)
+            return await self.get(job_id)
         if "status" in update_data:
             # Delegate status change through repository to update printed_at etc.
             return await self.repository.update_status(
@@ -189,15 +215,15 @@ class PrintService:
                 update_data["status"],
                 update_data.get("error_message")
             )
-        return await self.repository.update(job_id, update_data)
+        return await self.update(job_id, job_in)
 
     async def retry_print_job(self, job_id: UUID) -> Optional[PrintJob]:
         """Retry a failed print job by resetting it to pending."""
-        job = await self.repository.get(job_id)
+        job = await self.get(job_id)
         if not job:
             return None
         if job.status != PrintJobStatus.FAILED:
-            raise ValueError("Only failed jobs can be retried")
+            raise BusinessRuleError("Only failed jobs can be retried")
         return await self.repository.update_status(job_id, PrintJobStatus.PENDING)
 
     async def cancel_print_job(self, job_id: UUID) -> Optional[PrintJob]:

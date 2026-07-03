@@ -31,6 +31,26 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         """Set current user for permission checks."""
         self._current_user_id = user_id
 
+    async def create_team(self, team_in: TeamCreate, creator_id: UUID) -> Team:
+        """Create a team using the legacy service API."""
+        self.set_current_user(creator_id)
+
+        try:
+            return await self.create(team_in)
+        except (BusinessRuleError, ValidationError) as exc:
+            raise ValueError(str(exc)) from exc
+
+    async def update_team(self, team_id: UUID, team_in: TeamUpdate) -> Optional[Team]:
+        """Update a team using the legacy service API."""
+        try:
+            return await self.update(team_id, team_in)
+        except (BusinessRuleError, ValidationError) as exc:
+            raise ValueError(str(exc)) from exc
+
+    async def delete_team(self, team_id: UUID) -> bool:
+        """Delete a team using the legacy service API."""
+        return await self.delete(team_id)
+
     # Override BaseService hooks
 
     async def validate_create(self, obj_in: TeamCreate) -> None:

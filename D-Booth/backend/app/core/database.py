@@ -140,6 +140,17 @@ class _AsyncSessionMakerProxy:
         return get_session_maker()(*args, **kwargs)
 
 
+class _AsyncEngineProxy:
+    """Backward-compatible proxy for modules that import engine."""
+
+    def begin(self):
+        return get_engine().begin()
+
+    def __getattr__(self, name: str):
+        return getattr(get_engine(), name)
+
+
+engine = _AsyncEngineProxy()
 async_session_maker = _AsyncSessionMakerProxy()
 
 

@@ -1,7 +1,8 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.core.plans import get_plan, list_plans, normalize_plan_id
 from app.repositories.ai_task_repository import AITaskRepository
@@ -15,18 +16,59 @@ from app.schemas.subscription import (
     SubscriptionUsage,
 )
 from app.models.models import Subscription, SubscriptionStatus
+from app.services.base_service import BaseService, ValidationError, BusinessRuleError
 
 
-class SubscriptionService:
-    """Service for subscription business logic"""
-    
+class SubscriptionService(BaseService[Subscription, SubscriptionCreate, SubscriptionUpdate]):
+    """
+    Service for subscription business logic.
+
+    Manages team subscription plans, quota enforcement, Stripe integration,
+    and usage tracking.
+    """
+
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.repository = SubscriptionRepository(db)
+        repository = SubscriptionRepository(db)
+        super().__init__(repository, db)
     
+    # ── Validation Hooks ──────────────────────────────────────
+
+    async def validate_create(self, obj_in: SubscriptionCreate) -> None:
+        """Validate subscription creation business rules."""
+        plan_id = normalize_plan_id(obj_in.plan_name)
+        if plan_id != obj_in.plan_name.strip().lower():
+            raise ValidationError(f"Unknown subscription plan '{obj_in.plan_name}'")
+
+    async def validate_update(self, existing: Subscription, obj_in: SubscriptionUpdate) -> None:
+        """Validate subscription update business rules."""
+        update_dict = obj_in.model_dump(exclude_unset=True)
+        if "plan_name" in update_dict and update_dict["plan_name"] is not None:
+            plan_id = normalize_plan_id(update_dict["plan_name"])
+            if plan_id != update_dict["plan_name"].strip().lower():
+                raise ValidationError(f"Unknown subscription plan '{update_dict['plan_name']}'")
+
+    # ── Transformation Hooks ──────────────────────────────────
+
+    async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform subscription data before creation."""
+        # Normalize and set plan_name
+        if "plan_name" in obj_dict:
+            obj_dict["plan_name"] = normalize_plan_id(obj_dict["plan_name"])
+        obj_dict["status"] = SubscriptionStatus.ACTIVE
+        return obj_dict
+
+    async def before_update(self, existing: Subscription, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform subscription update data."""
+        # Normalize plan_name if present
+        if "plan_name" in obj_dict and obj_dict["plan_name"] is not None:
+            obj_dict["plan_name"] = normalize_plan_id(obj_dict["plan_name"])
+        return obj_dict
+
+    # ── Business Logic Methods ────────────────────────────────
+
     async def get_subscription(self, subscription_id: UUID) -> Optional[Subscription]:
-        """Get subscription by ID"""
-        return await self.repository.get(subscription_id)
+        """Get subscription by ID (alias for route compatibility)."""
+        return await self.get(subscription_id)
     
     async def get_by_stripe_id(
         self,
@@ -77,26 +119,29 @@ class SubscriptionService:
         )
 
     async def ensure_can_create_event(self, team_id: UUID) -> None:
+        """Verify team can create another event within plan limits."""
         plan = await self._get_active_team_plan(team_id)
         limit = plan["limits"]["max_events"]
         current = await EventRepository(self.db).count_by_team(team_id)
         if self._limit_exceeded(current, limit):
-            raise ValueError(
+            raise BusinessRuleError(
                 f"Event quota exceeded for plan '{plan['id']}' "
                 f"({current}/{limit})"
             )
 
     async def ensure_can_upload_photo(self, team_id: UUID, event_id: UUID) -> None:
+        """Verify event can accept another photo within plan limits."""
         plan = await self._get_active_team_plan(team_id)
         limit = plan["limits"]["photos_per_event"]
         current = await PhotoRepository(self.db).count_by_event(event_id)
         if self._limit_exceeded(current, limit):
-            raise ValueError(
+            raise BusinessRuleError(
                 f"Photo quota exceeded for plan '{plan['id']}' "
                 f"({current}/{limit} photos per event)"
             )
 
     async def ensure_can_create_ai_task(self, team_id: UUID) -> None:
+        """Verify team has remaining AI credits for this billing period."""
         subscription = await self.repository.get_by_team_id(team_id)
         plan = self._plan_for_subscription(subscription)
         limit = plan["limits"]["ai_credits_monthly"]
@@ -107,7 +152,7 @@ class SubscriptionService:
             period_end,
         )
         if self._limit_exceeded(current, limit):
-            raise ValueError(
+            raise BusinessRuleError(
                 f"AI credit quota exceeded for plan '{plan['id']}' "
                 f"({current}/{limit})"
             )
@@ -116,31 +161,16 @@ class SubscriptionService:
         self,
         subscription_in: SubscriptionCreate
     ) -> Subscription:
-        """Create a new subscription"""
-        plan_id = normalize_plan_id(subscription_in.plan_name)
-        if plan_id != subscription_in.plan_name.strip().lower():
-            raise ValueError(f"Unknown subscription plan '{subscription_in.plan_name}'")
+        """Create a new subscription (alias for route compatibility)."""
+        return await self.create(subscription_in)
 
-        subscription_data = {
-            **subscription_in.model_dump(),
-            "plan_name": plan_id,
-            "status": SubscriptionStatus.ACTIVE,
-        }
-        return await self.repository.create(subscription_data)
-    
     async def update_subscription(
         self,
         subscription_id: UUID,
         subscription_in: SubscriptionUpdate
     ) -> Optional[Subscription]:
-        """Update subscription"""
-        update_data = subscription_in.model_dump(exclude_unset=True)
-        if "plan_name" in update_data and update_data["plan_name"] is not None:
-            plan_id = normalize_plan_id(update_data["plan_name"])
-            if plan_id != update_data["plan_name"].strip().lower():
-                raise ValueError(f"Unknown subscription plan '{update_data['plan_name']}'")
-            update_data["plan_name"] = plan_id
-        return await self.repository.update(subscription_id, update_data)
+        """Update subscription (alias for route compatibility)."""
+        return await self.update(subscription_id, subscription_in)
     
     async def cancel_subscription(
         self,

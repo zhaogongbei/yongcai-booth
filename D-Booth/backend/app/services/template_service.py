@@ -1,24 +1,48 @@
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from io import BytesIO
+import copy
+
+from PIL import Image, ImageDraw, ImageFont
+
 from app.repositories.template_repository import TemplateRepository
 from app.schemas.template import TemplateCreate, TemplateUpdate
 from app.models.models import Template
-import copy
-from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
+from app.services.base_service import BaseService, ValidationError, BusinessRuleError
 
 
-class TemplateService:
-    """Service for template business logic"""
+class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
+    """
+    Service for template business logic.
+
+    Manages photo booth templates with layer-based design system,
+    validation, preview generation, and duplication.
+    """
 
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.repository = TemplateRepository(db)
+        repository = TemplateRepository(db)
+        super().__init__(repository, db)
+
+    # ── Validation Hooks ──────────────────────────────────────
+
+    async def validate_create(self, obj_in: TemplateCreate) -> None:
+        """Validate template creation business rules."""
+        if obj_in.layers and not self.validate_template(obj_in.layers):
+            raise ValidationError("Invalid template structure")
+
+    async def validate_update(self, existing: Template, obj_in: TemplateUpdate) -> None:
+        """Validate template update business rules."""
+        update_dict = obj_in.model_dump(exclude_unset=True)
+        if "layers" in update_dict and update_dict["layers"]:
+            if not self.validate_template(update_dict["layers"]):
+                raise ValidationError("Invalid template structure")
+
+    # ── Business Logic Methods ────────────────────────────────
 
     async def get_template(self, template_id: UUID) -> Optional[Template]:
-        """Get template by ID"""
-        return await self.repository.get(template_id)
+        """Get template by ID (alias for route compatibility)."""
+        return await self.get(template_id)
 
     async def get_templates(
         self,
@@ -64,26 +88,24 @@ class TemplateService:
         skip: int = 0,
         limit: int = 100
     ) -> List[Template]:
-        """Get all public templates"""
+        """Get all public templates."""
         return await self.repository.get_public_templates(skip, limit)
 
     async def create_template(self, template_in: TemplateCreate) -> Template:
-        """Create a new template"""
-        template_data = template_in.model_dump()
-        return await self.repository.create(template_data)
+        """Create a new template (alias for route compatibility)."""
+        return await self.create(template_in)
 
     async def update_template(
         self,
         template_id: UUID,
         template_in: TemplateUpdate
     ) -> Optional[Template]:
-        """Update template"""
-        update_data = template_in.model_dump(exclude_unset=True)
-        return await self.repository.update(template_id, update_data)
+        """Update template (alias for route compatibility)."""
+        return await self.update(template_id, template_in)
 
     async def delete_template(self, template_id: UUID) -> bool:
-        """Delete a template"""
-        return await self.repository.delete(template_id)
+        """Delete a template (alias for route compatibility)."""
+        return await self.delete(template_id)
 
     def validate_template(self, template_data: Dict[str, Any]) -> bool:
         """Validate template JSON structure"""
