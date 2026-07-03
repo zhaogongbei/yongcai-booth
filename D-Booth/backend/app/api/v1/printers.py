@@ -44,6 +44,8 @@ async def cancel_print_job(printer_name: str, job_id: int):
         if not success:
             raise HTTPException(status_code=400, detail="Failed to cancel print job")
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
 
@@ -56,6 +58,8 @@ async def print_test_page(printer_name: str):
         if not success:
             raise HTTPException(status_code=400, detail="Failed to print test page")
         return {"success": True, "message": "Test page sent to printer"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to print test page: {str(e)}")
 
