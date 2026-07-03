@@ -22,6 +22,7 @@
 - 修复 `useApi` debounce 递归调用与取消时 Promise 悬空的问题。
 
 ### 优化
+- 将前端直接使用的 React 运行时依赖从 optional peer 声明改为应用依赖，并让仓库卫生检查阻止该声明回退。
 - 固定 Trivy 安全扫描 action 到版本 tag，并让仓库卫生检查阻止 workflow 使用浮动 `main`/`master` action。
 - 收紧 Docker 发布链路，要求后端、前端、Runtime 和安全扫描全部通过后再发布，并使用 `DOCKER_USERNAME` secret 作为镜像命名空间。
 - 将生产 release 创建从旧 release action 迁移到 GitHub CLI，并为 CI workflow 增加显式最小权限声明。

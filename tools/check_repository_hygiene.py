@@ -72,6 +72,10 @@ EXPECTED_TEXT = {
         "${{ secrets.DOCKER_USERNAME }}/dbooth-backend",
         "${{ secrets.DOCKER_USERNAME }}/dbooth-frontend",
     ],
+    "D-Booth/frontend/package.json": [
+        '"react": "^18.3.1"',
+        '"react-dom": "^18.3.1"',
+    ],
 }
 
 BLOCKED_TEXT = {
@@ -115,6 +119,10 @@ BLOCKED_TEXT = {
     ],
     "D-Booth/backend/requirements.txt": [
         "pywin32==308\n",
+    ],
+    "D-Booth/frontend/package.json": [
+        '"peerDependencies"',
+        '"peerDependenciesMeta"',
     ],
 }
 
