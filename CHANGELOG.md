@@ -32,6 +32,7 @@
 - 合并后端 pytest 配置到 `pyproject.toml`，移除被优先读取的重复 `pytest.ini`，并将结构化日志时间戳改为时区感知 UTC。
 - 扩展仓库卫生检查，阻止重复 Unreleased、旧安全审计命令和不可通过的后端 lint 门禁回归。
 - 对齐 `CLAUDE.md`、`CONTRIBUTING.md` 和 `TECH_STACK.md` 的开发命令，避免 AI 与贡献者继续使用已废弃的 pnpm、Safety、mypy/ESLint/Prettier 门禁说明。
+- 将后端 `pywin32` 依赖标记为 Windows-only，避免 Ubuntu CI 安装 Windows 专用包失败。
 
 ### 变更
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。

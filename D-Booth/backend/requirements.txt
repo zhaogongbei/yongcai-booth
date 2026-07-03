@@ -25,4 +25,4 @@ aioboto3==13.1.1
 opencv-python-headless==4.10.0.84
 mediapipe==0.10.14
 numpy==1.26.4
-pywin32==308
+pywin32==308; sys_platform == "win32"

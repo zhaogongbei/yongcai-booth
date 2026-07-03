@@ -81,6 +81,9 @@ BLOCKED_TEXT = {
         "**ESLint** - 代码检查",
         "**Prettier** - 代码格式化",
     ],
+    "D-Booth/backend/requirements.txt": [
+        "pywin32==308\n",
+    ],
 }
 
 
