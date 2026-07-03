@@ -243,45 +243,18 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dbooth-frontend:latest
           cache-to: type=inline
 
-  # Deploy to Staging
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs: [backend-test, frontend-test, runtime-test]
-    environment:
-      name: staging
-      url: https://staging.dbooth.ai
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy to staging
-        run: |
-          echo "Deploying to staging environment..."
-          # Add your deployment script here
-
-  # Deploy to Production
-  deploy-production:
-    name: Deploy to Production
+  # Release
+  release-production:
+    name: Release Production
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [docker-build]
     permissions:
       contents: write
-    environment:
-      name: production
-      url: https://app.dbooth.ai
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Deploy to production
-        run: |
-          echo "Deploying to production environment..."
-          # Add your deployment script here
 
       - name: Create GitHub release
         env:

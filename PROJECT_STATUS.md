@@ -25,7 +25,7 @@
 - 后端模型 UUID 类型位于 `app.models.custom_types`；不要重新创建 `app.models.types`。
 - Docker 发布上下文必须具备 `D-Booth/backend/Dockerfile` 和 `D-Booth/frontend/Dockerfile`。
 - Docker 发布必须等待后端、前端、Runtime 和安全扫描全部通过，镜像命名空间来自 `DOCKER_USERNAME` secret。
-- GitHub Release 由生产发布 job 使用 `gh release create` 创建，不使用旧 release action。
+- GitHub Release 由 release job 使用 `gh release create` 创建，不使用旧 release action；没有真实部署脚本时，CI 不应声明 staging/production 部署成功。
 - CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
 - CI 安全扫描中的 Python 依赖审计必须使用项目声明的 `PYTHON_VERSION`，不能依赖 runner 默认 Python。
 
@@ -47,6 +47,7 @@
 - 已清理部署/开发指南中的旧 pnpm 指令，并删除过期 AI 指令备份文件。
 - 已统一根 `VERSION`、README 徽章和后端默认 API 版本，并让仓库卫生检查阻止版本源分裂回归。
 - 已扩展仓库卫生检查，让未跟踪的生成型报告也会在本地暴露。
+- 已移除 CI 中仅 echo 的假部署步骤，生产主线只保留真实的 GitHub Release 创建。
 
 ## 已知债务
 

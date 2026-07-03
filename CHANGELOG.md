@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 修复
+- 移除 CI 中仅 echo 的 staging/production 假部署步骤，避免无部署实现时显示部署成功。
 - 再次恢复外部回写带来的旧 CI、pnpm、Safety 和全量 mypy 门禁说明回归。
 - 对齐根 `VERSION`、README 徽章和后端默认 API 版本，并移除未使用的后端局部 `VERSION` 文件。
 - 清理部署和开发指南中的旧 pnpm 指令，并删除已过期的 `CLAUDE.md.backup`，避免 AI 与开发者读取冲突工作流。
