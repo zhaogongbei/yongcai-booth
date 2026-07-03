@@ -1,0 +1,11 @@
+node_modules
+dist
+.vite
+coverage
+.env
+.env.local
+vite-dev.err.log
+vite-dev.out.log
+npm-debug.log*
+Dockerfile
+.dockerignore

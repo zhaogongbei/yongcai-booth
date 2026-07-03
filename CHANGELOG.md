@@ -21,6 +21,7 @@
 - 修复 `useApi` debounce 递归调用与取消时 Promise 悬空的问题。
 
 ### 优化
+- 新增前端生产 Docker 构建配置，并让仓库卫生检查要求 CI/CD Docker 上下文具备 Dockerfile。
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。
 - 前端安全审计统一为 `npm run audit:security`，固定使用 npm 官方审计 API，避免本地镜像 registry 不支持 audit 时门禁不可复现。
 - 前端 hooks README 补齐已导出的 `useFetch` helper，并同步当前 hooks 使用方式。

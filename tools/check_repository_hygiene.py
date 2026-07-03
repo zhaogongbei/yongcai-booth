@@ -41,6 +41,11 @@ BLOCKED_PATHS = {
     "D-Booth/backend/app/models/types.py",
 }
 
+REQUIRED_PATHS = {
+    "D-Booth/backend/Dockerfile",
+    "D-Booth/frontend/Dockerfile",
+}
+
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_TEXT = {
@@ -124,6 +129,10 @@ def read_repo_text(path: str) -> str:
 
 def content_offenders() -> list[str]:
     offenders: list[str] = []
+
+    for path in sorted(REQUIRED_PATHS):
+        if not (ROOT / path).is_file():
+            offenders.append(f"{path} is required for CI/CD reproducibility.")
 
     changelog = read_repo_text("CHANGELOG.md")
     unreleased_count = changelog.count("## [Unreleased]")
