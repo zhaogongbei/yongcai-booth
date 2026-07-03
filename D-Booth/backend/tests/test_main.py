@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
+from app.core.config import settings
+
 
 @pytest.mark.asyncio
 async def test_root_endpoint(client: AsyncClient):
@@ -51,6 +53,6 @@ async def test_security_headers(client: AsyncClient):
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
-    assert "camera=()" in response.headers["Permissions-Policy"]
+    assert response.headers["Permissions-Policy"] == settings.PERMISSIONS_POLICY
     assert "default-src 'self'" in response.headers["Content-Security-Policy"]
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]

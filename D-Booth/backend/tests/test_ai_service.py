@@ -35,7 +35,7 @@ async def test_create_task_schedules_generation_with_prompt_and_provider(db_sess
     assert len(calls) == 1
     assert calls[0][0] == str(task.id)
     assert "Generate a realistic photo booth scene" in calls[0][1]
-    assert "User request: generate a booth scene" in calls[0][1]
+    assert "<<<USER_REQUEST>>>\ngenerate a booth scene\n<<</USER_REQUEST>>>" in calls[0][1]
     assert calls[0][2] == "openai"
     assert "Generate a realistic photo booth scene" in task.prompt
     assert task.status == "pending"

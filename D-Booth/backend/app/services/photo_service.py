@@ -157,7 +157,13 @@ class PhotoService:
                     safe_filename,
                     folder=f"photos/{event_id}",
                 )
-                thumbnail_url = await self._generate_thumbnail(storage_data, safe_filename, event_id)
+                thumbnail_urls = await self._generate_all_thumbnails(
+                    storage_data,
+                    safe_filename,
+                    event_id,
+                    detected_content_type,
+                )
+                webp_url = await self._transcode_to_webp(storage_data, safe_filename, event_id)
                 
         except Exception as e:
             logger.error(f"Failed to upload photo: {e}")

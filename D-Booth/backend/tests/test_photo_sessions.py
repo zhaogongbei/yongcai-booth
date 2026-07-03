@@ -144,7 +144,7 @@ async def test_upload_saves_local_original_and_thumbnail(
     photo = response.json()
     assert photo["session_id"] == session_response.json()["id"]
     assert photo["original_url"].startswith("/uploads/photos/")
-    assert photo["thumbnail_url"].startswith("/uploads/photos/")
+    assert photo["thumbnail_url"].startswith("/uploads/thumbnails/")
     assert photo["width"] == 32
     assert photo["height"] == 24
 
