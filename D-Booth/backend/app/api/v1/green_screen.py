@@ -179,16 +179,12 @@ async def update_green_screen_settings(
 ):
     """Update green screen settings for an event"""
     try:
-        # TODO: Implement actual database update
-        # For now return the updated settings
-        return GreenScreenSettingsResponse(
-            id=UUID(int=0),
-            event_id=event_id,
-            **settings.model_dump(),
-            backgrounds=[],
-            created_at="2024-01-01T00:00:00",
-            updated_at="2024-01-01T00:00:00",
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Green screen settings persistence is not implemented",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to update green screen settings: {str(e)}")
         raise HTTPException(

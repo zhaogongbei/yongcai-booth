@@ -100,3 +100,26 @@ async def test_process_photos_reports_not_implemented(client: AsyncClient):
     assert response.json()["error"]["message"] == (
         "Batch green screen processing is not implemented"
     )
+
+
+@pytest.mark.anyio
+async def test_update_green_screen_settings_reports_not_implemented(client: AsyncClient):
+    response = await client.put(
+        f"/api/v1/green-screen/settings/{uuid4()}",
+        json={
+            "enabled": True,
+            "mode": "auto",
+            "color_to_remove": "#00FF00",
+            "sensitivity": 50,
+            "smoothness": 30,
+            "use_flash": False,
+            "background_mode": "rotate",
+            "output_size": "template",
+            "current_background_index": 0,
+        },
+    )
+
+    assert response.status_code == 501
+    assert response.json()["error"]["message"] == (
+        "Green screen settings persistence is not implemented"
+    )
