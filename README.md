@@ -167,6 +167,7 @@ pytest --cov=app --cov-report=html
 cd frontend
 npm run typecheck
 npm run build
+npm run audit:security
 
 # Runtime 测试
 cd runtime-dotnet

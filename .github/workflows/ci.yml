@@ -188,7 +188,7 @@ jobs:
 
       - name: Node.js dependency audit
         working-directory: D-Booth/frontend
-        run: npm audit
+        run: npm run audit:security
         continue-on-error: true
 
   # Docker Build

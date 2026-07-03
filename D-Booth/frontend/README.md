@@ -8,4 +8,6 @@
   Run `npm ci` to install the dependencies from `package-lock.json`.
 
   Run `npm run dev` to start the development server.
+
+  Run `npm run typecheck`, `npm run build`, and `npm run audit:security` before submitting changes.
   

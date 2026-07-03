@@ -7,6 +7,7 @@
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
     "typecheck": "tsc --noEmit",
+    "audit:security": "npm audit --audit-level=high --registry=https://registry.npmjs.org/",
     "optimize:images": "python scripts/optimize-images.py"
   },
   "dependencies": {
