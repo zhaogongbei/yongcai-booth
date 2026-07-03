@@ -15,6 +15,7 @@
 
 - 根目录 `.github/workflows/ci.yml` 是唯一权威 CI workflow。
 - 根目录 `VERSION` 是项目默认版本源；README 徽章和后端 `settings.VERSION` 默认值必须与它一致。
+- 仓库卫生检查同时覆盖已跟踪和未跟踪的生成型报告/本地产物。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
 - 前端文档、部署示例和开发指南不得回退到 pnpm/yarn。
 - 前端是应用而不是库，`react` 和 `react-dom` 必须作为直接 runtime dependencies 声明。
@@ -45,6 +46,7 @@
 - 已固定 CI 安全扫描里的 Python 依赖审计运行版本，避免 runner 默认 Python 漂移。
 - 已清理部署/开发指南中的旧 pnpm 指令，并删除过期 AI 指令备份文件。
 - 已统一根 `VERSION`、README 徽章和后端默认 API 版本，并让仓库卫生检查阻止版本源分裂回归。
+- 已扩展仓库卫生检查，让未跟踪的生成型报告也会在本地暴露。
 
 ## 已知债务
 

@@ -158,6 +158,20 @@ def tracked_files() -> list[str]:
     ]
 
 
+def untracked_files() -> list[str]:
+    result = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=False,
+    )
+    return [
+        path.decode("utf-8", errors="replace")
+        for path in result.stdout.split(b"\0")
+        if path
+    ]
+
+
 def is_blocked(path: str) -> bool:
     parsed = PurePosixPath(path)
     parts = set(parsed.parts)
@@ -225,8 +239,9 @@ def content_offenders() -> list[str]:
 
 def main() -> int:
     tracked_offenders = sorted(path for path in tracked_files() if is_blocked(path))
+    untracked_offenders = sorted(path for path in untracked_files() if is_blocked(path))
     text_offenders = content_offenders()
-    if not tracked_offenders and not text_offenders:
+    if not tracked_offenders and not untracked_offenders and not text_offenders:
         print("Repository hygiene check passed.")
         return 0
 
@@ -234,7 +249,12 @@ def main() -> int:
     if tracked_offenders:
         print("Generated or local-only files are tracked.")
         print("Remove them from the Git index and keep the working copies local.")
+    if untracked_offenders:
+        print("Generated or local-only files are present in the working tree.")
+        print("Remove them from the workspace or add an explicit ignore rule if they are intentional.")
     for path in tracked_offenders:
+        print(f"- {path}")
+    for path in untracked_offenders:
         print(f"- {path}")
     for offender in text_offenders:
         print(f"- {offender}")
