@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 修复
+- 修复活动统计服务中打印和分享数量固定为 0 的问题，改为使用已有 repository 计数。
 - 移除 CI 中仅 echo 的 staging/production 假部署步骤，避免无部署实现时显示部署成功。
 - 再次恢复外部回写带来的旧 CI、pnpm、Safety 和全量 mypy 门禁说明回归。
 - 对齐根 `VERSION`、README 徽章和后端默认 API 版本，并移除未使用的后端局部 `VERSION` 文件。

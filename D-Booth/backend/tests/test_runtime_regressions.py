@@ -15,6 +15,7 @@ from app.models.models import (
 )
 from app.schemas.share import ShareCreate
 from app.services.analytics_service import AnalyticsService
+from app.services.event_service import EventService
 from app.services.share_service import ShareService
 
 
@@ -181,3 +182,49 @@ async def test_analytics_overview_includes_business_metrics(db_session):
     assert overview["active_events"] == 1
     assert overview["storage_used"] == 350
     assert overview["estimated_revenue"] == 0
+
+
+@pytest.mark.anyio
+async def test_event_statistics_counts_prints_and_shares(db_session):
+    user = User(
+        email="event-stats-owner@example.com",
+        hashed_password="not-used",
+        full_name="Event Stats Owner",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    team = Team(name="Event Stats Team", slug="event-stats-team")
+    db_session.add(team)
+    await db_session.flush()
+
+    db_session.add(TeamMember(team_id=team.id, user_id=user.id, role=UserRole.OWNER))
+    event = Event(
+        team_id=team.id,
+        creator_id=user.id,
+        name="Event Stats Event",
+        start_date=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        end_date=datetime(2026, 7, 2, tzinfo=timezone.utc),
+    )
+    db_session.add(event)
+    await db_session.flush()
+
+    photo = Photo(
+        event_id=event.id,
+        original_url="https://example.com/event-stats-photo.jpg",
+        file_size=100,
+        width=100,
+        height=100,
+    )
+    db_session.add(photo)
+    await db_session.flush()
+
+    db_session.add(PrintJob(photo_id=photo.id, copies=1))
+    db_session.add(Share(photo_id=photo.id, channel="link", short_code="evt123"))
+    await db_session.commit()
+
+    stats = await EventService(db_session).get_event_statistics(event.id)
+
+    assert stats.total_photos == 1
+    assert stats.total_prints == 1
+    assert stats.total_shares == 1

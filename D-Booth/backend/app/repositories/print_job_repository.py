@@ -95,16 +95,6 @@ class PrintJobRepository(BaseRepository[PrintJob]):
             return job
         return None
 
-    async def count_by_event(self, event_id: UUID) -> int:
-        """Count print jobs for an event (join through Photo, single query)."""
-        result = await self.db.execute(
-            select(func.count())
-            .select_from(PrintJob)
-            .join(Photo, PrintJob.photo_id == Photo.id)
-            .where(Photo.event_id == event_id)
-        )
-        return result.scalar_one()
-
     async def count_by_status(self, status: PrintJobStatus) -> int:
         """Count print jobs by status"""
         result = await self.db.execute(
