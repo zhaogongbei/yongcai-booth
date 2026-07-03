@@ -58,7 +58,12 @@ def _delete_local_green_screen_file(file_url: Optional[str]) -> None:
 
     uploads_root = (Path.cwd() / "uploads").resolve()
     target = (Path.cwd() / file_url.lstrip("/")).resolve()
-    if target.is_file() and str(target).startswith(str(uploads_root)):
+    try:
+        target.relative_to(uploads_root)
+    except ValueError:
+        return
+
+    if target.is_file():
         target.unlink()
 
 

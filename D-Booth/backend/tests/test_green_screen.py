@@ -5,6 +5,8 @@ import pytest
 from httpx import AsyncClient
 from PIL import Image
 
+from app.api.v1.green_screen import _delete_local_green_screen_file
+
 
 def _png_bytes(color: tuple[int, int, int] = (0, 255, 0)) -> bytes:
     buf = io.BytesIO()
@@ -140,6 +142,22 @@ async def test_delete_background_removes_persisted_background(
     )
     assert settings_response.status_code == 200
     assert settings_response.json()["backgrounds"] == []
+
+
+def test_delete_local_green_screen_file_rejects_sibling_uploads_prefix(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "uploads" / "green-screen").mkdir(parents=True)
+    sibling = tmp_path / "uploads_evil"
+    sibling.mkdir()
+    secret = sibling / "secret.png"
+    secret.write_bytes(b"secret")
+
+    _delete_local_green_screen_file("/uploads/green-screen/../../uploads_evil/secret.png")
+
+    assert secret.is_file()
 
 
 @pytest.mark.anyio

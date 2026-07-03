@@ -38,6 +38,7 @@
 - 修复前端生产环境 Web Vitals 默认上报到不存在的硬编码 `/api/v1/analytics/vitals` 接口的问题，改为仅在显式配置 endpoint 时发送。
 - 修复前端统一 API 客户端在调用方传入 `AbortSignal` 时内部 timeout 失效、且取消请求被误包装为 timeout 错误的问题。
 - 修复分享设置后端 WhatsApp 号码字段拼写为 `whatssapp_number` 导致前后端契约不一致的问题，并兼容历史拼错配置。
+- 修复后端本地媒体读取和 Green Screen 本地资产删除使用字符串前缀判断路径归属的问题，避免同前缀兄弟目录绕过上传目录边界。
 
 ### 优化
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。
