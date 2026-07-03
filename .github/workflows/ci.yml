@@ -182,8 +182,8 @@ jobs:
       - name: Python dependency check
         working-directory: D-Booth/backend
         run: |
-          pip install safety
-          safety check --json
+          pip install -r requirements-dev.txt
+          python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict
         continue-on-error: true
 
       - name: Node.js dependency audit

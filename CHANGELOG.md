@@ -17,11 +17,13 @@
 - 修复 Runtime SQLite 批量保存事务类型，恢复 .NET Release build 门禁。
 - 修复 `.gitignore` 在 Windows 下误忽略 `Booth.Infra.Storage.Sqlite` 源码目录的问题，并将 SQLite 存储项目源码纳入版本控制。
 - 修复 Runtime 测试项目缺少 `coverlet.collector` 的问题，使 CI 覆盖率采集参数实际生效。
+- 升级后端存在已知漏洞的 FastAPI、Starlette、python-multipart、Sentry SDK、Pillow、Pydantic Settings、pytest 和 Black 依赖。
 
 ### 优化
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。
 - 前端安全审计统一为 `npm run audit:security`，固定使用 npm 官方审计 API，避免本地镜像 registry 不支持 audit 时门禁不可复现。
 - 前端 hooks README 补齐已导出的 `useFetch` helper，并同步当前 hooks 使用方式。
+- Python 依赖安全扫描从未固定的 `safety check` 切换为随开发依赖固定版本的 `pip-audit`。
 
 ### 变更
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
