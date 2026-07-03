@@ -355,14 +355,15 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
         # Get active sessions
         active_sessions = await session_repo.get_active_sessions(event_id)
 
-        # TODO: Get print and share counts for this event
+        total_prints = await print_repo.count_by_event(event_id)
+        total_shares = await share_repo.count_by_event(event_id)
 
         return EventStatistics(
             event_id=event_id,
             total_sessions=total_sessions,
             total_photos=total_photos,
-            total_prints=0,  # TODO
-            total_shares=0,  # TODO
+            total_prints=total_prints,
+            total_shares=total_shares,
             active_sessions=len(active_sessions),
         )
 
