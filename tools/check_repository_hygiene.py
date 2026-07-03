@@ -38,8 +38,19 @@ BLOCKED_FILENAMES = {
 }
 
 BLOCKED_PATHS = {
+    "ACTUAL_PROGRESS_REPORT.md",
+    "CODE_IMPLEMENTATION_PROGRESS.md",
+    "COMPREHENSIVE_FINAL_REPORT.md",
+    "CONTINUE_FROM_HERE.md",
+    "D-Booth/backend/app/services/VERSION",
     "D-Booth/backend/.github/workflows/ci.yml",
     "D-Booth/backend/app/models/types.py",
+    "FINAL_EXECUTION_REPORT.md",
+    "FINAL_OPTIMIZATION_SUMMARY.md",
+    "HONEST_FINAL_SUMMARY.md",
+    "OPTIMIZATION_REPORT.md",
+    "REALTIME_PROGRESS.md",
+    "SERVICE_REFACTOR_REPORT.md",
 }
 
 REQUIRED_PATHS = {
