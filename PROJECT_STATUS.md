@@ -38,6 +38,7 @@
 - 分享设置 WhatsApp 号码字段的权威名称是 `whatsapp_number`；后端只应输出正确字段，但需要继续读取历史拼错的 `whatssapp_number` 配置。
 - 后端本地文件访问或删除的上传目录边界必须使用 `Path.relative_to()` 这类真实路径归属判断，不得用字符串 `startswith` 判断路径前缀。
 - Green Screen 本地背景/叠层资产的可访问 URL 使用 `/api/v1/green-screen/assets/{event_id}/{folder}/{filename}`；前端需要继续兼容历史 `/uploads/green-screen/...` URL，但不得公开整个 `/uploads` 目录。
+- Green Screen 设置、背景上传/删除和批处理请求都必须验证当前用户已认证，并且是对应活动所属团队成员。
 
 ## 近期完成
 
@@ -57,6 +58,7 @@
 - 已修复分享设置后端 WhatsApp 字段拼写错误导致前后端契约不一致的问题，并补充 API 回归测试。
 - 已修复媒体文件读取和 Green Screen 本地背景删除的上传目录边界校验，避免同前缀兄弟目录绕过，并补充安全回归测试。
 - 已修复本地 Green Screen 背景资产 URL 无可用后端路由导致缩略图和预览背景加载失败的问题，并让前端兼容历史本地绿幕资产 URL。
+- 已修复 Green Screen 事件级接口缺少认证与团队成员授权的问题，并补充未登录与跨团队访问回归测试。
 - 已新增前端生产 Docker 镜像配置。
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。

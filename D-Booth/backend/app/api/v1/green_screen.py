@@ -14,9 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.deps import check_team_member, get_current_active_user
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.models import Event, GreenScreenBackgroundAsset, GreenScreenSettings
+from app.models.models import Event, GreenScreenBackgroundAsset, GreenScreenSettings, User
 from app.schemas.green_screen import (
     BackgroundAnalysisResult,
     GreenScreenBackground,
@@ -146,6 +147,22 @@ async def _ensure_event_exists(db: AsyncSession, event_id: UUID) -> None:
         )
 
 
+async def _ensure_event_access(
+    db: AsyncSession,
+    event_id: UUID,
+    current_user: User,
+) -> None:
+    result = await db.execute(select(Event.team_id).where(Event.id == event_id))
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    await check_team_member(team_id, current_user, db)
+
+
 async def _get_or_create_settings_for_event(
     db: AsyncSession,
     event_id: UUID,
@@ -256,6 +273,7 @@ async def process_photos(
     event_id: UUID,
     request: GreenScreenProcessRequest,
     photo_ids: List[UUID],
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -263,6 +281,7 @@ async def process_photos(
     Returns list of processed photo URLs
     """
     try:
+        await _ensure_event_access(db, event_id, current_user)
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Batch green screen processing is not implemented",
@@ -280,10 +299,12 @@ async def process_photos(
 @router.get("/settings/{event_id}", response_model=GreenScreenSettingsResponse)
 async def get_green_screen_settings(
     event_id: UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get green screen settings for an event"""
     try:
+        await _ensure_event_access(db, event_id, current_user)
         settings = await _get_or_create_settings_for_event(db, event_id)
         return _settings_response(settings)
     except HTTPException:
@@ -300,10 +321,12 @@ async def get_green_screen_settings(
 async def update_green_screen_settings(
     event_id: UUID,
     settings: GreenScreenSettingsUpdate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update green screen settings for an event"""
     try:
+        await _ensure_event_access(db, event_id, current_user)
         settings_model = await _get_or_create_settings_for_event(db, event_id)
         update_data = settings.model_dump()
         for field, value in update_data.items():
@@ -331,10 +354,13 @@ async def upload_background(
     name: str = Form(...),
     file: UploadFile = File(...),
     overlay_file: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a new background image with optional overlay"""
     try:
+        await _ensure_event_access(db, event_id, current_user)
+
         # Read background file
         file_bytes = await file.read()
         if not file_bytes:
@@ -410,10 +436,12 @@ async def upload_background(
 async def delete_background(
     background_id: UUID,
     event_id: UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a background image"""
     try:
+        await _ensure_event_access(db, event_id, current_user)
         result = await db.execute(
             select(GreenScreenBackgroundAsset)
             .join(GreenScreenSettings)

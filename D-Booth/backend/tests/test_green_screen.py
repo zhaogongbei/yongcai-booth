@@ -2,10 +2,11 @@ import io
 from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from PIL import Image
 
 from app.api.v1.green_screen import _delete_local_green_screen_file
+from app.main import app
 
 
 def _png_bytes(color: tuple[int, int, int] = (0, 255, 0)) -> bytes:
@@ -85,11 +86,13 @@ async def test_upload_background_saves_local_files(
 
 
 @pytest.mark.anyio
-async def test_upload_background_rejects_empty_file(client: AsyncClient):
-    response = await client.post(
+async def test_upload_background_rejects_empty_file(authenticated_client: AsyncClient):
+    event = await _create_event(authenticated_client, "empty")
+
+    response = await authenticated_client.post(
         "/api/v1/green-screen/backgrounds",
         data={
-            "event_id": str(uuid4()),
+            "event_id": event["id"],
             "name": "Empty Backdrop",
         },
         files={"file": ("empty.png", b"", "image/png")},
@@ -100,8 +103,17 @@ async def test_upload_background_rejects_empty_file(client: AsyncClient):
 
 
 @pytest.mark.anyio
-async def test_get_green_screen_settings_returns_404_for_missing_event(client: AsyncClient):
+async def test_get_green_screen_settings_requires_authentication(client: AsyncClient):
     response = await client.get(f"/api/v1/green-screen/settings/{uuid4()}")
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_get_green_screen_settings_returns_404_for_missing_event(
+    authenticated_client: AsyncClient,
+):
+    response = await authenticated_client.get(f"/api/v1/green-screen/settings/{uuid4()}")
 
     assert response.status_code == 404
     assert response.json()["error"]["message"] == "Event not found"
@@ -177,11 +189,54 @@ def test_delete_local_green_screen_file_rejects_sibling_uploads_prefix(
 
 
 @pytest.mark.anyio
-async def test_process_photos_reports_not_implemented(client: AsyncClient):
-    response = await client.post(
+async def test_update_green_screen_settings_rejects_non_member(
+    authenticated_client: AsyncClient,
+):
+    event = await _create_event(authenticated_client, "non-member")
+
+    other_user_data = {
+        "email": "green-screen-other@example.com",
+        "password": "OtherPass123!@",
+        "full_name": "Green Screen Other",
+    }
+    await authenticated_client.post("/api/v1/auth/register", json=other_user_data)
+    login_response = await authenticated_client.post(
+        "/api/v1/auth/login",
+        data={"username": other_user_data["email"], "password": other_user_data["password"]},
+    )
+    other_token = login_response.json()["access_token"]
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {other_token}"},
+    ) as other_client:
+        response = await other_client.put(
+            f"/api/v1/green-screen/settings/{event['id']}",
+            json={
+                "enabled": True,
+                "mode": "auto",
+                "color_to_remove": "#00FF00",
+                "sensitivity": 50,
+                "smoothness": 30,
+                "use_flash": False,
+                "background_mode": "rotate",
+                "output_size": "template",
+                "current_background_index": 0,
+            },
+        )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_process_photos_reports_not_implemented(authenticated_client: AsyncClient):
+    event = await _create_event(authenticated_client, "process")
+
+    response = await authenticated_client.post(
         "/api/v1/green-screen/process",
         params={
-            "event_id": str(uuid4()),
+            "event_id": event["id"],
         },
         json={
             "request": {
