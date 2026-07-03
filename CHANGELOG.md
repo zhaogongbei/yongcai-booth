@@ -21,6 +21,7 @@
 - 修复 `useApi` debounce 递归调用与取消时 Promise 悬空的问题。
 
 ### 优化
+- 收紧 Docker 发布链路，要求后端、前端、Runtime 和安全扫描全部通过后再发布，并使用 `DOCKER_USERNAME` secret 作为镜像命名空间。
 - 将生产 release 创建从旧 release action 迁移到 GitHub CLI，并为 CI workflow 增加显式最小权限声明。
 - 移除根目录生成型执行报告和错位版本文件，新增 `PROJECT_STATUS.md` 作为简洁项目记忆，并让仓库卫生检查阻止过程产物回归。
 - 整合前端 URL 请求 hook 为 `useHttpFetch`，避免与现有 `useFetch` 形成重名 API，并补齐 hooks 导出与文档。

@@ -67,6 +67,9 @@ EXPECTED_TEXT = {
         "ruff check app/ --select E9,F63,F7,F82",
         "permissions:",
         "gh release create",
+        "needs: [backend-test, frontend-test, runtime-test, security-scan]",
+        "${{ secrets.DOCKER_USERNAME }}/dbooth-backend",
+        "${{ secrets.DOCKER_USERNAME }}/dbooth-frontend",
     ],
 }
 
@@ -74,6 +77,8 @@ BLOCKED_TEXT = {
     ".github/workflows/ci.yml": [
         "actions/create-release@v1",
         "continue-on-error: true",
+        "dbooth/backend:",
+        "dbooth/frontend:",
         "safety check",
         "mypy app/",
     ],

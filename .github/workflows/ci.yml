@@ -163,6 +163,7 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: repository-hygiene
     permissions:
       contents: read
       security-events: write
@@ -199,7 +200,7 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend-test, frontend-test]
+    needs: [backend-test, frontend-test, runtime-test, security-scan]
 
     steps:
       - name: Checkout code
@@ -220,9 +221,9 @@ jobs:
           context: ./D-Booth/backend
           push: true
           tags: |
-            dbooth/backend:latest
-            dbooth/backend:${{ github.sha }}
-          cache-from: type=registry,ref=dbooth/backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/dbooth-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/dbooth-backend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dbooth-backend:latest
           cache-to: type=inline
 
       - name: Build and push Frontend
@@ -231,9 +232,9 @@ jobs:
           context: ./D-Booth/frontend
           push: true
           tags: |
-            dbooth/frontend:latest
-            dbooth/frontend:${{ github.sha }}
-          cache-from: type=registry,ref=dbooth/frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/dbooth-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/dbooth-frontend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dbooth-frontend:latest
           cache-to: type=inline
 
   # Deploy to Staging
