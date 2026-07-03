@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import noload
 from app.models.models import Event, EventStatus
 from app.repositories.base import BaseRepository
 
@@ -12,6 +13,13 @@ class EventRepository(BaseRepository[Event]):
     
     def __init__(self, db: AsyncSession):
         super().__init__(Event, db)
+
+    async def get(self, id: UUID) -> Optional[Event]:
+        """Get an event by ID without preloading relationship graphs."""
+        result = await self.db.execute(
+            select(Event).options(noload("*")).where(Event.id == id)
+        )
+        return result.scalar_one_or_none()
     
     async def get_by_team(
         self,
@@ -87,7 +95,7 @@ class EventRepository(BaseRepository[Event]):
         status: EventStatus
     ) -> Optional[Event]:
         """Update event status"""
-        stmt = select(Event).where(Event.id == event_id)
+        stmt = select(Event).options(noload("*")).where(Event.id == event_id)
         result = await self.db.execute(stmt)
         event = result.scalar_one_or_none()
         
