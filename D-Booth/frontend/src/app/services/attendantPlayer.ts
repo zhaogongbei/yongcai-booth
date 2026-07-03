@@ -1,6 +1,12 @@
 /**
  * 虚拟助手语音播放器服务
  */
+import {
+  getVirtualAttendantPlaylist,
+  getVirtualAttendantTtsUrl,
+  type VirtualAttendantPlaylistItem,
+} from "../../lib/api";
+
 export interface PlaylistItem {
   timing: string;
   enabled: boolean;
@@ -26,12 +32,7 @@ class AttendantPlayer {
     this.playlist.clear();
 
     try {
-      const response = await fetch(`/api/v1/virtual-attendant/playlist/${eventId}`);
-      if (!response.ok) {
-        throw new Error(`Failed to load playlist: ${response.statusText}`);
-      }
-
-      const items: PlaylistItem[] = await response.json();
+      const items: VirtualAttendantPlaylistItem[] = await getVirtualAttendantPlaylist(eventId);
       items.forEach(item => {
         this.playlist.set(item.timing, item);
       });
@@ -80,7 +81,12 @@ class AttendantPlayer {
     const item = this.playlist.get(timing);
     if (!item) return '';
 
-    return `/api/v1/virtual-attendant/tts/${timing}?event_id=${encodeURIComponent(this.currentEventId)}&language=${encodeURIComponent(item.language)}&voice=${encodeURIComponent(item.voice)}`;
+    return getVirtualAttendantTtsUrl({
+      timing,
+      eventId: this.currentEventId,
+      language: item.language,
+      voice: item.voice,
+    });
   }
 
   /**

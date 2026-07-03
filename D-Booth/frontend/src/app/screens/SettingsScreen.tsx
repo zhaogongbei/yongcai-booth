@@ -5,6 +5,7 @@ import { GlassCard } from "../components/GlassCard";
 import { useSettings } from "../stores/useSettings";
 import { showToast } from "../stores/useToast";
 import { attendantPlayer } from "../services/attendantPlayer";
+import { previewVirtualAttendantTts } from "../../lib/api";
 
 const LANGUAGE_OPTIONS = [
   { value: "zh-CN", label: "简体中文" },
@@ -169,19 +170,36 @@ export function SettingsScreen() {
 
   const handlePreviewTTS = useCallback(async (timing: string) => {
     setPreviewLoading(true);
+    let audioUrl: string | null = null;
     try {
       const timingItem = PLAY_TIMINGS.find(t => t.key === timing);
       const text = va.timings?.[timing]?.text ?? timingItem?.defaultText ?? "";
-      const url = `/api/v1/virtual-attendant/tts/${timing}?event_id=default&language=${encodeURIComponent(vaLocal.language)}&voice=${encodeURIComponent(vaLocal.voice)}`;
-      const audio = new Audio(url);
+      const audioBlob = await previewVirtualAttendantTts({
+        text,
+        language: vaLocal.language,
+        voice: vaLocal.voice,
+      });
+      audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
       audio.volume = vaLocal.volume;
-      await audio.play();
-      audio.addEventListener('ended', () => setPreviewLoading(false));
+      const cleanup = () => {
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          audioUrl = null;
+        }
+      };
+      audio.addEventListener('ended', () => {
+        cleanup();
+        setPreviewLoading(false);
+      });
       audio.addEventListener('error', () => {
+        cleanup();
         setPreviewLoading(false);
         showToast.error("试听失败，请检查TTS服务是否可用");
       });
+      await audio.play();
     } catch {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
       setPreviewLoading(false);
       showToast.error("试听失败");
     }

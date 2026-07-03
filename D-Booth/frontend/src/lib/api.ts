@@ -878,6 +878,55 @@ export async function sendShareSMS(params: SendSMSParams): Promise<{ status: str
   });
 }
 
+// ─── Virtual Attendant ────────────────────────────────────────────────────────
+
+export interface VirtualAttendantPlaylistItem {
+  timing: string;
+  enabled: boolean;
+  text: string;
+  language: string;
+  voice: string;
+}
+
+export async function getVirtualAttendantPlaylist(
+  eventId: string
+): Promise<VirtualAttendantPlaylistItem[]> {
+  return request<VirtualAttendantPlaylistItem[]>(`/virtual-attendant/playlist/${eventId}`);
+}
+
+export function getVirtualAttendantTtsUrl(params: {
+  timing: string;
+  eventId: string;
+  language: string;
+  voice: string;
+}): string {
+  const url = new URL(`${BASE_URL}/virtual-attendant/tts/${encodeURIComponent(params.timing)}`);
+  url.searchParams.set("event_id", params.eventId);
+  url.searchParams.set("language", params.language);
+  url.searchParams.set("voice", params.voice);
+  return url.toString();
+}
+
+export async function previewVirtualAttendantTts(params: {
+  text: string;
+  language: string;
+  voice: string;
+}): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}/virtual-attendant/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, error.detail || response.statusText, error);
+  }
+
+  return response.blob();
+}
+
 // ─── Green Screen ─────────────────────────────────────────────────────────────
 
 export type GreenScreenMode = "chroma_key" | "ai_removal" | "auto";
