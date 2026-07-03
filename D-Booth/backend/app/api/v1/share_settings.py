@@ -2,7 +2,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import check_team_member, get_current_active_user, get_db
@@ -59,7 +59,10 @@ class ShareSettings(BaseModel):
     smtp: SMTPSettings = SMTPSettings()
     twilio: TwilioSettings = TwilioSettings()
     templates: TemplateSettings = TemplateSettings()
-    whatssapp_number: str = ""
+    whatsapp_number: str = Field(
+        default="",
+        validation_alias=AliasChoices("whatsapp_number", "whatssapp_number"),
+    )
 
 
 class ShareSettingsResponse(ShareSettings):
@@ -80,6 +83,13 @@ class TestSMSRequest(BaseModel):
     country_code: str = "+86"
 
 
+def normalize_share_settings(raw_settings: dict) -> dict:
+    share_settings = dict(raw_settings)
+    if "whatsapp_number" not in share_settings and "whatssapp_number" in share_settings:
+        share_settings["whatsapp_number"] = share_settings.pop("whatssapp_number")
+    return ShareSettings.model_validate(share_settings).model_dump()
+
+
 @router.get("/settings/sharing/{event_id}", response_model=ShareSettingsResponse)
 async def get_share_settings(
     event_id: UUID,
@@ -96,7 +106,7 @@ async def get_share_settings(
 
     # 从event.settings中获取分享配置，不存在则返回默认值
     settings = event.settings or {}
-    share_settings = settings.get("sharing", ShareSettings().model_dump())
+    share_settings = normalize_share_settings(settings.get("sharing", ShareSettings().model_dump()))
 
     return {"event_id": event_id, **share_settings}
 
@@ -142,7 +152,7 @@ async def test_email_send(
 
     # 获取分享配置
     settings = event.settings or {}
-    share_settings = settings.get("sharing", ShareSettings().model_dump())
+    share_settings = normalize_share_settings(settings.get("sharing", ShareSettings().model_dump()))
     templates = share_settings.get("templates", TemplateSettings().model_dump())
 
     # 发送测试邮件
@@ -181,7 +191,7 @@ async def test_sms_send(
 
     # 获取分享配置
     settings = event.settings or {}
-    share_settings = settings.get("sharing", ShareSettings().model_dump())
+    share_settings = normalize_share_settings(settings.get("sharing", ShareSettings().model_dump()))
     templates = share_settings.get("templates", TemplateSettings().model_dump())
 
     message = templates["sms_message"].format(event_name=event.name, share_url=request.share_url)

@@ -35,6 +35,7 @@
 - 离线队列同步必须复用统一 API 客户端；打印任务使用后端真实 `/print-jobs` 接口，不得调用不存在的 `/api/v1/print`。
 - 前端 Web Vitals 上报必须显式配置 `VITE_WEB_VITALS_ENDPOINT`；未配置时只保留开发环境 console 输出，不得默认请求后端不存在的 analytics endpoint。
 - 前端统一 API 客户端必须同时支持调用方取消信号和内部 timeout；调用方取消应保持 `AbortError` 语义，不得误包装为 timeout 或普通请求失败。
+- 分享设置 WhatsApp 号码字段的权威名称是 `whatsapp_number`；后端只应输出正确字段，但需要继续读取历史拼错的 `whatssapp_number` 配置。
 
 ## 近期完成
 
@@ -51,6 +52,7 @@
 - 已修复前端离线队列照片上传绕过统一 API 客户端、打印任务请求不存在接口的问题。
 - 已修复前端生产环境 Web Vitals 默认上报到不存在硬编码接口导致 404 噪音的问题。
 - 已修复前端统一 API 客户端在 hook 传入取消信号时 timeout 失效、取消请求进入普通错误状态的问题。
+- 已修复分享设置后端 WhatsApp 字段拼写错误导致前后端契约不一致的问题，并补充 API 回归测试。
 - 已新增前端生产 Docker 镜像配置。
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。
