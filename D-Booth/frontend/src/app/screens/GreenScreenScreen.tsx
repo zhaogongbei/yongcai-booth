@@ -11,8 +11,11 @@ import { SliderControl } from "../components/SliderControl";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import type { Screen } from "../types";
 import {
+  analyzeGreenScreenTestPhoto,
   deleteGreenScreenBackground,
   getGreenScreenSettings,
+  previewGreenScreenImage,
+  resolveBackendUrl,
   updateGreenScreenSettings,
   uploadGreenScreenBackground,
   type GreenScreenBackgroundResponse,
@@ -70,6 +73,11 @@ function fromApiBackground(background: GreenScreenBackgroundResponse): GreenScre
 }
 
 function fromApiSettings(settings: GreenScreenSettingsResponse): GreenScreenSettings {
+  const currentBackgroundIndex =
+    settings.backgrounds.length > 0
+      ? Math.min(settings.current_background_index, settings.backgrounds.length - 1)
+      : 0;
+
   return {
     enabled: settings.enabled,
     mode: settings.mode,
@@ -80,7 +88,7 @@ function fromApiSettings(settings: GreenScreenSettingsResponse): GreenScreenSett
     backgroundMode: settings.background_mode,
     backgrounds: settings.backgrounds.map(fromApiBackground),
     outputSize: settings.output_size,
-    currentBackgroundIndex: settings.current_background_index,
+    currentBackgroundIndex,
   };
 }
 
@@ -183,40 +191,25 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       const response = await fetch(testPhotoUrl);
       const imageBlob = await response.blob();
 
-      // Create form data
-      const formData = new FormData();
-      formData.append("file", imageBlob, "test.jpg");
-      formData.append("settings", JSON.stringify({
-        enabled: settings.enabled,
-        mode: settings.mode,
-        color_to_remove: settings.colorToRemove,
-        sensitivity: settings.sensitivity,
-        smoothness: settings.smoothness,
-        use_flash: settings.useFlash,
-        background_mode: settings.backgroundMode,
-        output_size: settings.outputSize,
-        current_background_index: settings.currentBackgroundIndex,
-      }));
-
       // Add background if exists
-      if (settings.backgrounds.length > 0) {
-        const bgResponse = await fetch(settings.backgrounds[settings.currentBackgroundIndex].backgroundUrl);
+      let backgroundBlob: Blob | undefined;
+      if (settings.backgrounds.length > 0 && settings.backgrounds[settings.currentBackgroundIndex]) {
+        const bgResponse = await fetch(
+          resolveBackendUrl(settings.backgrounds[settings.currentBackgroundIndex].backgroundUrl)
+        );
+        if (!bgResponse.ok) {
+          throw new Error("Background image failed to load");
+        }
         const bgBlob = await bgResponse.blob();
-        formData.append("background_file", bgBlob, "background.jpg");
+        backgroundBlob = bgBlob;
       }
 
-      // Call preview API
-      const apiResponse = await fetch("/api/v1/green-screen/preview", {
-        method: "POST",
-        body: formData,
-        signal: abortController.signal,
-      });
-
-      if (!apiResponse.ok) {
-        throw new Error("Preview failed");
-      }
-
-      const processedBlob = await apiResponse.blob();
+      const processedBlob = await previewGreenScreenImage(
+        imageBlob,
+        toApiSettings(settings),
+        backgroundBlob,
+        abortController.signal
+      );
       const objectUrl = URL.createObjectURL(processedBlob);
 
       // Clean up previous object URL
@@ -276,20 +269,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       const response = await fetch(testPhotoUrl);
       const imageBlob = await response.blob();
 
-      // Call analysis API
-      const formData = new FormData();
-      formData.append("file", imageBlob, "test.jpg");
-
-      const apiResponse = await fetch("/api/v1/green-screen/test-photo", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!apiResponse.ok) {
-        throw new Error("Analysis failed");
-      }
-
-      const analysis = await apiResponse.json();
+      const analysis = await analyzeGreenScreenTestPhoto(imageBlob);
       setTestPhotoAnalysis(analysis);
 
       // Apply recommended settings
@@ -586,7 +566,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
                   }`}
                 >
                   <img
-                    src={bg.backgroundUrl}
+                    src={resolveBackendUrl(bg.backgroundUrl)}
                     alt={bg.name}
                     className="w-full h-full object-cover"
                     loading="lazy"

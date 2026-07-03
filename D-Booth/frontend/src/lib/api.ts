@@ -409,6 +409,11 @@ export async function getBackendHealth(): Promise<BackendHealthResponse> {
   return data as BackendHealthResponse;
 }
 
+export function resolveBackendUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${ROOT_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 async function refreshTokens(): Promise<boolean> {
   const refreshToken = tokenStorage.refresh;
   if (!refreshToken) return false;
@@ -908,6 +913,14 @@ export interface GreenScreenSettingsResponse extends GreenScreenSettingsPayload 
   updated_at: string;
 }
 
+export interface GreenScreenAnalysisResponse {
+  complexity_score: number;
+  recommended_mode: GreenScreenMode;
+  is_green_background: boolean;
+  suggested_sensitivity: number;
+  suggestions: string[];
+}
+
 export async function getGreenScreenSettings(eventId: string): Promise<GreenScreenSettingsResponse> {
   return request<GreenScreenSettingsResponse>(`/green-screen/settings/${eventId}`);
 }
@@ -950,6 +963,54 @@ export async function deleteGreenScreenBackground(
     method: "DELETE",
     query: { event_id: eventId },
   });
+}
+
+export async function previewGreenScreenImage(
+  image: Blob,
+  settings: GreenScreenSettingsPayload,
+  background?: Blob,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const formData = new FormData();
+  formData.append("file", image, "test.jpg");
+  formData.append("settings", JSON.stringify(settings));
+  if (background) {
+    formData.append("background_file", background, "background.jpg");
+  }
+
+  const response = await fetch(`${BASE_URL}/green-screen/preview`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+    signal,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, error.detail || response.statusText, error);
+  }
+
+  return response.blob();
+}
+
+export async function analyzeGreenScreenTestPhoto(
+  image: Blob
+): Promise<GreenScreenAnalysisResponse> {
+  const formData = new FormData();
+  formData.append("file", image, "test.jpg");
+
+  const response = await fetch(`${BASE_URL}/green-screen/test-photo`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new ApiError(response.status, error.detail || response.statusText, error);
+  }
+
+  return response.json();
 }
 
 // ─── Printers ──────────────────────────────────────────────────────────────────
