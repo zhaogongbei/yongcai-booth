@@ -1,15 +1,16 @@
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+
+import httpx
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
 
-from app.api.deps import get_db, get_current_active_user, check_team_member
-from app.services.watermark_service import WatermarkService, WatermarkSettings
-from app.services.storage_service import r2_storage
-from app.models.models import User, Event, Photo
+from app.api.deps import check_team_member, get_current_active_user, get_db
+from app.models.models import Event, Photo, User
 from app.services.photo_service import PhotoService
+from app.services.storage_service import r2_storage
+from app.services.watermark_service import WatermarkService, WatermarkSettings
 
 router = APIRouter()
 
@@ -19,18 +20,16 @@ async def update_watermark_settings(
     event_id: UUID,
     settings: WatermarkSettings,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update watermark settings for an event"""
     from app.services.event_service import EventService
+
     event_service = EventService(db)
 
     event = await event_service.get_event(event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     # Verify team membership
     await check_team_member(event.team_id, current_user, db)
@@ -47,18 +46,16 @@ async def update_watermark_settings(
 async def get_watermark_settings(
     event_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get watermark settings for an event"""
     from app.services.event_service import EventService
+
     event_service = EventService(db)
 
     event = await event_service.get_event(event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     # Verify team membership
     await check_team_member(event.team_id, current_user, db)
@@ -69,14 +66,13 @@ async def get_watermark_settings(
 
 @router.post("/watermark/upload")
 async def upload_watermark(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user)
+    file: UploadFile = File(...), current_user: User = Depends(get_current_active_user)
 ):
     """Upload a watermark PNG file"""
     if not file.content_type or not file.content_type.startswith("image/png"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PNG files are allowed for watermarks"
+            detail="Only PNG files are allowed for watermarks",
         )
 
     # Read file content
@@ -84,7 +80,7 @@ async def upload_watermark(
     if len(content) > 5 * 1024 * 1024:  # 5MB limit
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Watermark file size must be less than 5MB"
+            detail="Watermark file size must be less than 5MB",
         )
 
     # Upload to storage
@@ -92,12 +88,12 @@ async def upload_watermark(
         url = await r2_storage.upload_file(
             file_data=content,
             filename=file.filename or "watermark.png",
-            folder="uploads/watermarks"
+            folder="uploads/watermarks",
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload watermark: {str(e)}"
+            detail=f"Failed to upload watermark: {str(e)}",
         )
 
     return {"url": url}
@@ -108,29 +104,24 @@ async def preview_watermark(
     photo_id: UUID,
     settings: WatermarkSettings,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Preview watermark effect on a photo"""
     if not settings.enabled:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Watermark is not enabled"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Watermark is not enabled"
         )
 
     if not settings.watermark_url:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No watermark image provided"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No watermark image provided"
         )
 
     # Get photo
     photo_service = PhotoService(db)
     photo = await photo_service.get_photo(photo_id)
     if not photo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Photo not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
 
     # Verify team membership
     await check_team_member(photo.event.team_id, current_user, db)
@@ -155,7 +146,7 @@ async def preview_watermark(
             position=settings.position,
             opacity=settings.opacity,
             scale=settings.scale,
-            tile=settings.tile
+            tile=settings.tile,
         )
 
         return Response(content=result_bytes, media_type="image/jpeg")
@@ -163,5 +154,5 @@ async def preview_watermark(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate preview: {str(e)}"
+            detail=f"Failed to generate preview: {str(e)}",
         )

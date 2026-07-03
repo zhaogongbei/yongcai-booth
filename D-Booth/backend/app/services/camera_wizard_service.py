@@ -1,8 +1,9 @@
-from PIL import Image, ImageStat
 import io
 import logging
-from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
+from PIL import Image, ImageStat
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExposureAnalysis:
     """曝光分析结果"""
+
     brightness: float  # 0-1
     is_underexposed: bool
     is_overexposed: bool
@@ -40,29 +42,29 @@ class CameraWizardService:
                 "shutter_speed": "1/125",
                 "aperture": "f/5.6",
                 "white_balance": "闪光灯",
-                "default_flash_power": "1/4"
+                "default_flash_power": "1/4",
             },
             "Canon EOS 5D Mark IV": {
                 "iso": 800,
                 "shutter_speed": "1/125",
                 "aperture": "f/5.6",
                 "white_balance": "闪光灯",
-                "default_flash_power": "1/4"
+                "default_flash_power": "1/4",
             },
             "Nikon Z6": {
                 "iso": 800,
                 "shutter_speed": "1/125",
                 "aperture": "f/5.6",
                 "white_balance": "闪光灯",
-                "default_flash_power": "1/4"
+                "default_flash_power": "1/4",
             },
             "Sony A7 III": {
                 "iso": 640,
                 "shutter_speed": "1/125",
                 "aperture": "f/5.6",
                 "white_balance": "闪光灯",
-                "default_flash_power": "1/4"
-            }
+                "default_flash_power": "1/4",
+            },
         }
 
         if model and model in presets:
@@ -74,7 +76,7 @@ class CameraWizardService:
             "shutter_speed": "1/125",
             "aperture": "f/5.6",
             "white_balance": "闪光灯",
-            "default_flash_power": "1/2"
+            "default_flash_power": "1/2",
         }
 
     @staticmethod
@@ -124,7 +126,9 @@ class CameraWizardService:
                 elif brightness < 0.25:
                     suggested_iso = 800
                     suggested_shutter = "1/80"
-                    recommendations.append("曝光不足，建议ISO提高到800，快门降至1/80s推荐将光圈开大至f/4.0")
+                    recommendations.append(
+                        "曝光不足，建议ISO提高到800，快门降至1/80s推荐将光圈开大至f/4.0"
+                    )
                 else:
                     suggested_iso = 640
                     suggested_shutter = "1/100"
@@ -146,8 +150,10 @@ class CameraWizardService:
             else:
                 recommendations.append("曝光正常，当前设置在合理范围内")
 
-            logger.info(f"Photo analysis: brightness={brightness:.2f}, "
-                        f"underexposed={is_underexposed}, overexposed={is_overexposed}")
+            logger.info(
+                f"Photo analysis: brightness={brightness:.2f}, "
+                f"underexposed={is_underexposed}, overexposed={is_overexposed}"
+            )
 
             return ExposureAnalysis(
                 brightness=brightness,
@@ -156,7 +162,7 @@ class CameraWizardService:
                 recommendations=recommendations,
                 suggested_iso=suggested_iso,
                 suggested_shutter=suggested_shutter,
-                suggested_aperture=suggested_aperture
+                suggested_aperture=suggested_aperture,
             )
 
         except Exception as e:
@@ -165,7 +171,7 @@ class CameraWizardService:
                 brightness=0.5,
                 is_underexposed=False,
                 is_overexposed=False,
-                recommendations=["无法分析测试照片，请手动调整参数"]
+                recommendations=["无法分析测试照片，请手动调整参数"],
             )
 
     @staticmethod
@@ -180,7 +186,7 @@ class CameraWizardService:
             return {
                 "use_flash": False,
                 "recommended_power": None,
-                "recommendations": ["不使用闪光灯，建议开启环境光照明"]
+                "recommendations": ["不使用闪光灯，建议开启环境光照明"],
             }
 
         return {
@@ -190,8 +196,8 @@ class CameraWizardService:
             "recommendations": [
                 "使用闪光灯时推荐快门速度不超过1/200s（同步速度限制）",
                 "ISO建议设置为400-800以获得合适的闪光曝光",
-                "闪光灯功率1/2为大多数场合的推荐起始值"
-            ]
+                "闪光灯功率1/2为大多数场合的推荐起始值",
+            ],
         }
 
 

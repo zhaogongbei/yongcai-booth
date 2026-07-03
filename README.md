@@ -150,9 +150,9 @@ docs: 更新部署文档
 
 ### 代码规范
 
-- **Python**: PEP 8, Black, isort, mypy
-- **TypeScript**: ESLint, Prettier, strict mode
-- **C#**: .editorconfig, StyleCop
+- **Python**: PEP 8, Black, isort, Ruff fatal checks
+- **TypeScript**: TypeScript strict mode
+- **C#**: .editorconfig, `dotnet build` / `dotnet test`
 
 详见 [CLAUDE.md](./CLAUDE.md)。
 

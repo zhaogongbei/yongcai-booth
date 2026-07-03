@@ -1,23 +1,22 @@
+import uuid
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.services.storage_service import r2_storage
 from app.models.models import Signature
 from app.schemas.signature import SignatureCreate, SignatureResponse
+from app.services.storage_service import r2_storage
 
 router = APIRouter(prefix="/signatures", tags=["signatures"])
 
 
 @router.post("", response_model=SignatureResponse)
 async def upload_signature(
-    session_id: UUID,
-    signature_file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    session_id: UUID, signature_file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
 ):
     """上传签名PNG并关联到会话"""
     try:
@@ -33,15 +32,11 @@ async def upload_signature(
             file_data=file_content,
             filename=f"signature_{session_id}.png",
             content_type="image/png",
-            folder="uploads/signatures"
+            folder="uploads/signatures",
         )
 
         # 创建签名记录
-        signature = Signature(
-            id=uuid.uuid4(),
-            session_id=session_id,
-            signature_url=file_url
-        )
+        signature = Signature(id=uuid.uuid4(), session_id=session_id, signature_url=file_url)
 
         db.add(signature)
         await db.commit()
@@ -56,10 +51,7 @@ async def upload_signature(
 
 
 @router.get("/session/{session_id}", response_model=List[SignatureResponse])
-async def get_session_signatures(
-    session_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_session_signatures(session_id: UUID, db: AsyncSession = Depends(get_db)):
     """获取指定会话的所有签名"""
     result = await db.execute(
         Signature.__table__.select().where(Signature.session_id == session_id)
@@ -69,14 +61,9 @@ async def get_session_signatures(
 
 
 @router.delete("/{signature_id}", status_code=204)
-async def delete_signature(
-    signature_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def delete_signature(signature_id: UUID, db: AsyncSession = Depends(get_db)):
     """删除指定签名"""
-    result = await db.execute(
-        Signature.__table__.select().where(Signature.id == signature_id)
-    )
+    result = await db.execute(Signature.__table__.select().where(Signature.id == signature_id))
     signature = result.first()
 
     if not signature:
@@ -87,9 +74,7 @@ async def delete_signature(
         await r2_storage.delete_file(signature.signature_url)
 
         # 删除数据库记录
-        await db.execute(
-            Signature.__table__.delete().where(Signature.id == signature_id)
-        )
+        await db.execute(Signature.__table__.delete().where(Signature.id == signature_id))
         await db.commit()
 
     except Exception as e:

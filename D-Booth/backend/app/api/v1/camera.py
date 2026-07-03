@@ -1,19 +1,20 @@
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_active_user
-from app.services.camera_service import camera_manager, CameraController
-from app.services.camera_wizard_service import camera_wizard_service
+from app.api.deps import get_current_active_user, get_db
+from app.core.logging import logger
+from app.models.models import User
 from app.schemas.camera import (
+    CameraCapabilitiesResponse,
     CameraSettings,
     CameraSettingsUpdate,
     CameraStatus,
-    CameraCapabilitiesResponse,
     CameraWizardResult,
 )
-from app.models.models import User
-from app.core.logging import logger
+from app.services.camera_service import CameraController, camera_manager
+from app.services.camera_wizard_service import camera_wizard_service
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ def _get_controller() -> CameraController:
 
 
 # ─── 状态 ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/status", response_model=CameraStatus)
 async def get_camera_status(
@@ -38,7 +40,7 @@ async def get_camera_status(
         firmware_version=status_dict.get("firmware_version"),
         battery_level=status_dict.get("battery_level"),
         storage_remaining=status_dict.get("storage_remaining"),
-        controller_type=status_dict.get("controller_type", "webcam")
+        controller_type=status_dict.get("controller_type", "webcam"),
     )
 
 
@@ -53,9 +55,17 @@ async def connect_camera(
         controller = _get_controller()
         if controller.is_connected():
             status = controller.get_status()
-            return {"status": "ok", "message": f"已连接到 {status.get('model', '相机')}", "connected": True}
+            return {
+                "status": "ok",
+                "message": f"已连接到 {status.get('model', '相机')}",
+                "connected": True,
+            }
         else:
-            return {"status": "warning", "message": "相机连接失败，使用Web摄像头模式", "connected": False}
+            return {
+                "status": "warning",
+                "message": "相机连接失败，使用Web摄像头模式",
+                "connected": False,
+            }
     except Exception as e:
         logger.error(f"Camera connect error: {e}")
         # 降级到webcam
@@ -73,6 +83,7 @@ async def disconnect_camera(
 
 
 # ─── 设置 ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/settings")
 async def get_camera_settings(
@@ -100,14 +111,14 @@ async def update_camera_settings(
             except Exception as e:
                 logger.error(f"Failed to set {key}={value}: {e}")
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"设置 {key} 失败: {str(e)}"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=f"设置 {key} 失败: {str(e)}"
                 )
 
     return {"status": "ok", "message": "设置已更新"}
 
 
 # ─── 拍摄 ──────────────────────────────────────────────────────────────────────
+
 
 @router.post("/capture")
 async def capture_photo(
@@ -119,9 +130,11 @@ async def capture_photo(
     在webcam模式下，拍摄由前端Canvas捕获实现，此端点返回指示前端进行拍摄。
     在DSLR模式下，触发相机物理拍摄。
     """
-    from fastapi.responses import Response
-    from app.services.photo_service import PhotoService
     import uuid
+
+    from fastapi.responses import Response
+
+    from app.services.photo_service import PhotoService
 
     controller = _get_controller()
     status = controller.get_status()
@@ -133,7 +146,7 @@ async def capture_photo(
             "status": "ok",
             "message": "Webcam模式，请使用前端Canvas捕获",
             "capture_method": "webcam",
-            "settings": await controller.get_settings()
+            "settings": await controller.get_settings(),
         }
 
     # DSLR模式: 触发拍摄
@@ -143,7 +156,7 @@ async def capture_photo(
         if not image_data:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="相机拍摄失败，未获取到图像数据"
+                detail="相机拍摄失败，未获取到图像数据",
             )
 
         # 保存到本地临时目录
@@ -163,18 +176,18 @@ async def capture_photo(
             "capture_method": "dslr",
             "local_path": str(filepath),
             "file_size": len(image_data),
-            "settings": await controller.get_settings()
+            "settings": await controller.get_settings(),
         }
 
     except Exception as e:
         logger.error(f"DSLR capture failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"拍摄失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"拍摄失败: {str(e)}"
         )
 
 
 # ─── 能力 ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/capabilities", response_model=CameraCapabilitiesResponse)
 async def get_camera_capabilities(
@@ -188,11 +201,12 @@ async def get_camera_capabilities(
         shutter_speeds=capabilities.shutter_speeds,
         wb_modes=capabilities.wb_modes,
         focus_modes=capabilities.focus_modes,
-        supports_live_view=capabilities.supports_live_view
+        supports_live_view=capabilities.supports_live_view,
     )
 
 
 # ─── 实时取景 ──────────────────────────────────────────────────────────────────
+
 
 @router.get("/live-view")
 async def get_live_view_status(
@@ -207,11 +221,12 @@ async def get_live_view_status(
         "available": is_connected,
         "source": controller_type,
         "format": "mjpeg" if controller_type == "gphoto2" else "webrtc",
-        "fps": 30 if controller_type == "gphoto2" else None
+        "fps": 30 if controller_type == "gphoto2" else None,
     }
 
 
 # ─── 向导 ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/wizard/step1")
 async def wizard_step1_detect(
@@ -229,8 +244,8 @@ async def wizard_step1_detect(
         "presets": presets,
         "recommendations": [
             "请确保相机已通过USB连接并开启",
-            "相机切换到M档（手动模式）以获得最佳控制"
-        ]
+            "相机切换到M档（手动模式）以获得最佳控制",
+        ],
     }
 
 
@@ -245,7 +260,7 @@ async def wizard_step2_flash(
         "step": 2,
         "title": "闪光灯配置",
         "description": "设置是否使用闪光灯及功率",
-        "flash_settings": flash_settings
+        "flash_settings": flash_settings,
     }
 
 
@@ -263,7 +278,7 @@ async def wizard_step3_test_photo(
             "title": "测试照片分析",
             "description": "请先拍摄一张测试照片后再进行分析",
             "status": "awaiting_test_photo",
-            "analysis": None
+            "analysis": None,
         }
 
     # DSLR模式下尝试拍摄测试照片
@@ -272,6 +287,7 @@ async def wizard_step3_test_photo(
         analysis = camera_wizard_service.analyze_test_photo(image_data)
 
         import base64
+
         photo_base64 = base64.b64encode(image_data).decode("utf-8")
 
         return {
@@ -286,8 +302,8 @@ async def wizard_step3_test_photo(
                 "recommendations": analysis.recommendations,
                 "suggested_iso": analysis.suggested_iso,
                 "suggested_shutter": analysis.suggested_shutter,
-                "suggested_aperture": analysis.suggested_aperture
-            }
+                "suggested_aperture": analysis.suggested_aperture,
+            },
         }
     except Exception as e:
         logger.error(f"Test photo capture failed: {e}")
@@ -295,7 +311,7 @@ async def wizard_step3_test_photo(
             "step": 3,
             "title": "测试照片分析",
             "description": "未能拍摄测试照片",
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -304,10 +320,7 @@ async def wizard_analyze_test_photo(
     current_user: User = Depends(get_current_active_user),
 ):
     """分析上传的测试照片 (用于webcam模式下前端上传)"""
-    return {
-        "status": "ok",
-        "message": "请使用multipart/form-data上传测试照片到本端点"
-    }
+    return {"status": "ok", "message": "请使用multipart/form-data上传测试照片到本端点"}
 
 
 @router.post("/wizard/step4")
@@ -321,7 +334,7 @@ async def wizard_step4_flash_power(
         "step": 4,
         "title": "闪光灯功率配置",
         "description": "微调闪光灯输出功率",
-        "flash_settings": flash_settings
+        "flash_settings": flash_settings,
     }
 
 
@@ -338,9 +351,5 @@ async def wizard_step5_confirm(
         "title": "最终确认",
         "description": "确认所有设置，开始拍照",
         "final_settings": settings,
-        "tips": [
-            "拍摄时保持相机稳定",
-            "及时检查照片效果",
-            "可根据实际效果微调参数"
-        ]
+        "tips": ["拍摄时保持相机稳定", "及时检查照片效果", "可根据实际效果微调参数"],
     }

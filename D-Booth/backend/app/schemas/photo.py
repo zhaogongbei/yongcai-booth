@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, ConfigDict, HttpUrl
-from typing import Optional, Dict, Any
-from uuid import UUID
 from datetime import datetime
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 # Base Photo Schema
@@ -42,7 +43,7 @@ class PhotoResponse(PhotoBase):
     session_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -87,7 +88,7 @@ class PhotoSessionResponse(PhotoSessionBase):
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

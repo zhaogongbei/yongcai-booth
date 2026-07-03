@@ -1,9 +1,10 @@
 import json
-import redis.asyncio as redis
 from functools import wraps
 from time import monotonic
-from typing import Callable, Optional, Any
+from typing import Any, Callable, Optional
 from uuid import UUID
+
+import redis.asyncio as redis
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -74,11 +75,7 @@ class RedisCache:
             return
 
         try:
-            await client.setex(
-                key,
-                ttl,
-                json.dumps(value, default=str)
-            )
+            await client.setex(key, ttl, json.dumps(value, default=str))
         except Exception as e:
             logger.warning(f"Redis set failed: {e}")
 
@@ -126,7 +123,9 @@ def cache_result(ttl: int = 300, key_prefix: Optional[str] = None):
 
             # Convert args and kwargs to string representations
             args_str = ":".join(str(arg) for arg in args if isinstance(arg, (str, int, UUID)))
-            kwargs_str = ":".join(f"{k}={v}" for k, v in sorted(kwargs.items()) if isinstance(v, (str, int, UUID)))
+            kwargs_str = ":".join(
+                f"{k}={v}" for k, v in sorted(kwargs.items()) if isinstance(v, (str, int, UUID))
+            )
 
             key_parts = [prefix]
             if args_str:

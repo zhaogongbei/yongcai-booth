@@ -1,8 +1,12 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Text, Enum as SQLEnum, Numeric, JSON, Index, UniqueConstraint
+import enum
+import uuid
+
+from sqlalchemy import JSON, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import uuid
-import enum
+
 from app.core.database import Base
 from app.models.types import GUID
 
@@ -69,18 +73,21 @@ class TriggerType(str, enum.Enum):
 
 
 class TriggerAction(str, enum.Enum):
-    HTTP_CALLBACK = "http_callback"   # POST到URL
-    APP_EXECUTE = "app_execute"       # 执行本地程序
+    HTTP_CALLBACK = "http_callback"  # POST到URL
+    APP_EXECUTE = "app_execute"  # 执行本地程序
 
 
 # Base model with common fields
 class TimestampMixin:
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
 
 class SoftDeleteMixin:
     """Mixin for soft delete support"""
+
     is_deleted = Column(Boolean, default=False, nullable=False, index=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     deleted_by = Column(GUID(), nullable=True)  # Store user ID who deleted
@@ -98,9 +105,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     is_verified = Column(Boolean, default=False, index=True)
 
     # Indexes
-    __table_args__ = (
-        Index('ix_user_active_verified', 'is_active', 'is_verified'),
-    )
+    __table_args__ = (Index("ix_user_active_verified", "is_active", "is_verified"),)
 
     # Relationships
     team_members = relationship("TeamMember", back_populates="user", lazy="selectin")
@@ -115,7 +120,9 @@ class Team(Base, TimestampMixin, SoftDeleteMixin):
     name = Column(String(255), nullable=False)
     slug = Column(String(255), unique=True, index=True)
     description = Column(Text)
-    subscription_id = Column(GUID(), ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True)
+    subscription_id = Column(
+        GUID(), ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True
+    )
 
     # Relationships
     members = relationship("TeamMember", back_populates="team", lazy="selectin")
@@ -135,9 +142,9 @@ class TeamMember(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        UniqueConstraint('team_id', 'user_id', name='uq_team_member_team_user'),
-        Index('ix_team_member_team_id', 'team_id'),
-        Index('ix_team_member_user_id', 'user_id'),
+        UniqueConstraint("team_id", "user_id", name="uq_team_member_team_user"),
+        Index("ix_team_member_team_id", "team_id"),
+        Index("ix_team_member_user_id", "user_id"),
     )
 
     # Relationships — use selectin/joined; never rely on default lazy="select"
@@ -155,9 +162,7 @@ class Signature(Base, TimestampMixin, SoftDeleteMixin):
     signature_url = Column(String(500), nullable=False)
 
     # Indexes
-    __table_args__ = (
-        Index('ix_signature_session_id', 'session_id'),
-    )
+    __table_args__ = (Index("ix_signature_session_id", "session_id"),)
 
     # Relationships
     session = relationship("PhotoSession", back_populates="signatures", lazy="joined")
@@ -166,8 +171,16 @@ class Signature(Base, TimestampMixin, SoftDeleteMixin):
 # SurveyQuestion - used as JSON column in Survey model
 class SurveyQuestion:
     """Survey question structure stored as JSON"""
-    def __init__(self, id: str, type: str, text: str, required: bool = True,
-                 options: list = None, order: int = 0):
+
+    def __init__(
+        self,
+        id: str,
+        type: str,
+        text: str,
+        required: bool = True,
+        options: list = None,
+        order: int = 0,
+    ):
         self.id = id
         self.type = type
         self.text = text
@@ -181,7 +194,9 @@ class Survey(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "surveys"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    event_id = Column(
+        GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
     enabled = Column(Boolean, default=True, index=True)
     title = Column(String(255), default="问卷调查")
     questions = Column(JSON, default=list)
@@ -203,10 +218,10 @@ class SurveyResponse(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        UniqueConstraint('event_id', 'session_id', name='uq_survey_response_event_session'),
-        Index('ix_survey_response_event_id', 'event_id'),
-        Index('ix_survey_response_session_id', 'session_id'),
-        Index('ix_survey_response_survey_id', 'survey_id'),
+        UniqueConstraint("event_id", "session_id", name="uq_survey_response_event_session"),
+        Index("ix_survey_response_event_id", "event_id"),
+        Index("ix_survey_response_session_id", "session_id"),
+        Index("ix_survey_response_survey_id", "survey_id"),
     )
 
     # Relationships
@@ -220,7 +235,9 @@ class Disclaimer(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "disclaimers"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    event_id = Column(
+        GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
     enabled = Column(Boolean, default=True, index=True)
     title = Column(String(255), default="免责声明")
     text = Column(Text, default="")
@@ -242,10 +259,10 @@ class DisclaimerAcceptance(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        UniqueConstraint('event_id', 'session_id', name='uq_disclaimer_acceptance_event_session'),
-        Index('ix_disclaimer_acceptance_event_id', 'event_id'),
-        Index('ix_disclaimer_acceptance_session_id', 'session_id'),
-        Index('ix_disclaimer_acceptance_disclaimer_id', 'disclaimer_id'),
+        UniqueConstraint("event_id", "session_id", name="uq_disclaimer_acceptance_event_session"),
+        Index("ix_disclaimer_acceptance_event_id", "event_id"),
+        Index("ix_disclaimer_acceptance_session_id", "session_id"),
+        Index("ix_disclaimer_acceptance_disclaimer_id", "disclaimer_id"),
     )
 
     # Relationships
@@ -273,12 +290,12 @@ class Event(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_event_team_status', 'team_id', 'status'),
-        Index('ix_event_creator_id', 'creator_id'),
-        Index('ix_event_status', 'status'),
-        Index('ix_event_start_date', 'start_date'),
-        Index('ix_event_end_date', 'end_date'),
-        Index('ix_event_team_dates', 'team_id', 'start_date', 'end_date'),
+        Index("ix_event_team_status", "team_id", "status"),
+        Index("ix_event_creator_id", "creator_id"),
+        Index("ix_event_status", "status"),
+        Index("ix_event_start_date", "start_date"),
+        Index("ix_event_end_date", "end_date"),
+        Index("ix_event_team_dates", "team_id", "start_date", "end_date"),
     )
 
     # Relationships
@@ -307,9 +324,9 @@ class Template(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_template_team_id', 'team_id'),
-        Index('ix_template_is_public', 'is_public'),
-        Index('ix_template_team_public', 'team_id', 'is_public'),
+        Index("ix_template_team_id", "team_id"),
+        Index("ix_template_is_public", "is_public"),
+        Index("ix_template_team_public", "team_id", "is_public"),
     )
 
     # Relationships
@@ -329,9 +346,9 @@ class PhotoSession(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_photo_session_event_id', 'event_id'),
-        Index('ix_photo_session_email', 'email'),
-        Index('ix_photo_session_event_created', 'event_id', 'created_at'),
+        Index("ix_photo_session_event_id", "event_id"),
+        Index("ix_photo_session_email", "email"),
+        Index("ix_photo_session_event_created", "event_id", "created_at"),
     )
 
     # Relationships
@@ -357,10 +374,10 @@ class Photo(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_photo_event_id', 'event_id'),
-        Index('ix_photo_session_id', 'session_id'),
-        Index('ix_photo_event_created', 'event_id', 'created_at'),
-        Index('ix_photo_session_created', 'session_id', 'created_at'),
+        Index("ix_photo_event_id", "event_id"),
+        Index("ix_photo_session_id", "session_id"),
+        Index("ix_photo_event_created", "event_id", "created_at"),
+        Index("ix_photo_session_created", "session_id", "created_at"),
     )
 
     # Relationships
@@ -384,10 +401,10 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_print_job_photo_id', 'photo_id'),
-        Index('ix_print_job_status', 'status'),
-        Index('ix_print_job_status_created', 'status', 'created_at'),
-        Index('ix_print_job_status_printer', 'status', 'printer_name'),
+        Index("ix_print_job_photo_id", "photo_id"),
+        Index("ix_print_job_status", "status"),
+        Index("ix_print_job_status_created", "status", "created_at"),
+        Index("ix_print_job_status_printer", "status", "printer_name"),
     )
 
     # Relationships
@@ -409,10 +426,10 @@ class Share(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_share_photo_id', 'photo_id'),
-        Index('ix_share_channel', 'channel'),
-        Index('ix_share_expires_at', 'expires_at'),
-        Index('ix_share_photo_channel', 'photo_id', 'channel'),
+        Index("ix_share_photo_id", "photo_id"),
+        Index("ix_share_channel", "channel"),
+        Index("ix_share_expires_at", "expires_at"),
+        Index("ix_share_photo_channel", "photo_id", "channel"),
     )
 
     # Relationships
@@ -438,10 +455,10 @@ class AITask(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_ai_task_team_id', 'team_id'),
-        Index('ix_ai_task_status', 'status'),
-        Index('ix_ai_task_workflow', 'workflow'),
-        Index('ix_ai_task_team_status_created', 'team_id', 'status', 'created_at'),
+        Index("ix_ai_task_team_id", "team_id"),
+        Index("ix_ai_task_status", "status"),
+        Index("ix_ai_task_workflow", "workflow"),
+        Index("ix_ai_task_team_status_created", "team_id", "status", "created_at"),
     )
 
     # Relationships
@@ -462,11 +479,11 @@ class AnalyticsEvent(Base, TimestampMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_analytics_event_team_id', 'team_id'),
-        Index('ix_analytics_event_event_id', 'event_id'),
-        Index('ix_analytics_event_event_type', 'event_type'),
-        Index('ix_analytics_event_created_at', 'created_at'),
-        Index('ix_analytics_event_team_type_created', 'team_id', 'event_type', 'created_at'),
+        Index("ix_analytics_event_team_id", "team_id"),
+        Index("ix_analytics_event_event_id", "event_id"),
+        Index("ix_analytics_event_event_type", "event_type"),
+        Index("ix_analytics_event_created_at", "created_at"),
+        Index("ix_analytics_event_team_type_created", "team_id", "event_type", "created_at"),
     )
 
     # Relationships
@@ -489,8 +506,8 @@ class Subscription(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_subscription_status', 'status'),
-        Index('ix_subscription_status_end', 'status', 'current_period_end'),
+        Index("ix_subscription_status", "status"),
+        Index("ix_subscription_status_end", "status", "current_period_end"),
     )
 
     # Relationships
@@ -513,11 +530,11 @@ class Prop(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_prop_team_id', 'team_id'),
-        Index('ix_prop_category', 'category'),
-        Index('ix_prop_is_public', 'is_public'),
-        Index('ix_prop_team_category', 'team_id', 'category'),
-        Index('ix_prop_public_category', 'is_public', 'category'),
+        Index("ix_prop_team_id", "team_id"),
+        Index("ix_prop_category", "category"),
+        Index("ix_prop_is_public", "is_public"),
+        Index("ix_prop_team_category", "team_id", "category"),
+        Index("ix_prop_public_category", "is_public", "category"),
     )
 
     # Relationships
@@ -537,16 +554,18 @@ class Booth(Base, TimestampMixin, SoftDeleteMixin):
     last_heartbeat = Column(DateTime(timezone=True), index=True)
     ip_address = Column(String(50))
     os_info = Column(String(255))
-    current_event_id = Column(GUID(), ForeignKey("events.id", ondelete="SET NULL"), nullable=True, index=True)
+    current_event_id = Column(
+        GUID(), ForeignKey("events.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     config_hash = Column(String(64))  # SHA256 hash of current configuration
 
     # Indexes
     __table_args__ = (
-        Index('ix_booth_team_id', 'team_id'),
-        Index('ix_booth_device_id', 'device_id'),
-        Index('ix_booth_status', 'status'),
-        Index('ix_booth_team_status', 'team_id', 'status'),
-        Index('ix_booth_status_heartbeat', 'status', 'last_heartbeat'),
+        Index("ix_booth_team_id", "team_id"),
+        Index("ix_booth_device_id", "device_id"),
+        Index("ix_booth_status", "status"),
+        Index("ix_booth_team_status", "team_id", "status"),
+        Index("ix_booth_status_heartbeat", "status", "last_heartbeat"),
     )
 
     # Relationships
@@ -573,9 +592,9 @@ class TriggerConfig(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_trigger_config_event_id', 'event_id'),
-        Index('ix_trigger_config_event_type', 'event_type'),
-        Index('ix_trigger_config_event_type_enabled', 'event_id', 'event_type', 'enabled'),
+        Index("ix_trigger_config_event_id", "event_id"),
+        Index("ix_trigger_config_event_type", "event_type"),
+        Index("ix_trigger_config_event_type_enabled", "event_id", "event_type", "enabled"),
     )
 
 
@@ -584,7 +603,9 @@ class TriggerLog(Base, TimestampMixin):
     __tablename__ = "trigger_logs"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    trigger_id = Column(GUID(), ForeignKey("trigger_configs.id", ondelete="CASCADE"), nullable=False)
+    trigger_id = Column(
+        GUID(), ForeignKey("trigger_configs.id", ondelete="CASCADE"), nullable=False
+    )
     event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     event_type = Column(SQLEnum(TriggerType), nullable=False)
     success = Column(Boolean, nullable=False, index=True)
@@ -599,11 +620,11 @@ class TriggerLog(Base, TimestampMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_trigger_log_event_id', 'event_id'),
-        Index('ix_trigger_log_trigger_id', 'trigger_id'),
-        Index('ix_trigger_log_event_type', 'event_type'),
-        Index('ix_trigger_log_trigger_created', 'trigger_id', 'created_at'),
-        Index('ix_trigger_log_success_created', 'success', 'created_at'),
+        Index("ix_trigger_log_event_id", "event_id"),
+        Index("ix_trigger_log_trigger_id", "trigger_id"),
+        Index("ix_trigger_log_event_type", "event_type"),
+        Index("ix_trigger_log_trigger_created", "trigger_id", "created_at"),
+        Index("ix_trigger_log_success_created", "success", "created_at"),
     )
 
 
@@ -623,9 +644,9 @@ class Webhook(Base, TimestampMixin, SoftDeleteMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_webhook_team_id', 'team_id'),
-        Index('ix_webhook_enabled', 'enabled'),
-        Index('ix_webhook_team_enabled', 'team_id', 'enabled'),
+        Index("ix_webhook_team_id", "team_id"),
+        Index("ix_webhook_enabled", "enabled"),
+        Index("ix_webhook_team_enabled", "team_id", "enabled"),
     )
 
 
@@ -649,9 +670,9 @@ class WebhookLog(Base, TimestampMixin):
 
     # Indexes
     __table_args__ = (
-        Index('ix_webhook_log_webhook_id', 'webhook_id'),
-        Index('ix_webhook_log_event_type', 'event_type'),
-        Index('ix_webhook_log_created_at', 'created_at'),
-        Index('ix_webhook_log_webhook_created', 'webhook_id', 'created_at'),
-        Index('ix_webhook_log_success_created', 'success', 'created_at'),
+        Index("ix_webhook_log_webhook_id", "webhook_id"),
+        Index("ix_webhook_log_event_type", "event_type"),
+        Index("ix_webhook_log_created_at", "created_at"),
+        Index("ix_webhook_log_webhook_created", "webhook_id", "created_at"),
+        Index("ix_webhook_log_success_created", "success", "created_at"),
     )

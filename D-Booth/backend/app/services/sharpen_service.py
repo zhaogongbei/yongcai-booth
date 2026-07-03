@@ -1,6 +1,7 @@
 from io import BytesIO
-from PIL import Image, ImageFilter
 from typing import Literal
+
+from PIL import Image, ImageFilter
 
 SharpenProfile = Literal["none", "low", "medium", "high"]
 
@@ -9,10 +10,7 @@ class SharpenService:
     """Service for applying sharpening to images for print optimization"""
 
     @staticmethod
-    def apply_sharpen(
-        image_bytes: bytes,
-        profile: SharpenProfile = "medium"
-    ) -> bytes:
+    def apply_sharpen(image_bytes: bytes, profile: SharpenProfile = "medium") -> bytes:
         """
         Apply unsharp mask sharpening to an image
 

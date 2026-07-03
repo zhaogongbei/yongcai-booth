@@ -1,5 +1,34 @@
 # API v1 routers
-from . import auth, teams, events, photos, templates, print_jobs, shares, ai_tasks, analytics, subscriptions, media, beauty, watermark, virtual_attendant, signatures, surveys, disclaimers, props, share_settings, green_screen, printers, camera, booths, sync, triggers, gopro, webhooks, booth_health
+from . import (
+    ai_tasks,
+    analytics,
+    auth,
+    beauty,
+    booth_health,
+    booths,
+    camera,
+    disclaimers,
+    events,
+    gopro,
+    green_screen,
+    media,
+    photos,
+    print_jobs,
+    printers,
+    props,
+    share_settings,
+    shares,
+    signatures,
+    subscriptions,
+    surveys,
+    sync,
+    teams,
+    templates,
+    triggers,
+    virtual_attendant,
+    watermark,
+    webhooks,
+)
 
 __all__ = [
     "auth",
@@ -29,5 +58,5 @@ __all__ = [
     "triggers",
     "gopro",
     "webhooks",
-    "booth_health"
+    "booth_health",
 ]

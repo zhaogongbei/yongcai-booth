@@ -1,19 +1,20 @@
-from typing import Optional, List, Dict, Any
-from uuid import UUID, uuid4
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import UploadFile
-from PIL import Image, ImageOps
 import io
 import re
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
 
-from app.repositories.photo_repository import PhotoRepository, PhotoSessionRepository
-from app.schemas.photo import PhotoCreate, PhotoUpdate, PhotoSessionCreate
-from app.models.models import Photo, PhotoSession
-from app.services.storage_service import r2_storage
-from app.services.beauty_service import BeautyParams, beauty_processor
-from app.services.base_service import BaseService, ValidationError, BusinessRuleError
+from fastapi import UploadFile
+from PIL import Image, ImageOps
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.logging import logger
+from app.models.models import Photo, PhotoSession
+from app.repositories.photo_repository import PhotoRepository, PhotoSessionRepository
+from app.schemas.photo import PhotoCreate, PhotoSessionCreate, PhotoUpdate
+from app.services.base_service import BaseService, BusinessRuleError, ValidationError
+from app.services.beauty_service import BeautyParams, beauty_processor
+from app.services.storage_service import r2_storage
 
 
 class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
@@ -23,8 +24,8 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
     Manages photo uploads, processing, storage, thumbnail generation,
     and photo session lifecycle.
     """
-    
-    ALLOWED_TYPES = {'image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/gif'}
+
+    ALLOWED_TYPES = {"image/jpeg", "image/png", "image/jpg", "image/webp", "image/gif"}
     IMAGE_FORMAT_TYPES = {
         "JPEG": "image/jpeg",
         "PNG": "image/png",
@@ -42,10 +43,10 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
     MAX_IMAGE_PIXELS = 24_000_000
 
     THUMBNAIL_SIZES = {
-        'micro': (48, 48),       # 极缩略图(列表快速预览)
-        'thumb': (200, 200),     # 缩略图(网格列表)
-        'medium': (600, 600),    # 中图(详情预览)
-        'large': (1200, 1200),   # 大图(全屏预览)
+        "micro": (48, 48),  # 极缩略图(列表快速预览)
+        "thumb": (200, 200),  # 缩略图(网格列表)
+        "medium": (600, 600),  # 中图(详情预览)
+        "large": (1200, 1200),  # 大图(全屏预览)
     }
 
     WEBP_QUALITY = 80
@@ -101,13 +102,13 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
     async def get_photo(self, photo_id: UUID) -> Optional[Photo]:
         """Get photo by ID (alias for route compatibility)."""
         return await self.get(photo_id)
-    
+
     async def get_photos(
         self,
         event_id: Optional[UUID] = None,
         session_id: Optional[UUID] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Photo]:
         """Get photos with filters"""
         if event_id:
@@ -116,11 +117,11 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             return await self.photo_repo.get_by_session(session_id, skip, limit)
         else:
             return await self.photo_repo.get_all(skip, limit)
-    
+
     async def create_photo(self, photo_in: PhotoCreate) -> Photo:
         """Create a new photo record (alias for route compatibility)."""
         return await self.create(photo_in)
-    
+
     async def upload_photo(
         self,
         file: UploadFile,
@@ -129,10 +130,14 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         beauty_params: Optional[BeautyParams] = None,
     ) -> Photo:
         """Upload photo file, optionally apply built-in AI beauty, and create record."""
-        
+
         declared_content_type = (file.content_type or "").lower()
-        if declared_content_type and declared_content_type not in self.ALLOWED_TYPES | {"application/octet-stream"}:
-            raise ValueError(f"File type {file.content_type} not allowed. Allowed types: {self.ALLOWED_TYPES}")
+        if declared_content_type and declared_content_type not in self.ALLOWED_TYPES | {
+            "application/octet-stream"
+        }:
+            raise ValueError(
+                f"File type {file.content_type} not allowed. Allowed types: {self.ALLOWED_TYPES}"
+            )
 
         if session_id:
             session = await self.session_repo.get(session_id)
@@ -145,11 +150,11 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         file_data = await file.read()
         if not file_data:
             raise ValueError("Uploaded file is empty")
-        
+
         # Validate file size
         if len(file_data) > self.MAX_FILE_SIZE:
             raise ValueError(f"File size exceeds maximum allowed size of {self.MAX_FILE_SIZE_MB}MB")
-        
+
         # Validate it's a valid image - verify FIRST, then open
         try:
             img_verify = Image.open(io.BytesIO(file_data))
@@ -169,10 +174,12 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             raise
         except Exception as e:
             raise ValueError(f"Invalid image file: {str(e)}")
-        
+
         # Preserve the submitted name only as metadata. Storage names are server-generated
         # to avoid overwrites and extension/content mismatches.
-        safe_original_filename = re.sub(r'[^\w\-.]', '_', file.filename or 'upload') if file.filename else 'upload'
+        safe_original_filename = (
+            re.sub(r"[^\w\-.]", "_", file.filename or "upload") if file.filename else "upload"
+        )
         safe_filename = f"{uuid4().hex}{self.CONTENT_TYPE_EXTENSIONS[detected_content_type]}"
 
         # Upload to R2 storage
@@ -182,11 +189,13 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
                     file_data=storage_data,
                     filename=safe_filename,
                     content_type=detected_content_type,
-                    folder=f"photos/{event_id}"
+                    folder=f"photos/{event_id}",
                 )
 
                 # Generate all thumbnails and WebP versions
-                thumbnail_urls = await self._generate_all_thumbnails(storage_data, safe_filename, event_id, detected_content_type)
+                thumbnail_urls = await self._generate_all_thumbnails(
+                    storage_data, safe_filename, event_id, detected_content_type
+                )
                 webp_url = await self._transcode_to_webp(storage_data, safe_filename, event_id)
             else:
                 # Fallback: save locally (for development)
@@ -203,7 +212,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
                     detected_content_type,
                 )
                 webp_url = await self._transcode_to_webp(storage_data, safe_filename, event_id)
-                
+
         except Exception as e:
             logger.error(f"Failed to upload photo: {e}")
             raise ValueError(f"Failed to upload photo: {str(e)}")
@@ -242,7 +251,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             session_id=session_id,
             original_url=original_url,
             processed_url=processed_url,
-            thumbnail_url=thumbnail_urls.get('thumb'),
+            thumbnail_url=thumbnail_urls.get("thumb"),
             thumbnail_urls=thumbnail_urls,
             webp_url=webp_url,
             file_size=len(file_data),
@@ -253,7 +262,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
                 "stored_filename": safe_filename,
                 "declared_content_type": declared_content_type or None,
                 "detected_content_type": detected_content_type,
-            }
+            },
         )
 
         return await self.create_photo(photo_data)
@@ -262,6 +271,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         """Fire a trigger, never let it break the main flow."""
         try:
             from app.services.trigger_service import TriggerService
+
             context = {"event_id": str(event_id)}
             if extra_context:
                 context.update(extra_context)
@@ -293,13 +303,9 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         target_path = target_dir / filename
         target_path.write_bytes(file_data)
         return f"/uploads/{safe_folder}/{filename}"
-    
+
     async def _generate_all_thumbnails(
-        self,
-        file_data: bytes,
-        filename: str,
-        event_id: UUID,
-        content_type: str
+        self, file_data: bytes, filename: str, event_id: UUID, content_type: str
     ) -> dict:
         """Generate all thumbnail sizes and upload"""
         thumbnails = {}
@@ -325,7 +331,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
 
                 # Save thumbnail to bytes
                 thumb_io = io.BytesIO()
-                img.save(thumb_io, format='JPEG', quality=85)
+                img.save(thumb_io, format="JPEG", quality=85)
                 thumb_data = thumb_io.getvalue()
 
                 # Upload thumbnail
@@ -336,8 +342,8 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
                     thumb_url = await r2_storage.upload_file(
                         file_data=thumb_data,
                         filename=thumb_filename,
-                        content_type='image/jpeg',
-                        folder=folder
+                        content_type="image/jpeg",
+                        folder=folder,
                     )
                 else:
                     thumb_url = self._save_local_file(
@@ -355,10 +361,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             return {}
 
     async def _transcode_to_webp(
-        self,
-        file_data: bytes,
-        filename: str,
-        event_id: UUID
+        self, file_data: bytes, filename: str, event_id: UUID
     ) -> Optional[str]:
         """Transcode image to WebP format"""
         try:
@@ -376,8 +379,8 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
                 return await r2_storage.upload_file(
                     file_data=webp_data,
                     filename=webp_filename,
-                    content_type='image/webp',
-                    folder=folder
+                    content_type="image/webp",
+                    folder=folder,
                 )
             else:
                 return self._save_local_file(
@@ -391,11 +394,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             return None
 
     async def _generate_thumbnail(
-        self,
-        file_data: bytes,
-        filename: str,
-        event_id: UUID,
-        thumbnail_size: tuple = (300, 300)
+        self, file_data: bytes, filename: str, event_id: UUID, thumbnail_size: tuple = (300, 300)
     ) -> str:
         """Generate and upload thumbnail (legacy method)"""
         try:
@@ -404,7 +403,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
 
             # Save thumbnail to bytes
             thumb_io = io.BytesIO()
-            image.save(thumb_io, format='JPEG', quality=85)
+            image.save(thumb_io, format="JPEG", quality=85)
             thumb_data = thumb_io.getvalue()
 
             # Upload thumbnail
@@ -413,8 +412,8 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
                 thumbnail_url = await r2_storage.upload_file(
                     file_data=thumb_data,
                     filename=thumb_filename,
-                    content_type='image/jpeg',
-                    folder=f"photos/{event_id}/thumbnails"
+                    content_type="image/jpeg",
+                    folder=f"photos/{event_id}/thumbnails",
                 )
                 return thumbnail_url
             else:
@@ -428,58 +427,42 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         except Exception as e:
             logger.error(f"Failed to generate thumbnail: {e}")
             return None
-    
-    async def update_photo(
-        self,
-        photo_id: UUID,
-        photo_in: PhotoUpdate
-    ) -> Optional[Photo]:
+
+    async def update_photo(self, photo_id: UUID, photo_in: PhotoUpdate) -> Optional[Photo]:
         """Update photo metadata (alias for route compatibility)."""
         return await self.update(photo_id, photo_in)
 
     async def delete_photo(self, photo_id: UUID) -> bool:
         """Delete a photo and its files (alias for route compatibility)."""
         return await self.delete(photo_id)
-    
-    async def create_session(
-        self,
-        session_in: PhotoSessionCreate
-    ) -> PhotoSession:
+
+    async def create_session(self, session_in: PhotoSessionCreate) -> PhotoSession:
         """Create a new photo session"""
         session_data = session_in.model_dump()
         return await self.session_repo.create(session_data)
-    
+
     async def get_session(self, session_id: UUID) -> Optional[PhotoSession]:
         """Get session by ID"""
         return await self.session_repo.get(session_id)
 
     async def get_sessions(
-        self,
-        event_id: UUID,
-        skip: int = 0,
-        limit: int = 100
+        self, event_id: UUID, skip: int = 0, limit: int = 100
     ) -> List[PhotoSession]:
         """Get photo sessions for an event."""
         return await self.session_repo.get_by_event(event_id, skip, limit)
-    
+
     async def complete_session(self, session_id: UUID) -> Optional[PhotoSession]:
         """Mark session as completed"""
         return await self.session_repo.complete_session(session_id)
-    
-    async def generate_upload_url(
-        self,
-        event_id: UUID,
-        filename: str
-    ) -> dict:
+
+    async def generate_upload_url(self, event_id: UUID, filename: str) -> dict:
         """Generate presigned URL for photo upload to R2"""
         if not r2_storage.is_available():
             raise RuntimeError("R2 storage is not configured")
 
         # Sanitize filename - only keep alphanumeric, dots, hyphens, underscores
-        safe_filename = re.sub(r'[^\w\-.]', '_', filename or 'upload')
+        safe_filename = re.sub(r"[^\w\-.]", "_", filename or "upload")
 
         return await r2_storage.generate_presigned_url(
-            filename=safe_filename,
-            folder=f"photos/{event_id}",
-            expires_in=3600
+            filename=safe_filename, folder=f"photos/{event_id}", expires_in=3600
         )

@@ -1,10 +1,12 @@
-from typing import Optional, Dict, Any
-from uuid import UUID
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.plans import get_plan, list_plans, normalize_plan_id
+from app.models.models import Subscription, SubscriptionStatus
 from app.repositories.ai_task_repository import AITaskRepository
 from app.repositories.event_repository import EventRepository
 from app.repositories.photo_repository import PhotoRepository
@@ -15,8 +17,7 @@ from app.schemas.subscription import (
     SubscriptionUpdate,
     SubscriptionUsage,
 )
-from app.models.models import Subscription, SubscriptionStatus
-from app.services.base_service import BaseService, ValidationError, BusinessRuleError
+from app.services.base_service import BaseService, BusinessRuleError, ValidationError
 
 
 class SubscriptionService(BaseService[Subscription, SubscriptionCreate, SubscriptionUpdate]):
@@ -30,7 +31,7 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
     def __init__(self, db: AsyncSession):
         repository = SubscriptionRepository(db)
         super().__init__(repository, db)
-    
+
     # ── Validation Hooks ──────────────────────────────────────
 
     async def validate_create(self, obj_in: SubscriptionCreate) -> None:
@@ -57,7 +58,9 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
         obj_dict["status"] = SubscriptionStatus.ACTIVE
         return obj_dict
 
-    async def before_update(self, existing: Subscription, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+    async def before_update(
+        self, existing: Subscription, obj_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Transform subscription update data."""
         # Normalize plan_name if present
         if "plan_name" in obj_dict and obj_dict["plan_name"] is not None:
@@ -69,15 +72,10 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
     async def get_subscription(self, subscription_id: UUID) -> Optional[Subscription]:
         """Get subscription by ID (alias for route compatibility)."""
         return await self.get(subscription_id)
-    
-    async def get_by_stripe_id(
-        self,
-        stripe_subscription_id: str
-    ) -> Optional[Subscription]:
+
+    async def get_by_stripe_id(self, stripe_subscription_id: str) -> Optional[Subscription]:
         """Get subscription by Stripe subscription ID"""
-        return await self.repository.get_by_stripe_subscription_id(
-            stripe_subscription_id
-        )
+        return await self.repository.get_by_stripe_subscription_id(stripe_subscription_id)
 
     def get_plans(self) -> list[SubscriptionPlan]:
         """Return the configured subscription plans."""
@@ -125,8 +123,7 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
         current = await EventRepository(self.db).count_by_team(team_id)
         if self._limit_exceeded(current, limit):
             raise ValueError(
-                f"Event quota exceeded for plan '{plan['id']}' "
-                f"({current}/{limit})"
+                f"Event quota exceeded for plan '{plan['id']}' " f"({current}/{limit})"
             )
 
     async def ensure_can_upload_photo(self, team_id: UUID, event_id: UUID) -> None:
@@ -153,29 +150,21 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
         )
         if self._limit_exceeded(current, limit):
             raise ValueError(
-                f"AI credit quota exceeded for plan '{plan['id']}' "
-                f"({current}/{limit})"
+                f"AI credit quota exceeded for plan '{plan['id']}' " f"({current}/{limit})"
             )
-    
-    async def create_subscription(
-        self,
-        subscription_in: SubscriptionCreate
-    ) -> Subscription:
+
+    async def create_subscription(self, subscription_in: SubscriptionCreate) -> Subscription:
         """Create a new subscription (alias for route compatibility)."""
         return await self.create(subscription_in)
 
     async def update_subscription(
-        self,
-        subscription_id: UUID,
-        subscription_in: SubscriptionUpdate
+        self, subscription_id: UUID, subscription_in: SubscriptionUpdate
     ) -> Optional[Subscription]:
         """Update subscription (alias for route compatibility)."""
         return await self.update(subscription_id, subscription_in)
-    
+
     async def cancel_subscription(
-        self,
-        subscription_id: UUID,
-        immediate: bool = False
+        self, subscription_id: UUID, immediate: bool = False
     ) -> Optional[Subscription]:
         """Cancel a subscription locally and at Stripe."""
         subscription = await self.repository.get(subscription_id)
@@ -186,13 +175,13 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
         if subscription.stripe_subscription_id:
             try:
                 import stripe
+
                 stripe.api_key = settings.STRIPE_SECRET_KEY
                 if immediate:
                     stripe.Subscription.delete(subscription.stripe_subscription_id)
                 else:
                     stripe.Subscription.modify(
-                        subscription.stripe_subscription_id,
-                        cancel_at_period_end=True
+                        subscription.stripe_subscription_id, cancel_at_period_end=True
                     )
             except Exception:
                 # Stripe unreachable — still cancel locally; Stripe will
@@ -201,32 +190,21 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
 
         if immediate:
             return await self.repository.update_status(
-                subscription_id,
-                SubscriptionStatus.CANCELLED
+                subscription_id, SubscriptionStatus.CANCELLED
             )
         else:
             return await self.repository.cancel_at_period_end(subscription_id)
-    
-    async def reactivate_subscription(
-        self,
-        subscription_id: UUID
-    ) -> Optional[Subscription]:
+
+    async def reactivate_subscription(self, subscription_id: UUID) -> Optional[Subscription]:
         """Reactivate a cancelled subscription"""
         return await self.repository.reactivate(subscription_id)
-    
+
     async def update_period(
-        self,
-        subscription_id: UUID,
-        period_start: datetime,
-        period_end: datetime
+        self, subscription_id: UUID, period_start: datetime, period_end: datetime
     ) -> Optional[Subscription]:
         """Update subscription billing period"""
-        return await self.repository.update_period(
-            subscription_id,
-            period_start,
-            period_end
-        )
-    
+        return await self.repository.update_period(subscription_id, period_start, period_end)
+
     async def handle_stripe_webhook(self, event_type: str, data: dict) -> None:
         """Handle Stripe webhook events"""
         if event_type == "customer.subscription.updated":
@@ -237,13 +215,11 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
             await self._handle_payment_succeeded(data)
         elif event_type == "invoice.payment_failed":
             await self._handle_payment_failed(data)
-    
+
     async def _handle_subscription_updated(self, data: dict) -> None:
         """Handle subscription update from Stripe"""
         stripe_sub_id = data.get("id")
-        subscription = await self.repository.get_by_stripe_subscription_id(
-            stripe_sub_id
-        )
+        subscription = await self.repository.get_by_stripe_subscription_id(stripe_sub_id)
         if subscription:
             status_map = {
                 "active": SubscriptionStatus.ACTIVE,
@@ -252,19 +228,14 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
             }
             status = status_map.get(data.get("status"), SubscriptionStatus.INACTIVE)
             await self.repository.update_status(subscription.id, status)
-    
+
     async def _handle_subscription_deleted(self, data: dict) -> None:
         """Handle subscription deletion from Stripe"""
         stripe_sub_id = data.get("id")
-        subscription = await self.repository.get_by_stripe_subscription_id(
-            stripe_sub_id
-        )
+        subscription = await self.repository.get_by_stripe_subscription_id(stripe_sub_id)
         if subscription:
-            await self.repository.update_status(
-                subscription.id,
-                SubscriptionStatus.CANCELLED
-            )
-    
+            await self.repository.update_status(subscription.id, SubscriptionStatus.CANCELLED)
+
     async def _handle_payment_succeeded(self, data: dict) -> None:
         """Handle successful payment — update billing period and reactivate."""
         # The invoice lines contain period start/end
@@ -277,8 +248,17 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
                 period_end = data.get("period_end")
                 if period_start and period_end:
                     from datetime import datetime as dt
-                    ps = dt.fromtimestamp(period_start) if isinstance(period_start, (int, float)) else None
-                    pe = dt.fromtimestamp(period_end) if isinstance(period_end, (int, float)) else None
+
+                    ps = (
+                        dt.fromtimestamp(period_start)
+                        if isinstance(period_start, (int, float))
+                        else None
+                    )
+                    pe = (
+                        dt.fromtimestamp(period_end)
+                        if isinstance(period_end, (int, float))
+                        else None
+                    )
                     if ps and pe:
                         await self.repository.update_period(subscription.id, ps, pe)
                 # Ensure active status (in case it was past_due)

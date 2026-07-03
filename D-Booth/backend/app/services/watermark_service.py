@@ -1,18 +1,24 @@
 from io import BytesIO
-from PIL import Image, ImageOps
 from typing import Literal, Optional
+
+from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
 PositionType = Literal[
-    "top_left", "top_center", "top_right",
+    "top_left",
+    "top_center",
+    "top_right",
     "center",
-    "bottom_left", "bottom_center", "bottom_right",
-    "tile"
+    "bottom_left",
+    "bottom_center",
+    "bottom_right",
+    "tile",
 ]
 
 
 class WatermarkSettings(BaseModel):
     """Watermark configuration model"""
+
     enabled: bool = False
     watermark_url: Optional[str] = None
     position: PositionType = "bottom_right"
@@ -31,7 +37,7 @@ class WatermarkService:
         position: PositionType = "bottom_right",
         opacity: float = 0.5,
         scale: float = 0.2,
-        tile: bool = False
+        tile: bool = False,
     ) -> bytes:
         """
         Apply watermark to an image using alpha compositing
@@ -69,7 +75,9 @@ class WatermarkService:
                     new_wm_width = int(new_wm_height * wm_ratio)
 
                 # Resize watermark
-                watermark = watermark.resize((new_wm_width, new_wm_height), Image.Resampling.LANCZOS)
+                watermark = watermark.resize(
+                    (new_wm_width, new_wm_height), Image.Resampling.LANCZOS
+                )
 
                 # Apply opacity
                 if opacity < 1.0:

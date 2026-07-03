@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Booth, BoothStatus
-from app.schemas.booth import BoothCreate, BoothUpdate
 from app.repositories.booth_repository import BoothRepository
+from app.schemas.booth import BoothCreate, BoothUpdate
 from app.services.base_service import BaseService, BusinessRuleError
 
 
@@ -35,7 +36,7 @@ class BoothService(BaseService[Booth, BoothCreate, BoothUpdate]):
                 ip_address=booth_create.ip_address,
                 os_info=booth_create.os_info,
                 status=BoothStatus.ONLINE,
-                current_event_id=booth_create.current_event_id
+                current_event_id=booth_create.current_event_id,
             )
             existing_booth.last_heartbeat = datetime.utcnow()
             updated = await self.update(existing_booth.id, update_data)

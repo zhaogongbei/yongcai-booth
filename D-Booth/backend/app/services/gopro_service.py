@@ -1,7 +1,8 @@
 import asyncio
 from typing import List, Optional
-from pydantic import BaseModel, Field
+
 import httpx
+from pydantic import BaseModel, Field
 
 from app.core.logging import logger
 
@@ -44,7 +45,7 @@ class _GoProController:
         discovered = []
         # Common GoPro IP ranges
         candidates = [
-            "10.5.5.9",   # Standard GoPro WiFi IP (HERO5+ AP mode)
+            "10.5.5.9",  # Standard GoPro WiFi IP (HERO5+ AP mode)
             "172.20.100.51",  # Alternative
             "172.26.122.51",  # Alternative
             "172.28.228.51",  # Alternative
@@ -79,8 +80,7 @@ class _GoProController:
         """Connect to a specific GoPro device"""
         try:
             self._http_client = httpx.AsyncClient(
-                base_url=f"http://{device.ip_address}",
-                timeout=5.0
+                base_url=f"http://{device.ip_address}", timeout=5.0
             )
             # Verify connectivity
             response = await self._http_client.get("/gp/gpControl/info")
@@ -141,10 +141,7 @@ class _GoProController:
 
         try:
             # Trigger shutter - mode 1 = photo
-            resp = await self._http_client.get(
-                "/gp/gpControl/command/shutter",
-                params={"p": "1"}
-            )
+            resp = await self._http_client.get("/gp/gpControl/command/shutter", params={"p": "1"})
             if resp.status_code != 200:
                 logger.warning(f"Failed to trigger shutter, status: {resp.status_code}")
                 return None
@@ -194,10 +191,7 @@ class _GoProController:
             return False
 
         try:
-            resp = await self._http_client.get(
-                "/gp/gpControl/command/shutter",
-                params={"p": "1"}
-            )
+            resp = await self._http_client.get("/gp/gpControl/command/shutter", params={"p": "1"})
             if resp.status_code == 200:
                 logger.info("GoPro recording started")
                 return True
@@ -215,10 +209,7 @@ class _GoProController:
 
         try:
             # Stop recording
-            resp = await self._http_client.get(
-                "/gp/gpControl/command/shutter",
-                params={"p": "0"}
-            )
+            resp = await self._http_client.get("/gp/gpControl/command/shutter", params={"p": "0"})
             if resp.status_code != 200:
                 logger.warning(f"Failed to stop recording, status: {resp.status_code}")
                 return None

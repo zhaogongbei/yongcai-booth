@@ -1,12 +1,15 @@
 from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
+
 from app.api.deps import get_current_active_user
 from app.models.models import User
 
 router = APIRouter()
 
 UPLOADS_DIR = Path("uploads")
+
 
 @router.get("/{file_path:path}")
 async def serve_media(

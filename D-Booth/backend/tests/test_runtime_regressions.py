@@ -2,7 +2,17 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.models.models import Event, EventStatus, Photo, PrintJob, Share, Team, TeamMember, User, UserRole
+from app.models.models import (
+    Event,
+    EventStatus,
+    Photo,
+    PrintJob,
+    Share,
+    Team,
+    TeamMember,
+    User,
+    UserRole,
+)
 from app.schemas.share import ShareCreate
 from app.services.analytics_service import AnalyticsService
 from app.services.share_service import ShareService
@@ -80,22 +90,24 @@ async def test_photo_stats_aggregates_without_runtime_error(db_session):
     db_session.add(event)
     await db_session.flush()
 
-    db_session.add_all([
-        Photo(
-            event_id=event.id,
-            original_url="https://example.com/photo-1.jpg",
-            file_size=100,
-            width=100,
-            height=100,
-        ),
-        Photo(
-            event_id=event.id,
-            original_url="https://example.com/photo-2.jpg",
-            file_size=250,
-            width=100,
-            height=100,
-        ),
-    ])
+    db_session.add_all(
+        [
+            Photo(
+                event_id=event.id,
+                original_url="https://example.com/photo-1.jpg",
+                file_size=100,
+                width=100,
+                height=100,
+            ),
+            Photo(
+                event_id=event.id,
+                original_url="https://example.com/photo-2.jpg",
+                file_size=250,
+                width=100,
+                height=100,
+            ),
+        ]
+    )
     await db_session.commit()
 
     stats = await AnalyticsService(db_session).get_photo_stats(

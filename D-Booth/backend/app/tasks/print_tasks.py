@@ -1,9 +1,11 @@
-from celery import shared_task
 from uuid import UUID
+
+from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import async_session
-from app.services.print_service import PrintService
 from app.core.logging import logger
+from app.services.print_service import PrintService
 
 
 @shared_task(bind=True, max_retries=3)
@@ -34,6 +36,7 @@ def execute_print_job_task(self, print_job_id: str):
 def monitor_printers_task():
     """定时任务监控打印机状态"""
     import asyncio
+
     from app.services.printer_driver_service import PrinterDriverService
 
     async def monitor():

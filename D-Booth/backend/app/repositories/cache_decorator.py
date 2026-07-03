@@ -11,7 +11,7 @@ Provides transparent caching layer for repository queries with:
 import json
 import logging
 from functools import wraps
-from typing import Callable, Optional, Any, List
+from typing import Any, Callable, List, Optional
 from uuid import UUID
 
 from app.core.cache import RedisCache
@@ -20,9 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def cached(
-    ttl: int = 300,
-    key_prefix: Optional[str] = None,
-    key_builder: Optional[Callable] = None
+    ttl: int = 300, key_prefix: Optional[str] = None, key_builder: Optional[Callable] = None
 ):
     """
     Cache decorator for repository methods with Redis.
@@ -49,6 +47,7 @@ def cached(
             # Query implementation
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
@@ -58,13 +57,9 @@ def cached(
                     cache_key = key_builder(self, *args, **kwargs)
                 except Exception as e:
                     logger.warning(f"Custom key_builder failed: {e}, using default")
-                    cache_key = _build_default_cache_key(
-                        func, key_prefix, args, kwargs
-                    )
+                    cache_key = _build_default_cache_key(func, key_prefix, args, kwargs)
             else:
-                cache_key = _build_default_cache_key(
-                    func, key_prefix, args, kwargs
-                )
+                cache_key = _build_default_cache_key(func, key_prefix, args, kwargs)
 
             # Try to get from cache
             cached_result = await RedisCache.get(cache_key)
@@ -86,6 +81,7 @@ def cached(
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -113,6 +109,7 @@ def invalidate_cache(key_pattern: str):
             # Update user
             return user
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
@@ -134,14 +131,12 @@ def invalidate_cache(key_pattern: str):
             return result
 
         return wrapper
+
     return decorator
 
 
 def _build_default_cache_key(
-    func: Callable,
-    key_prefix: Optional[str],
-    args: tuple,
-    kwargs: dict
+    func: Callable, key_prefix: Optional[str], args: tuple, kwargs: dict
 ) -> str:
     """
     Build default cache key from function name and arguments.

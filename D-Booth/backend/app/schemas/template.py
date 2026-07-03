@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict, Any
-from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Base Template Schema
@@ -40,7 +41,7 @@ class TemplateResponse(TemplateBase):
     team_id: UUID
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

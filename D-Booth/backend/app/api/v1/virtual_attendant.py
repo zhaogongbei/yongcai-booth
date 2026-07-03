@@ -1,25 +1,24 @@
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.services.tts_service import TTSService
-from app.services.virtual_attendant_service import (
-    VirtualAttendantService,
-    PlaylistItem,
-    PlayTiming
-)
+from app.services.virtual_attendant_service import PlaylistItem, PlayTiming, VirtualAttendantService
 
 router = APIRouter()
 
 
 class UpdatePlaylistRequest(BaseModel):
     """更新播放列表请求"""
+
     items: List[PlaylistItem] = Field(..., description="播放列表项")
 
 
 class PreviewTTSRequest(BaseModel):
     """预览TTS请求"""
+
     text: str = Field(..., description="要合成的文本")
     language: str = Field(default="zh-CN", description="语言")
     voice: str = Field(default="female", description="语音类型")
@@ -33,8 +32,7 @@ async def get_playlist(event_id: str):
         return playlist
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取播放列表失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取播放列表失败: {str(e)}"
         )
 
 
@@ -46,8 +44,7 @@ async def update_playlist(event_id: str, request: UpdatePlaylistRequest):
         return playlist
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新播放列表失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新播放列表失败: {str(e)}"
         )
 
 
@@ -56,35 +53,31 @@ async def preview_tts(request: PreviewTTSRequest):
     """预览TTS语音，返回MP3音频"""
     try:
         audio_data = await TTSService.synthesize(
-            text=request.text,
-            language=request.language,
-            voice=request.voice
+            text=request.text, language=request.language, voice=request.voice
         )
 
         if not audio_data:
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="TTS服务当前不可用"
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="TTS服务当前不可用"
             )
 
         return Response(
             content=audio_data,
             media_type="audio/mpeg",
-            headers={
-                "Content-Disposition": f"attachment; filename=preview.mp3"
-            }
+            headers={"Content-Disposition": f"attachment; filename=preview.mp3"},
         )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"TTS合成失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"TTS合成失败: {str(e)}"
         )
 
 
 @router.get("/tts/{timing}", response_class=Response)
-async def get_tts_by_timing(timing: str, event_id: str, language: str = "zh-CN", voice: str = "female"):
+async def get_tts_by_timing(
+    timing: str, event_id: str, language: str = "zh-CN", voice: str = "female"
+):
     """获取指定时机的已合成TTS音频"""
     try:
         # 验证timing参数
@@ -92,8 +85,7 @@ async def get_tts_by_timing(timing: str, event_id: str, language: str = "zh-CN",
             play_timing = PlayTiming(timing)
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"无效的播放时机: {timing}"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=f"无效的播放时机: {timing}"
             )
 
         # 获取播放列表
@@ -107,22 +99,17 @@ async def get_tts_by_timing(timing: str, event_id: str, language: str = "zh-CN",
 
         # 合成语音
         audio_data = await TTSService.synthesize(
-            text=item.text,
-            language=item.language,
-            voice=item.voice
+            text=item.text, language=item.language, voice=item.voice
         )
 
         return Response(
             content=audio_data,
             media_type="audio/mpeg",
-            headers={
-                "Cache-Control": "public, max-age=86400"  # 缓存1天
-            }
+            headers={"Cache-Control": "public, max-age=86400"},  # 缓存1天
         )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取TTS失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取TTS失败: {str(e)}"
         )

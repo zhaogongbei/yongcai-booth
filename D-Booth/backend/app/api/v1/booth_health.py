@@ -3,12 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter
 
-from app.schemas.booth_health import (
-    ApiHealth,
-    BoothHealthResponse,
-    CameraHealth,
-    PrintQueueSummary,
-)
+from app.schemas.booth_health import ApiHealth, BoothHealthResponse, CameraHealth, PrintQueueSummary
 from app.schemas.printer import PrinterInfo, PrinterStatus, PrintQueueItem
 from app.services.camera_service import camera_manager
 from app.services.printer_driver_service import PrinterDriverService
@@ -104,7 +99,10 @@ def _collect_issues(
         issues.append(f"相机不可用：{camera.error}" if camera.error else "相机未连接")
     if not printers:
         issues.append("未检测到打印机")
-    if selected_printer and selected_printer.status not in (PrinterStatus.READY, PrinterStatus.INK_LOW):
+    if selected_printer and selected_printer.status not in (
+        PrinterStatus.READY,
+        PrinterStatus.INK_LOW,
+    ):
         issues.append(f"默认打印机状态：{selected_printer.status.value}")
     if queue.blocked > 0:
         issues.append(f"打印队列存在 {queue.blocked} 个阻塞任务")
@@ -136,4 +134,6 @@ def _is_ready(
 ) -> bool:
     if not api.online or not camera.connected or not printers or queue.blocked > 0:
         return False
-    return bool(selected_printer and selected_printer.status in (PrinterStatus.READY, PrinterStatus.INK_LOW))
+    return bool(
+        selected_printer and selected_printer.status in (PrinterStatus.READY, PrinterStatus.INK_LOW)
+    )

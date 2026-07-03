@@ -4,7 +4,8 @@ Prop repository for data access operations.
 
 from typing import List, Optional
 from uuid import UUID
-from sqlalchemy import select, or_
+
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Prop, PropCategory
@@ -22,40 +23,27 @@ class PropRepository(BaseRepository[Prop]):
         team_id: Optional[UUID] = None,
         category: Optional[PropCategory] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Prop]:
         """Get props accessible to team (public + team-owned)."""
-        query = select(Prop).where(
-            or_(
-                Prop.is_public == True,
-                Prop.team_id == team_id
-            )
-        )
+        query = select(Prop).where(or_(Prop.is_public == True, Prop.team_id == team_id))
 
         if category:
             query = query.where(Prop.category == category)
 
         # Sort: default props first, then by creation time
-        query = query.order_by(
-            Prop.is_default.desc(),
-            Prop.created_at.desc()
-        ).offset(skip).limit(limit)
+        query = (
+            query.order_by(Prop.is_default.desc(), Prop.created_at.desc()).offset(skip).limit(limit)
+        )
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def count_accessible_props(
-        self,
-        team_id: Optional[UUID] = None,
-        category: Optional[PropCategory] = None
+        self, team_id: Optional[UUID] = None, category: Optional[PropCategory] = None
     ) -> int:
         """Count props accessible to team."""
-        query = select(Prop).where(
-            or_(
-                Prop.is_public == True,
-                Prop.team_id == team_id
-            )
-        )
+        query = select(Prop).where(or_(Prop.is_public == True, Prop.team_id == team_id))
 
         if category:
             query = query.where(Prop.category == category)
@@ -63,12 +51,7 @@ class PropRepository(BaseRepository[Prop]):
         result = await self.db.execute(query)
         return len(list(result.scalars().all()))
 
-    async def get_by_team(
-        self,
-        team_id: UUID,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[Prop]:
+    async def get_by_team(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Prop]:
         """Get props owned by specific team."""
         result = await self.db.execute(
             select(Prop)

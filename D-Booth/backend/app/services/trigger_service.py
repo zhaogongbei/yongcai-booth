@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import time
 import hashlib
 import hmac
+import json
 import secrets
-from typing import List, Optional, Union, Dict, Any
+import time
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import logger
+from app.models.models import TriggerAction, TriggerConfig, TriggerLog, TriggerType
 from app.repositories.trigger_repository import TriggerConfigRepository, TriggerLogRepository
-from app.models.models import TriggerConfig, TriggerLog, TriggerType, TriggerAction
 from app.schemas.trigger import TriggerConfigCreate, TriggerConfigUpdate
 from app.services.base_service import BaseService, BusinessRuleError, ValidationError
-from app.core.logging import logger
 
 
 class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConfigUpdate]):
@@ -81,7 +81,9 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         if obj_in.retry is not None and obj_in.retry < 1:
             raise ValidationError("Retry count must be at least 1")
 
-    async def execute_triggers(self, event_type: Union[TriggerType, str], context: Dict[str, Any]) -> List[TriggerLog]:
+    async def execute_triggers(
+        self, event_type: Union[TriggerType, str], context: Dict[str, Any]
+    ) -> List[TriggerLog]:
         """
         Execute all enabled triggers matching the event_type.
 
@@ -97,12 +99,16 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         """
         event_id_str = context.get("event_id")
         if not event_id_str:
-            logger.warning(f"No event_id in trigger context, skipping trigger execution for {event_type}")
+            logger.warning(
+                f"No event_id in trigger context, skipping trigger execution for {event_type}"
+            )
             return []
 
         try:
             event_id = UUID(str(event_id_str))
-            event_type_enum = event_type if isinstance(event_type, TriggerType) else TriggerType(event_type)
+            event_type_enum = (
+                event_type if isinstance(event_type, TriggerType) else TriggerType(event_type)
+            )
         except (ValueError, TypeError) as e:
             logger.warning(f"Invalid trigger params: {e}")
             return []
@@ -127,10 +133,7 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         return logs
 
     async def _execute_single_trigger(
-        self,
-        config: TriggerConfig,
-        event_type: TriggerType,
-        context: Dict[str, Any]
+        self, config: TriggerConfig, event_type: TriggerType, context: Dict[str, Any]
     ) -> Optional[TriggerLog]:
         """
         Execute a single trigger with retry logic.
@@ -172,17 +175,19 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         duration_ms = int(time.time() * 1000) - start_time
         success = last_error is None
 
-        log_entry = await self.log_repo.create({
-            "id": uuid4(),
-            "trigger_id": config.id,
-            "event_id": config.event_id,
-            "event_type": event_type,
-            "success": success,
-            "response_status": last_status,
-            "response_data": last_error if last_error else ("OK" if success else None),
-            "duration_ms": duration_ms,
-            "attempt_count": attempt,
-        })
+        log_entry = await self.log_repo.create(
+            {
+                "id": uuid4(),
+                "trigger_id": config.id,
+                "event_id": config.event_id,
+                "event_type": event_type,
+                "success": success,
+                "response_status": last_status,
+                "response_data": last_error if last_error else ("OK" if success else None),
+                "duration_ms": duration_ms,
+                "attempt_count": attempt,
+            }
+        )
 
         if not success:
             logger.warning(
@@ -210,7 +215,7 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
                 response = await client.post(
                     config.target,
                     json=payload,
-                    headers={"Content-Type": "application/json", "User-Agent": "AI-Booth/1.0"}
+                    headers={"Content-Type": "application/json", "User-Agent": "AI-Booth/1.0"},
                 )
                 if response.is_success or response.status_code < 500:
                     return response.status_code, None
@@ -238,19 +243,26 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         try:
             process = await asyncio.create_subprocess_exec(
                 config.target,
-                "--payload", payload_json,
+                "--payload",
+                payload_json,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=config.timeout)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=config.timeout
+                )
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
                 return None, f"App execution timeout after {config.timeout}s"
 
             if process.returncode != 0:
-                error_msg = stderr.decode("utf-8", errors="replace")[:500] if stderr else f"Exit code {process.returncode}"
+                error_msg = (
+                    stderr.decode("utf-8", errors="replace")[:500]
+                    if stderr
+                    else f"Exit code {process.returncode}"
+                )
                 return process.returncode, error_msg
 
             return process.returncode, None
@@ -271,7 +283,11 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
             Complete payload dictionary
         """
         payload = {
-            "event_type": config.event_type.value if hasattr(config.event_type, "value") else str(config.event_type),
+            "event_type": (
+                config.event_type.value
+                if hasattr(config.event_type, "value")
+                else str(config.event_type)
+            ),
             "timestamp": int(time.time()),
         }
         if config.payload_template:
@@ -307,7 +323,9 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         """
         return await self.config_repo.get_by_event_id(event_id)
 
-    async def update_config(self, event_id: UUID, configs: List[Dict[str, Any]]) -> List[TriggerConfig]:
+    async def update_config(
+        self, event_id: UUID, configs: List[Dict[str, Any]]
+    ) -> List[TriggerConfig]:
         """
         Replace all trigger configs for an event.
 
@@ -362,7 +380,8 @@ class WebhookService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        from app.repositories.webhook_repository import WebhookRepository, WebhookLogRepository
+        from app.repositories.webhook_repository import WebhookLogRepository, WebhookRepository
+
         self.webhook_repo = WebhookRepository(db)
         self.log_repo = WebhookLogRepository(db)
 
@@ -378,11 +397,7 @@ class WebhookService:
         Returns:
             Hex-encoded signature string
         """
-        return hmac.new(
-            secret.encode("utf-8"),
-            payload_bytes,
-            hashlib.sha256
-        ).hexdigest()
+        return hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
 
     async def dispatch(self, event_type: str, payload: Dict[str, Any], team_id: UUID) -> None:
         """
@@ -414,6 +429,7 @@ class WebhookService:
             payload: Event payload data
         """
         from app.models.models import Webhook
+
         start_time = int(time.time() * 1000)
         payload_bytes = json.dumps(payload).encode("utf-8")
         signature = self.compute_signature(payload_bytes, webhook.secret)
@@ -432,7 +448,7 @@ class WebhookService:
                             "Content-Type": "application/json",
                             "X-Webhook-Signature": signature,
                             "User-Agent": "AI-Booth-Webhook/1.0",
-                        }
+                        },
                     )
                     if response.is_success:
                         last_status = response.status_code
@@ -451,18 +467,20 @@ class WebhookService:
         duration_ms = int(time.time() * 1000) - start_time
         success = last_error is None
 
-        await self.log_repo.create({
-            "id": uuid4(),
-            "webhook_id": webhook.id,
-            "event_type": event_type,
-            "payload": payload,
-            "success": success,
-            "response_status": last_status,
-            "response_data": last_error if last_error else ("OK" if success else None),
-            "duration_ms": duration_ms,
-            "attempt_count": attempt,
-            "signature": signature,
-        })
+        await self.log_repo.create(
+            {
+                "id": uuid4(),
+                "webhook_id": webhook.id,
+                "event_type": event_type,
+                "payload": payload,
+                "success": success,
+                "response_status": last_status,
+                "response_data": last_error if last_error else ("OK" if success else None),
+                "duration_ms": duration_ms,
+                "attempt_count": attempt,
+                "signature": signature,
+            }
+        )
 
         if not success:
             logger.warning(f"Webhook {webhook.url} failed after {attempt} attempts: {last_error}")
@@ -478,6 +496,7 @@ class WebhookService:
             Created webhook instance
         """
         from app.models.models import Webhook
+
         data["id"] = uuid4()
         if "secret" not in data:
             data["secret"] = secrets.token_hex(32)

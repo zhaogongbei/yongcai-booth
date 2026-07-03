@@ -1,43 +1,47 @@
 """
 Green Screen API Endpoints
 """
-import json
+
 import io
+import json
 from datetime import datetime, timezone
-from typing import Optional, List
 from pathlib import Path
+from typing import List, Optional
 from uuid import UUID, uuid4
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Depends
+
+import numpy as np
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.services.green_screen_service import green_screen_service
-from app.services.storage_service import r2_storage
+from app.repositories.event_repository import EventRepository
 from app.schemas.green_screen import (
+    BackgroundAnalysisResult,
+    GreenScreenBackground,
+    GreenScreenProcessRequest,
     GreenScreenSettingsResponse,
     GreenScreenSettingsUpdate,
-    GreenScreenProcessRequest,
-    BackgroundAnalysisResult,
-    GreenScreenBackground
 )
-from app.repositories.event_repository import EventRepository
-
-import numpy as np
+from app.services.green_screen_service import green_screen_service
+from app.services.storage_service import r2_storage
 
 router = APIRouter()
 
 # Try to import OpenCV for image decoding
 try:
     import cv2
+
     OPENCV_AVAILABLE = True
 except ImportError:
     OPENCV_AVAILABLE = False
     logger.warning("OpenCV not available, green screen API will return original images")
 
 
-def _save_local_green_screen_file(file_data: bytes, filename: str, event_id: UUID, folder: str) -> str:
+def _save_local_green_screen_file(
+    file_data: bytes, filename: str, event_id: UUID, folder: str
+) -> str:
     safe_name = Path(filename or "upload").name
     safe_suffix = Path(safe_name).suffix or ".jpg"
     stored_name = f"{uuid4().hex}{safe_suffix}"
@@ -67,8 +71,7 @@ async def preview_green_screen(
         image_bytes = await file.read()
         if not image_bytes:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Image file is empty"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Image file is empty"
             )
 
         # Decode image
@@ -80,8 +83,7 @@ async def preview_green_screen(
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if image is None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid image file"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file"
             )
 
         # Read background if provided
@@ -96,21 +98,17 @@ async def preview_green_screen(
         result = green_screen_service.process_image(image, settings_obj, background)
 
         # Encode result
-        _, encoded = cv2.imencode('.jpg', result, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        _, encoded = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 95])
         result_bytes = encoded.tobytes()
 
         return Response(content=result_bytes, media_type="image/jpeg")
 
     except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid settings JSON"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid settings JSON")
     except Exception as e:
         logger.error(f"Green screen preview failed: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Processing failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Processing failed: {str(e)}"
         )
 
 
@@ -131,13 +129,13 @@ async def process_photos(
         return {
             "status": "processing",
             "photo_count": len(photo_ids),
-            "message": "Batch processing scheduled"
+            "message": "Batch processing scheduled",
         }
     except Exception as e:
         logger.error(f"Batch green screen processing failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch processing failed: {str(e)}"
+            detail=f"Batch processing failed: {str(e)}",
         )
 
 
@@ -164,13 +162,13 @@ async def get_green_screen_settings(
             current_background_index=0,
             backgrounds=[],
             created_at="2024-01-01T00:00:00",
-            updated_at="2024-01-01T00:00:00"
+            updated_at="2024-01-01T00:00:00",
         )
     except Exception as e:
         logger.error(f"Failed to get green screen settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get settings: {str(e)}"
+            detail=f"Failed to get settings: {str(e)}",
         )
 
 
@@ -190,13 +188,13 @@ async def update_green_screen_settings(
             **settings.model_dump(),
             backgrounds=[],
             created_at="2024-01-01T00:00:00",
-            updated_at="2024-01-01T00:00:00"
+            updated_at="2024-01-01T00:00:00",
         )
     except Exception as e:
         logger.error(f"Failed to update green screen settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update settings: {str(e)}"
+            detail=f"Failed to update settings: {str(e)}",
         )
 
 
@@ -214,8 +212,7 @@ async def upload_background(
         file_bytes = await file.read()
         if not file_bytes:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Background file is empty"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Background file is empty"
             )
 
         # Upload to storage
@@ -225,7 +222,7 @@ async def upload_background(
                 file_data=file_bytes,
                 filename=filename,
                 content_type=file.content_type or "image/jpeg",
-                folder=f"green-screen/{event_id}/backgrounds"
+                folder=f"green-screen/{event_id}/backgrounds",
             )
         else:
             background_url = _save_local_green_screen_file(
@@ -246,7 +243,7 @@ async def upload_background(
                         file_data=overlay_bytes,
                         filename=overlay_filename,
                         content_type=overlay_file.content_type or "image/png",
-                        folder=f"green-screen/{event_id}/overlays"
+                        folder=f"green-screen/{event_id}/overlays",
                     )
                 else:
                     overlay_url = _save_local_green_screen_file(
@@ -263,7 +260,7 @@ async def upload_background(
             background_url=background_url,
             overlay_url=overlay_url,
             order=0,
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
 
     except HTTPException:
@@ -272,7 +269,7 @@ async def upload_background(
         logger.error(f"Failed to upload background: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload background: {str(e)}"
+            detail=f"Failed to upload background: {str(e)}",
         )
 
 
@@ -290,7 +287,7 @@ async def delete_background(
         logger.error(f"Failed to delete background: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete background: {str(e)}"
+            detail=f"Failed to delete background: {str(e)}",
         )
 
 
@@ -304,8 +301,7 @@ async def analyze_test_photo(
         image_bytes = await file.read()
         if not image_bytes:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Image file is empty"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Image file is empty"
             )
 
         # Decode image
@@ -315,15 +311,14 @@ async def analyze_test_photo(
                 recommended_mode="ai_removal",
                 is_green_background=False,
                 suggested_sensitivity=50,
-                suggestions=["OpenCV not available, limited analysis"]
+                suggestions=["OpenCV not available, limited analysis"],
             )
 
         nparr = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if image is None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid image file"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file"
             )
 
         # Analyze photo
@@ -334,6 +329,5 @@ async def analyze_test_photo(
     except Exception as e:
         logger.error(f"Test photo analysis failed: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Analysis failed: {str(e)}"
         )

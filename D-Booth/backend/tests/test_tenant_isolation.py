@@ -7,19 +7,20 @@ This test suite covers:
 3. Shares list isolation with channel filter
 4. Subscription operation restrictions
 """
+
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
-from uuid import uuid4
 
 
 @pytest.mark.anyio
-async def test_cannot_create_event_for_non_member_team(authenticated_client: AsyncClient, test_user_data):
+async def test_cannot_create_event_for_non_member_team(
+    authenticated_client: AsyncClient, test_user_data
+):
     """User should not be able to create an event for a team they don't belong to."""
     # Create a team
-    team_data = {
-        "name": "My Team",
-        "slug": "my-team"
-    }
+    team_data = {"name": "My Team", "slug": "my-team"}
     team_response = await authenticated_client.post("/api/v1/teams", json=team_data)
     assert team_response.status_code == 201
     team_id = team_response.json()["id"]
@@ -28,34 +29,33 @@ async def test_cannot_create_event_for_non_member_team(authenticated_client: Asy
     other_user_data = {
         "email": "other@example.com",
         "password": "OtherPass123!@",
-        "full_name": "Other User"
+        "full_name": "Other User",
     }
     await authenticated_client.post("/api/v1/auth/register", json=other_user_data)
 
     # Login as the second user
     login_response = await authenticated_client.post(
         "/api/v1/auth/login",
-        data={
-            "username": other_user_data["email"],
-            "password": other_user_data["password"]
-        }
+        data={"username": other_user_data["email"], "password": other_user_data["password"]},
     )
     other_token = login_response.json()["access_token"]
 
     # Create a new client with the other user's token
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
+
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
-        headers={"Authorization": f"Bearer {other_token}"}
+        headers={"Authorization": f"Bearer {other_token}"},
     ) as other_client:
         # Try to create an event for the first user's team
         event_data = {
             "name": "Unauthorized Event",
             "team_id": team_id,
             "start_date": "2026-07-01T10:00:00Z",
-            "end_date": "2026-07-01T18:00:00Z"
+            "end_date": "2026-07-01T18:00:00Z",
         }
         event_response = await other_client.post("/api/v1/events", json=event_data)
 
@@ -79,8 +79,7 @@ async def test_print_jobs_status_filter_respects_team_isolation(authenticated_cl
     """Print jobs filtered by status should only return jobs from user's teams."""
     # Create team 1
     team1_response = await authenticated_client.post(
-        "/api/v1/teams",
-        json={"name": "Team 1", "slug": "team-1"}
+        "/api/v1/teams", json={"name": "Team 1", "slug": "team-1"}
     )
     assert team1_response.status_code == 201
     team1_id = team1_response.json()["id"]
@@ -90,7 +89,7 @@ async def test_print_jobs_status_filter_respects_team_isolation(authenticated_cl
         "name": "Event 1",
         "team_id": team1_id,
         "start_date": "2026-07-01T10:00:00Z",
-        "end_date": "2026-07-01T18:00:00Z"
+        "end_date": "2026-07-01T18:00:00Z",
     }
     event1_response = await authenticated_client.post("/api/v1/events", json=event1_data)
     assert event1_response.status_code == 201
@@ -112,8 +111,7 @@ async def test_shares_channel_filter_respects_team_isolation(authenticated_clien
     """Shares filtered by channel should only return shares from user's teams."""
     # Create a team
     team_response = await authenticated_client.post(
-        "/api/v1/teams",
-        json={"name": "Test Team", "slug": "test-team"}
+        "/api/v1/teams", json={"name": "Test Team", "slug": "test-team"}
     )
     assert team_response.status_code == 201
     team_id = team_response.json()["id"]
@@ -123,7 +121,7 @@ async def test_shares_channel_filter_respects_team_isolation(authenticated_clien
         "name": "Test Event",
         "team_id": team_id,
         "start_date": "2026-07-01T10:00:00Z",
-        "end_date": "2026-07-01T18:00:00Z"
+        "end_date": "2026-07-01T18:00:00Z",
     }
     event_response = await authenticated_client.post("/api/v1/events", json=event_data)
     assert event_response.status_code == 201
@@ -146,7 +144,7 @@ async def test_cannot_directly_create_subscription(authenticated_client: AsyncCl
     subscription_data = {
         "plan_name": "Pro Plan",
         "stripe_subscription_id": "sub_fake123",
-        "stripe_customer_id": "cus_fake123"
+        "stripe_customer_id": "cus_fake123",
     }
 
     response = await authenticated_client.post("/api/v1/subscriptions", json=subscription_data)
@@ -164,12 +162,13 @@ async def test_cannot_directly_create_subscription(authenticated_client: AsyncCl
 
 
 @pytest.mark.anyio
-async def test_non_owner_cannot_update_subscription(authenticated_client: AsyncClient, test_user_data):
+async def test_non_owner_cannot_update_subscription(
+    authenticated_client: AsyncClient, test_user_data
+):
     """Only team owners should be able to update subscriptions."""
     # Create a team (creator becomes owner)
     team_response = await authenticated_client.post(
-        "/api/v1/teams",
-        json={"name": "Test Team", "slug": "test-team-sub"}
+        "/api/v1/teams", json={"name": "Test Team", "slug": "test-team-sub"}
     )
     assert team_response.status_code == 201
     team_id = team_response.json()["id"]
@@ -182,17 +181,14 @@ async def test_non_owner_cannot_update_subscription(authenticated_client: AsyncC
     other_user_data = {
         "email": "member@example.com",
         "password": "MemberPass123!@",
-        "full_name": "Team Member"
+        "full_name": "Team Member",
     }
     await authenticated_client.post("/api/v1/auth/register", json=other_user_data)
 
     # Login as the second user
     login_response = await authenticated_client.post(
         "/api/v1/auth/login",
-        data={
-            "username": other_user_data["email"],
-            "password": other_user_data["password"]
-        }
+        data={"username": other_user_data["email"], "password": other_user_data["password"]},
     )
     member_token = login_response.json()["access_token"]
 
@@ -203,16 +199,17 @@ async def test_non_owner_cannot_update_subscription(authenticated_client: AsyncC
     fake_subscription_id = str(uuid4())
     update_data = {"status": "cancelled"}
 
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
+
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
-        headers={"Authorization": f"Bearer {member_token}"}
+        headers={"Authorization": f"Bearer {member_token}"},
     ) as member_client:
         response = await member_client.put(
-            f"/api/v1/subscriptions/{fake_subscription_id}",
-            json=update_data
+            f"/api/v1/subscriptions/{fake_subscription_id}", json=update_data
         )
 
         # Should return 404 (subscription not found) since we can't create one
@@ -240,8 +237,7 @@ async def test_user_can_create_event_for_own_team(authenticated_client: AsyncCli
     """User should be able to create an event for a team they belong to."""
     # Create a team
     team_response = await authenticated_client.post(
-        "/api/v1/teams",
-        json={"name": "My Team", "slug": "my-team-valid"}
+        "/api/v1/teams", json={"name": "My Team", "slug": "my-team-valid"}
     )
     assert team_response.status_code == 201
     team_id = team_response.json()["id"]
@@ -251,7 +247,7 @@ async def test_user_can_create_event_for_own_team(authenticated_client: AsyncCli
         "name": "My Event",
         "team_id": team_id,
         "start_date": "2026-07-01T10:00:00Z",
-        "end_date": "2026-07-01T18:00:00Z"
+        "end_date": "2026-07-01T18:00:00Z",
     }
     event_response = await authenticated_client.post("/api/v1/events", json=event_data)
 
@@ -266,8 +262,7 @@ async def test_print_jobs_list_without_filters(authenticated_client: AsyncClient
     """Print jobs list without filters should only return user's teams' jobs."""
     # Create a team
     team_response = await authenticated_client.post(
-        "/api/v1/teams",
-        json={"name": "Print Team", "slug": "print-team"}
+        "/api/v1/teams", json={"name": "Print Team", "slug": "print-team"}
     )
     assert team_response.status_code == 201
 
@@ -283,8 +278,7 @@ async def test_shares_list_without_filters(authenticated_client: AsyncClient):
     """Shares list without filters should only return user's teams' shares."""
     # Create a team
     team_response = await authenticated_client.post(
-        "/api/v1/teams",
-        json={"name": "Share Team", "slug": "share-team"}
+        "/api/v1/teams", json={"name": "Share Team", "slug": "share-team"}
     )
     assert team_response.status_code == 201
 

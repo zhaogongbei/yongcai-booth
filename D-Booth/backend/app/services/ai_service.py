@@ -1,12 +1,14 @@
-from typing import Optional, List, Dict, Any
-from uuid import UUID
-from decimal import Decimal
 import re
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.logging import logger
+from app.models.models import AITask
 from app.repositories.ai_task_repository import AITaskRepository
 from app.schemas.ai_task import AITaskCreate, AITaskUpdate
-from app.models.models import AITask
-from app.core.logging import logger
 from app.services.base_service import BaseService, BusinessRuleError
 
 
@@ -24,9 +26,25 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
 
     # Forbidden keywords for prompt injection prevention
     FORBIDDEN_KEYWORDS = {
-        "ignore", "忽略", "bypass", "绕过", "jailbreak", "越狱",
-        "override", "覆盖", "system", "系统指令", "admin", "管理员",
-        "nsfw", "nude", "裸露", "violence", "暴力", "blood", "血腥"
+        "ignore",
+        "忽略",
+        "bypass",
+        "绕过",
+        "jailbreak",
+        "越狱",
+        "override",
+        "覆盖",
+        "system",
+        "系统指令",
+        "admin",
+        "管理员",
+        "nsfw",
+        "nude",
+        "裸露",
+        "violence",
+        "暴力",
+        "blood",
+        "血腥",
     }
 
     WORKFLOW_PROMPT_TEMPLATES = {
@@ -68,6 +86,7 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
 
         # Check subscription limits
         from app.services.subscription_service import SubscriptionService
+
         await SubscriptionService(self.db).ensure_can_create_ai_task(obj_in.team_id)
 
     async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -89,6 +108,7 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
         """Schedule async AI generation after task creation."""
         try:
             from app.tasks.ai_tasks import generate_ai_image
+
             generate_ai_image.delay(str(created.id), created.prompt, created.provider)
         except Exception as e:
             # Celery unavailable in dev — task stays pending and can be
@@ -117,7 +137,7 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
         status: Optional[str] = None,
         team_ids: Optional[List[UUID]] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[AITask]:
         """Get AI tasks with optional filters.
 
@@ -154,28 +174,18 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
         return await self.repository.get_pending_tasks(limit)
 
     async def update_progress(
-        self,
-        task_id: UUID,
-        progress: Decimal,
-        status: Optional[str] = None
+        self, task_id: UUID, progress: Decimal, status: Optional[str] = None
     ) -> Optional[AITask]:
         """Update task progress"""
         return await self.repository.update_progress(task_id, progress, status)
 
     async def complete_task(
-        self,
-        task_id: UUID,
-        result_url: str,
-        actual_cost: Optional[Decimal] = None
+        self, task_id: UUID, result_url: str, actual_cost: Optional[Decimal] = None
     ) -> Optional[AITask]:
         """Mark task as completed"""
         return await self.repository.complete_task(task_id, result_url, actual_cost)
 
-    async def fail_task(
-        self,
-        task_id: UUID,
-        error_message: str
-    ) -> Optional[AITask]:
+    async def fail_task(self, task_id: UUID, error_message: str) -> Optional[AITask]:
         """Mark task as failed"""
         return await self.repository.fail_task(task_id, error_message)
 
@@ -224,11 +234,7 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
         """
         # Step 1: Remove dangerous characters
         # Keep: letters, numbers, spaces, Chinese characters (U+4E00-U+9FFF), basic punctuation
-        safe_prompt = re.sub(
-            r'[^\w\s一-鿿.,，。!！?？:：；;、]',
-            '',
-            prompt
-        )
+        safe_prompt = re.sub(r"[^\w\s一-鿿.,，。!！?？:：；;、]", "", prompt)
 
         # Step 2: Normalize whitespace
         safe_prompt = " ".join(safe_prompt.split())
@@ -242,7 +248,7 @@ class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
 
         # Step 4: Length limit
         if len(safe_prompt) > cls.MAX_PROMPT_LENGTH:
-            safe_prompt = safe_prompt[:cls.MAX_PROMPT_LENGTH]
+            safe_prompt = safe_prompt[: cls.MAX_PROMPT_LENGTH]
             logger.info(f"Prompt truncated to {cls.MAX_PROMPT_LENGTH} characters")
 
         return safe_prompt

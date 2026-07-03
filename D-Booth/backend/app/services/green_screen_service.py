@@ -3,13 +3,16 @@ Green Screen Processing Service
 Chroma key (green screen) background removal and compositing
 Gracefully degrades when dependencies are not available
 """
+
 import io
 import logging
+from typing import List, Literal, Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional, List, Literal
 from PIL import Image
 
 from app.schemas.green_screen import GreenScreenSettingsBase
+
 from .background_removal_service import background_removal_service
 
 logger = logging.getLogger(__name__)
@@ -18,6 +21,7 @@ logger = logging.getLogger(__name__)
 OPENCV_AVAILABLE = False
 try:
     import cv2
+
     OPENCV_AVAILABLE = True
 except ImportError:
     logger.warning("OpenCV not available, green screen service will return original images")
@@ -36,8 +40,8 @@ class GreenScreenService:
 
     def hex_to_rgb(self, hex_color: str) -> Tuple[int, int, int]:
         """Convert hex color string (e.g. "#00FF00") to RGB tuple"""
-        hex_color = hex_color.lstrip('#')
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        hex_color = hex_color.lstrip("#")
+        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
     def rgb_to_hsv(self, r: int, g: int, b: int) -> Tuple[float, float, float]:
         """Convert RGB to HSV color space"""
@@ -53,7 +57,7 @@ class GreenScreenService:
         color_to_remove: str = "#00FF00",
         sensitivity: int = 50,
         smoothness: int = 30,
-        use_flash: bool = False
+        use_flash: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Remove background using chroma key technique
@@ -85,16 +89,20 @@ class GreenScreenService:
                 val_tolerance = int(val_tolerance * 1.3)
 
             # Create color range
-            lower_hsv = np.array([
-                max(0, target_h - hue_tolerance),
-                max(0, target_s - sat_tolerance),
-                max(0, target_v - val_tolerance)
-            ])
-            upper_hsv = np.array([
-                min(179, target_h + hue_tolerance),
-                min(255, target_s + sat_tolerance),
-                min(255, target_v + val_tolerance)
-            ])
+            lower_hsv = np.array(
+                [
+                    max(0, target_h - hue_tolerance),
+                    max(0, target_s - sat_tolerance),
+                    max(0, target_v - val_tolerance),
+                ]
+            )
+            upper_hsv = np.array(
+                [
+                    min(179, target_h + hue_tolerance),
+                    min(255, target_s + sat_tolerance),
+                    min(255, target_v + val_tolerance),
+                ]
+            )
 
             # Create mask
             mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
@@ -113,7 +121,9 @@ class GreenScreenService:
                 mask = cv2.GaussianBlur(mask, (kernel_size, kernel_size), 0)
 
                 # Morphological operations to remove noise
-                morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+                morph_kernel = cv2.getStructuringElement(
+                    cv2.MORPH_ELLIPSE, (kernel_size, kernel_size)
+                )
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, morph_kernel)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, morph_kernel)
 
@@ -133,7 +143,9 @@ class GreenScreenService:
             mask = np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
             return rgba, mask
 
-    def _apply_despill(self, image: np.ndarray, mask: np.ndarray, color_to_remove: str) -> np.ndarray:
+    def _apply_despill(
+        self, image: np.ndarray, mask: np.ndarray, color_to_remove: str
+    ) -> np.ndarray:
         """Remove color spill (reflections) from foreground edges"""
         if not self.opencv_available:
             return image
@@ -148,7 +160,9 @@ class GreenScreenService:
                     b, g, r = cv2.split(image)
 
                     # Reduce green channel in edge areas
-                    g[edge_mask > 0] = np.minimum(g[edge_mask > 0], (r[edge_mask > 0] + b[edge_mask > 0]) // 2)
+                    g[edge_mask > 0] = np.minimum(
+                        g[edge_mask > 0], (r[edge_mask > 0] + b[edge_mask > 0]) // 2
+                    )
 
                     # Merge back
                     image = cv2.merge((b, g, r))
@@ -164,7 +178,7 @@ class GreenScreenService:
         foreground_rgba: np.ndarray,
         background: np.ndarray,
         overlay: Optional[np.ndarray] = None,
-        output_size: Tuple[int, int] = (1800, 1200)
+        output_size: Tuple[int, int] = (1800, 1200),
     ) -> np.ndarray:
         """
         Composite foreground with background and optional overlay
@@ -183,12 +197,16 @@ class GreenScreenService:
             scale = max(target_w / fg_w, target_h / fg_h)
             new_w = int(fg_w * scale)
             new_h = int(fg_h * scale)
-            foreground_resized = cv2.resize(foreground_rgba, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            foreground_resized = cv2.resize(
+                foreground_rgba, (new_w, new_h), interpolation=cv2.INTER_AREA
+            )
 
             # Crop to exact size
             x_offset = (new_w - target_w) // 2
             y_offset = (new_h - target_h) // 2
-            foreground_cropped = foreground_resized[y_offset:y_offset+target_h, x_offset:x_offset+target_w]
+            foreground_cropped = foreground_resized[
+                y_offset : y_offset + target_h, x_offset : x_offset + target_w
+            ]
 
             # Resize background to output size
             background_resized = self._resize_and_crop(background, target_w, target_h)
@@ -212,7 +230,9 @@ class GreenScreenService:
                     overlay_alpha = overlay_resized[:, :, 3] / 255.0
                     overlay_alpha = np.expand_dims(overlay_alpha, axis=2)
                     overlay_rgb = overlay_resized[:, :, :3]
-                    composite = (overlay_rgb * overlay_alpha + composite * (1 - overlay_alpha)).astype(np.uint8)
+                    composite = (
+                        overlay_rgb * overlay_alpha + composite * (1 - overlay_alpha)
+                    ).astype(np.uint8)
 
             return composite
 
@@ -239,7 +259,7 @@ class GreenScreenService:
         # Crop to exact size
         x_offset = (new_w - target_w) // 2
         y_offset = (new_h - target_h) // 2
-        cropped = resized[y_offset:y_offset+target_h, x_offset:x_offset+target_w]
+        cropped = resized[y_offset : y_offset + target_h, x_offset : x_offset + target_w]
 
         return cropped
 
@@ -248,7 +268,7 @@ class GreenScreenService:
         image: np.ndarray,
         settings: GreenScreenSettingsBase,
         background: Optional[np.ndarray] = None,
-        overlay: Optional[np.ndarray] = None
+        overlay: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Process image with green screen settings
@@ -266,14 +286,16 @@ class GreenScreenService:
                     color_to_remove=settings.color_to_remove,
                     sensitivity=settings.sensitivity,
                     smoothness=settings.smoothness,
-                    use_flash=settings.use_flash
+                    use_flash=settings.use_flash,
                 )
             elif settings.mode == "ai_removal":
                 foreground, mask = self.background_removal.remove_background_ai(image)
             else:  # auto mode
                 # Analyze background to decide best algorithm
                 complexity_score = self.background_removal.score_background_complexity(image)
-                is_green, suggested_sensitivity = self.background_removal.detect_green_background(image)
+                is_green, suggested_sensitivity = self.background_removal.detect_green_background(
+                    image
+                )
 
                 if is_green and complexity_score > 0.7:
                     # Simple green background: use chroma key
@@ -282,7 +304,7 @@ class GreenScreenService:
                         color_to_remove=settings.color_to_remove,
                         sensitivity=suggested_sensitivity,
                         smoothness=settings.smoothness,
-                        use_flash=settings.use_flash
+                        use_flash=settings.use_flash,
                     )
                 else:
                     # Complex background: use AI removal
@@ -317,7 +339,7 @@ class GreenScreenService:
                 "recommended_mode": "ai_removal",
                 "is_green_background": False,
                 "suggested_sensitivity": 50,
-                "suggestions": ["OpenCV not available, limited analysis"]
+                "suggestions": ["OpenCV not available, limited analysis"],
             }
 
         try:
@@ -328,9 +350,13 @@ class GreenScreenService:
             if is_green:
                 suggestions.append("Detected green background - chroma key mode is recommended")
                 if complexity_score > 0.8:
-                    suggestions.append("Background is very uniform - lower sensitivity for better results")
+                    suggestions.append(
+                        "Background is very uniform - lower sensitivity for better results"
+                    )
                 elif complexity_score < 0.5:
-                    suggestions.append("Background has uneven lighting - increase sensitivity or use flash")
+                    suggestions.append(
+                        "Background has uneven lighting - increase sensitivity or use flash"
+                    )
             else:
                 suggestions.append("No green background detected - AI removal mode is recommended")
 
@@ -346,7 +372,7 @@ class GreenScreenService:
                 "recommended_mode": recommended_mode,
                 "is_green_background": is_green,
                 "suggested_sensitivity": suggested_sensitivity,
-                "suggestions": suggestions
+                "suggestions": suggestions,
             }
 
         except Exception as e:
@@ -356,7 +382,7 @@ class GreenScreenService:
                 "recommended_mode": "ai_removal",
                 "is_green_background": False,
                 "suggested_sensitivity": 50,
-                "suggestions": ["Analysis failed, using default settings"]
+                "suggestions": ["Analysis failed, using default settings"],
             }
 
     @staticmethod

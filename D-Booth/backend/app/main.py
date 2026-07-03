@@ -1,28 +1,52 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.v1 import (
+    ai_tasks,
+    analytics,
+    auth,
+    beauty,
+    booth_health,
+    booths,
+    camera,
+    disclaimers,
+    events,
+    gopro,
+    green_screen,
+    media,
+    photos,
+    print_jobs,
+    printers,
+    props,
+    share_settings,
+    shares,
+    signatures,
+    subscriptions,
+    surveys,
+    sync,
+    teams,
+    templates,
+    triggers,
+    virtual_attendant,
+    watermark,
+    webhooks,
+)
 from app.core.config import settings
-from app.core.rate_limit import RateLimitMiddleware
-from app.core.logging import logger
 from app.core.exceptions import (
+    general_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    general_exception_handler
 )
-from app.api.v1 import (
-    auth, teams, events, photos, templates,
-    print_jobs, shares, ai_tasks, analytics, subscriptions, media, beauty, watermark, virtual_attendant,
-    signatures, surveys, disclaimers, props, share_settings, green_screen, printers, camera, booths, sync,
-    triggers, gopro, webhooks, booth_health
-)
+from app.core.logging import logger
+from app.core.rate_limit import RateLimitMiddleware
 
 
 @asynccontextmanager
@@ -35,8 +59,8 @@ async def lifespan(app: FastAPI):
 
     if settings.SENTRY_DSN and settings.ENVIRONMENT != "development":
         import sentry_sdk
-        from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.celery import CeleryIntegration
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
 
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
@@ -92,10 +116,7 @@ app.add_exception_handler(Exception, general_exception_handler)
 async def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
     """Handle CSRF protection errors"""
     logger.warning(f"CSRF validation failed: {exc} from {request.client.host}")
-    return JSONResponse(
-        status_code=403,
-        content={"detail": "CSRF token validation failed"}
-    )
+    return JSONResponse(status_code=403, content={"detail": "CSRF token validation failed"})
 
 
 # CORS middleware
@@ -124,8 +145,6 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-
-
 # Local uploaded media for development / single-node deployments.
 Path("uploads").mkdir(exist_ok=True)
 
@@ -143,7 +162,9 @@ app.include_router(subscriptions.router, prefix="/api/v1/subscriptions", tags=["
 app.include_router(media.router, prefix="/api/v1/media", tags=["Media"])
 app.include_router(watermark.router, prefix="/api/v1", tags=["Watermark"])
 app.include_router(beauty.router, prefix="/api/v1/beauty", tags=["Beauty"])
-app.include_router(virtual_attendant.router, prefix="/api/v1/virtual-attendant", tags=["Virtual Attendant"])
+app.include_router(
+    virtual_attendant.router, prefix="/api/v1/virtual-attendant", tags=["Virtual Attendant"]
+)
 app.include_router(signatures.router, prefix="/api/v1", tags=["Signatures"])
 app.include_router(surveys.router, prefix="/api/v1", tags=["Surveys"])
 app.include_router(disclaimers.router, prefix="/api/v1", tags=["Disclaimers"])
@@ -159,6 +180,7 @@ app.include_router(gopro.router, prefix="/api/v1/gopro", tags=["GoPro"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
 app.include_router(booth_health.router, prefix="/api/v1/booth", tags=["Booth Health"])
 
+
 @app.get("/csrf-token")
 async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
     """
@@ -170,34 +192,31 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
     csrf_protect.set_csrf_cookie(signed_token, response)
     return response
 
+
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {
-        "name": settings.APP_NAME,
-        "version": settings.VERSION,
-        "status": "running"
-    }
+    return {"name": settings.APP_NAME, "version": settings.VERSION, "status": "running"}
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint with database and Redis connectivity"""
     import asyncio
-    from app.core.database import engine
+
     from sqlalchemy import text
-    
-    health_status = {
-        "status": "healthy",
-        "version": settings.VERSION,
-        "components": {}
-    }
-    
+
+    from app.core.database import engine
+
+    health_status = {"status": "healthy", "version": settings.VERSION, "components": {}}
+
     # Check database with timeout
     try:
+
         async def check_db():
             async with engine.begin() as conn:
                 await conn.execute(text("SELECT 1"))
+
         await asyncio.wait_for(check_db(), timeout=5)
         health_status["components"]["database"] = "healthy"
     except asyncio.TimeoutError:
@@ -208,14 +227,22 @@ async def health_check():
         logger.error(f"Database health check failed: {e}")
         health_status["components"]["database"] = "unhealthy"
         health_status["status"] = "degraded"
-    
+
     # Check Redis (optional) with timeout
     try:
+
         async def check_redis():
             import redis
-            r = redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2, socket_timeout=2)
+
+            r = redis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
             r.ping()
             r.close()
+
         await asyncio.wait_for(check_redis(), timeout=3)
         health_status["components"]["redis"] = "healthy"
     except asyncio.TimeoutError:
@@ -224,5 +251,5 @@ async def health_check():
     except Exception as e:
         logger.warning(f"Redis health check failed: {e}")
         health_status["components"]["redis"] = "unavailable"
-    
+
     return health_status

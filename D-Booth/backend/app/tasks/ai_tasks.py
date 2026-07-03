@@ -8,7 +8,6 @@ from app.celery_app import celery_app
 from app.core.config import settings
 from app.core.logging import logger
 
-
 PROVIDER_IMAGE_COSTS = {
     "openai": Decimal("0.04"),
     "stability": Decimal("0.04"),
@@ -79,7 +78,10 @@ def _generate_openai_image(prompt: str) -> Tuple[str, Decimal]:
 
     image_base64 = getattr(image, "b64_json", None)
     if image_base64:
-        return _upload_base64_image(image_base64, "openai-generated.png"), PROVIDER_IMAGE_COSTS["openai"]
+        return (
+            _upload_base64_image(image_base64, "openai-generated.png"),
+            PROVIDER_IMAGE_COSTS["openai"],
+        )
 
     raise RuntimeError("OpenAI image response did not include a URL or base64 image")
 

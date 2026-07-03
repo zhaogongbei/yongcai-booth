@@ -1,18 +1,17 @@
-import qrcode
-import io
 import base64
+import io
 import urllib.parse
+
+import qrcode
+
 from app.core.config import settings
+
 
 class QRService:
     """二维码服务：WiFi QR、WhatsApp等"""
 
     @staticmethod
-    def generate_wifi_qr(
-        ssid: str,
-        password: str,
-        encryption: str = "WPA2"
-    ) -> str:
+    def generate_wifi_qr(ssid: str, password: str, encryption: str = "WPA2") -> str:
         """
         生成WiFi连接二维码
         返回base64编码的PNG图片
@@ -38,10 +37,7 @@ class QRService:
     def _generate_qr_base64(data: str) -> str:
         """生成二维码并返回base64编码的图片字符串"""
         qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_H,
-            box_size=10,
-            border=4
+            version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=4
         )
         qr.add_data(data)
         qr.make(fit=True)
@@ -53,5 +49,6 @@ class QRService:
         buffer.seek(0)
 
         return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
+
 
 qr_service = QRService()

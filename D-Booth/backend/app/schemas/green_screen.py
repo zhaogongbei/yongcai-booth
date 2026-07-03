@@ -1,14 +1,17 @@
 """
 Green Screen Processing Schemas
 """
-from pydantic import BaseModel, Field, HttpUrl
-from typing import List, Optional, Literal
-from uuid import UUID
+
 from datetime import datetime
+from typing import List, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class GreenScreenBackground(BaseModel):
     """Background image with optional overlay"""
+
     id: UUID
     name: str
     background_url: str
@@ -21,6 +24,7 @@ class GreenScreenBackground(BaseModel):
 
 class GreenScreenSettingsBase(BaseModel):
     """Base green screen settings schema"""
+
     enabled: bool = False
     mode: Literal["chroma_key", "ai_removal", "auto"] = "auto"
     color_to_remove: str = "#00FF00"  # Hex color
@@ -34,16 +38,19 @@ class GreenScreenSettingsBase(BaseModel):
 
 class GreenScreenSettingsCreate(GreenScreenSettingsBase):
     """Create green screen settings"""
+
     event_id: UUID
 
 
 class GreenScreenSettingsUpdate(GreenScreenSettingsBase):
     """Update green screen settings"""
+
     pass
 
 
 class GreenScreenSettingsResponse(GreenScreenSettingsBase):
     """Green screen settings response"""
+
     id: UUID
     event_id: UUID
     backgrounds: List[GreenScreenBackground] = []
@@ -55,6 +62,7 @@ class GreenScreenSettingsResponse(GreenScreenSettingsBase):
 
 class GreenScreenProcessRequest(BaseModel):
     """Request schema for green screen processing"""
+
     settings: GreenScreenSettingsBase
     background_id: Optional[UUID] = None
     apply_to_all: bool = False
@@ -62,6 +70,7 @@ class GreenScreenProcessRequest(BaseModel):
 
 class BackgroundAnalysisResult(BaseModel):
     """Result of background complexity analysis"""
+
     complexity_score: float  # 0 = complex, 1 = simple solid color
     recommended_mode: Literal["chroma_key", "ai_removal"]
     is_green_background: bool

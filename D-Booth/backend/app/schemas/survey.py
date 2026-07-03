@@ -1,7 +1,9 @@
 from datetime import datetime
-from uuid import UUID
 from typing import List, Optional
+from uuid import UUID
+
 from pydantic import BaseModel, Field
+
 from app.schemas.base import BaseSchema
 
 

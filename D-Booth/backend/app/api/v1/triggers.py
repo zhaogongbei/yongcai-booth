@@ -4,11 +4,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_active_user, check_team_member
-from app.services.trigger_service import TriggerService
-from app.services.event_service import EventService
-from app.models.models import User, TriggerConfig as TriggerConfigModel, TriggerLog as TriggerLogModel
+from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.core.logging import logger
+from app.models.models import TriggerConfig as TriggerConfigModel
+from app.models.models import TriggerLog as TriggerLogModel
+from app.models.models import User
+from app.services.event_service import EventService
+from app.services.trigger_service import TriggerService
 
 router = APIRouter()
 
@@ -17,7 +19,7 @@ router = APIRouter()
 async def get_trigger_configs(
     event_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get all trigger configs for an event"""
     event_service = EventService(db)
@@ -32,9 +34,13 @@ async def get_trigger_configs(
         {
             "id": str(c.id),
             "event_id": str(c.event_id),
-            "event_type": c.event_type.value if hasattr(c.event_type, "value") else str(c.event_type),
+            "event_type": (
+                c.event_type.value if hasattr(c.event_type, "value") else str(c.event_type)
+            ),
             "enabled": c.enabled,
-            "action_type": c.action_type.value if hasattr(c.action_type, "value") else str(c.action_type),
+            "action_type": (
+                c.action_type.value if hasattr(c.action_type, "value") else str(c.action_type)
+            ),
             "target": c.target,
             "payload_template": c.payload_template or {},
             "timeout": c.timeout,
@@ -49,7 +55,7 @@ async def update_trigger_configs(
     event_id: UUID,
     configs: List[dict],
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update trigger configs for an event (replaces all configs)"""
     event_service = EventService(db)
@@ -59,18 +65,32 @@ async def update_trigger_configs(
     await check_team_member(event.team_id, current_user, db)
 
     # Validate configs
-    valid_event_types = {"session_start", "countdown_start", "capture_start", "file_download",
-                         "processing_start", "sharing_screen", "session_end", "printing"}
+    valid_event_types = {
+        "session_start",
+        "countdown_start",
+        "capture_start",
+        "file_download",
+        "processing_start",
+        "sharing_screen",
+        "session_end",
+        "printing",
+    }
     valid_actions = {"http_callback", "app_execute"}
 
     for cfg in configs:
         if cfg.get("event_type") not in valid_event_types:
-            raise HTTPException(status_code=400, detail=f"Invalid event_type: {cfg.get('event_type')}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid event_type: {cfg.get('event_type')}"
+            )
         if cfg.get("action_type") not in valid_actions:
-            raise HTTPException(status_code=400, detail=f"Invalid action_type: {cfg.get('action_type')}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid action_type: {cfg.get('action_type')}"
+            )
         if not cfg.get("target"):
             raise HTTPException(status_code=400, detail="target is required")
-        if cfg["action_type"] == "http_callback" and not cfg["target"].startswith(("http://", "https://")):
+        if cfg["action_type"] == "http_callback" and not cfg["target"].startswith(
+            ("http://", "https://")
+        ):
             raise HTTPException(status_code=400, detail="HTTP callback target must be a valid URL")
 
     trigger_service = TriggerService(db)
@@ -80,9 +100,13 @@ async def update_trigger_configs(
             {
                 "id": str(c.id),
                 "event_id": str(c.event_id),
-                "event_type": c.event_type.value if hasattr(c.event_type, "value") else str(c.event_type),
+                "event_type": (
+                    c.event_type.value if hasattr(c.event_type, "value") else str(c.event_type)
+                ),
                 "enabled": c.enabled if hasattr(c, "enabled") else bool(cfg.get("enabled", False)),
-                "action_type": c.action_type.value if hasattr(c.action_type, "value") else str(c.action_type),
+                "action_type": (
+                    c.action_type.value if hasattr(c.action_type, "value") else str(c.action_type)
+                ),
                 "target": c.target,
                 "payload_template": c.payload_template or {},
                 "timeout": c.timeout,
@@ -99,10 +123,11 @@ async def update_trigger_configs(
 async def test_trigger(
     config: dict,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Test a single trigger configuration"""
     from app.models.models import TriggerAction, TriggerType
+
     trigger_service = TriggerService(db)
 
     try:
@@ -149,7 +174,7 @@ async def get_trigger_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get trigger execution logs for an event"""
     event_service = EventService(db)
@@ -166,7 +191,9 @@ async def get_trigger_logs(
             "id": str(l.id),
             "trigger_id": str(l.trigger_id),
             "event_id": str(l.event_id),
-            "event_type": l.event_type.value if hasattr(l.event_type, "value") else str(l.event_type),
+            "event_type": (
+                l.event_type.value if hasattr(l.event_type, "value") else str(l.event_type)
+            ),
             "success": l.success,
             "response_status": l.response_status,
             "response_data": l.response_data,

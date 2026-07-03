@@ -1,7 +1,6 @@
 from copy import deepcopy
 from typing import Any, Optional
 
-
 DEFAULT_PLAN_ID = "free"
 
 PLANS: dict[str, dict[str, Any]] = {
@@ -58,10 +57,7 @@ PLANS: dict[str, dict[str, Any]] = {
     },
 }
 
-PLAN_ALIASES = {
-    plan["name"].lower(): plan_id
-    for plan_id, plan in PLANS.items()
-}
+PLAN_ALIASES = {plan["name"].lower(): plan_id for plan_id, plan in PLANS.items()}
 
 
 def normalize_plan_id(plan_name: Optional[str]) -> str:

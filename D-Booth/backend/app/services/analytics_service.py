@@ -1,15 +1,26 @@
-from typing import Dict, Any, Optional, List
-from uuid import UUID
 from datetime import datetime, timedelta
 from decimal import Decimal
-from sqlalchemy import select, func
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.models import (
+    AnalyticsEvent,
+    Booth,
+    BoothStatus,
+    Event,
+    EventStatus,
+    Photo,
+    PrintJob,
+    Share,
+)
 from app.repositories.analytics_repository import AnalyticsRepository
 from app.repositories.photo_repository import PhotoRepository
 from app.repositories.print_job_repository import PrintJobRepository
 from app.repositories.share_repository import ShareRepository
 from app.schemas.analytics import AnalyticsEventCreate, AnalyticsSummary
-from app.models.models import AnalyticsEvent, Event, EventStatus, Photo, PrintJob, Share, Booth, BoothStatus
 
 
 class AnalyticsService:
@@ -26,7 +37,7 @@ class AnalyticsService:
         properties: Optional[Dict[str, Any]] = None,
         event_id: Optional[UUID] = None,
         user_id: Optional[UUID] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> AnalyticsEvent:
         """Track a new analytics event.
 
@@ -41,7 +52,7 @@ class AnalyticsService:
                 properties=obj.properties,
                 event_id=obj.event_id,
                 user_id=obj.user_id,
-                session_id=obj.session_id
+                session_id=obj.session_id,
             )
         return await self.repository.track_event(
             team_id=event_in_or_team_id,
@@ -49,21 +60,19 @@ class AnalyticsService:
             properties=properties,
             event_id=event_id,
             user_id=user_id,
-            session_id=session_id
+            session_id=session_id,
         )
 
     async def get_team_summary(
         self,
         team_id: UUID,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> AnalyticsSummary:
         """Get analytics summary for a team"""
         # Get events in date range if provided
         if start_date and end_date:
-            events = await self.repository.get_by_date_range(
-                team_id, start_date, end_date
-            )
+            events = await self.repository.get_by_date_range(team_id, start_date, end_date)
         else:
             events = await self.repository.get_by_team(team_id, limit=10000)
 
@@ -77,14 +86,11 @@ class AnalyticsService:
             unique_users=unique_users,
             unique_sessions=unique_sessions,
             events_by_type=event_types,
-            date_range={"start": start_date, "end": end_date} if start_date and end_date else None
+            date_range={"start": start_date, "end": end_date} if start_date and end_date else None,
         )
 
     async def get_event_analytics(
-        self,
-        event_id: UUID,
-        skip: int = 0,
-        limit: int = 1000
+        self, event_id: UUID, skip: int = 0, limit: int = 1000
     ) -> List[AnalyticsEvent]:
         """Get analytics for a specific event"""
         return await self.repository.get_by_event(event_id, skip, limit)
@@ -92,10 +98,7 @@ class AnalyticsService:
     # ── Convenience methods used by the analytics route layer ──────────
 
     async def get_overview(
-        self,
-        team_id: UUID,
-        start_date: datetime,
-        end_date: datetime
+        self, team_id: UUID, start_date: datetime, end_date: datetime
     ) -> Dict[str, Any]:
         """Get analytics overview for a team (aggregated summary)."""
         summary = await self.get_team_summary(team_id, start_date, end_date)
@@ -127,17 +130,14 @@ class AnalyticsService:
         }
 
     async def get_photo_stats(
-        self,
-        team_id: UUID,
-        start_date: datetime,
-        end_date: datetime
+        self, team_id: UUID, start_date: datetime, end_date: datetime
     ) -> Dict[str, Any]:
         """Get photo statistics for a team (single-query aggregation, no N+1)."""
         # 单次聚合查询替代循环
         result = await self.db.execute(
             select(
                 func.count(Photo.id).label("total_photos"),
-                func.coalesce(func.sum(Photo.file_size), 0).label("total_size")
+                func.coalesce(func.sum(Photo.file_size), 0).label("total_size"),
             )
             .select_from(Photo)
             .join(Event, Photo.event_id == Event.id)
@@ -146,6 +146,7 @@ class AnalyticsService:
         row = result.one()
 
         from app.repositories.event_repository import EventRepository
+
         event_repo = EventRepository(self.db)
         total_events = await event_repo.count_by_team(team_id)
 
@@ -204,9 +205,7 @@ class AnalyticsService:
     async def get_multi_booth_stats(self, team_id: UUID) -> Dict[str, Any]:
         """获取多展位聚合统计数据"""
         # 获取团队所有展位
-        booths_result = await self.db.execute(
-            select(Booth).where(Booth.team_id == team_id)
-        )
+        booths_result = await self.db.execute(select(Booth).where(Booth.team_id == team_id))
         booths = booths_result.scalars().all()
 
         # 活跃展位（最近30分钟有心跳）
@@ -228,16 +227,18 @@ class AnalyticsService:
                 "sessions": 0,
                 "photos": 0,
                 "prints": 0,
-                "shares": 0
+                "shares": 0,
             }
 
             # 如果有关联的活动，统计该活动的数据
             if booth.current_event_id:
                 # 统计活动会话数 - 使用子查询替代关系对象
                 from app.models.models import PhotoSession
+
                 sessions_result = await self.db.execute(
-                    select(func.count(PhotoSession.id))
-                    .where(PhotoSession.event_id == booth.current_event_id)
+                    select(func.count(PhotoSession.id)).where(
+                        PhotoSession.event_id == booth.current_event_id
+                    )
                 )
                 sessions = sessions_result.scalar_one_or_none() or 0
                 booth_stats["sessions"] = sessions
@@ -271,5 +272,5 @@ class AnalyticsService:
             "total_photos": total_photos,
             "total_prints": total_prints,
             "total_shares": total_shares,
-            "by_booth": by_booth
+            "by_booth": by_booth,
         }

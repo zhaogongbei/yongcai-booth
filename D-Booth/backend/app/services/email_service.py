@@ -1,7 +1,8 @@
+import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List
-import logging
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -11,6 +12,7 @@ try:
 except ImportError:
     aiosmtplib = None
     logger.warning("aiosmtplib is not installed, email service unavailable")
+
 
 class EmailService:
     def __init__(self):
@@ -28,7 +30,7 @@ class EmailService:
         photo_urls: List[str],
         share_url: str,
         event_name: str = "",
-        date: str = ""
+        date: str = "",
     ) -> bool:
         if aiosmtplib is None:
             logger.warning("aiosmtplib is not installed, cannot send email")
@@ -49,7 +51,7 @@ class EmailService:
                 share_url=share_url,
                 event_name=event_name,
                 date=date,
-                photos=photos_html
+                photos=photos_html,
             )
 
             # 创建邮件
@@ -69,7 +71,7 @@ class EmailService:
                 username=self.smtp_user,
                 password=self.smtp_password,
                 use_tls=settings.SMTP_USE_TLS,
-                timeout=10
+                timeout=10,
             )
 
             logger.info(f"Email sent successfully to {to_email}")
@@ -78,5 +80,6 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
             return False
+
 
 email_service = EmailService()

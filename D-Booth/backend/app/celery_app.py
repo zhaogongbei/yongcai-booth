@@ -1,4 +1,5 @@
 from celery import Celery
+
 from app.core.config import settings
 
 # Create Celery application
@@ -11,7 +12,7 @@ celery_app = Celery(
         "app.tasks.ai_tasks",
         "app.tasks.email_tasks",
         "app.tasks.beauty_tasks",
-    ]
+    ],
 )
 
 # Celery configuration

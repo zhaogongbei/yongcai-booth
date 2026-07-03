@@ -1,17 +1,19 @@
 import asyncio
 import logging
 import re
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 try:
-    from twilio.rest import Client
     from twilio.base.exceptions import TwilioRestException
+    from twilio.rest import Client
 except ImportError:
     Client = None
     TwilioRestException = Exception
     logger.warning("twilio is not installed, SMS service unavailable")
+
 
 class SMSService:
     def __init__(self):
@@ -28,18 +30,14 @@ class SMSService:
 
     def _validate_phone_number(self, phone_number: str, country_code: str = "+86") -> bool:
         """简单验证手机号格式"""
-        cleaned_number = re.sub(r'\D', '', phone_number)
+        cleaned_number = re.sub(r"\D", "", phone_number)
         if country_code == "+86":
-            return len(cleaned_number) == 11 and cleaned_number.startswith('1')
+            return len(cleaned_number) == 11 and cleaned_number.startswith("1")
         # 其他国家号码简单验证
         return len(cleaned_number) >= 8 and len(cleaned_number) <= 15
 
     async def send_photo_sms(
-        self,
-        to_phone: str,
-        message: str,
-        share_url: str,
-        country_code: str = "+86"
+        self, to_phone: str, message: str, share_url: str, country_code: str = "+86"
     ) -> bool:
         if not self.client:
             logger.warning("Twilio not configured, cannot send SMS")
@@ -58,10 +56,8 @@ class SMSService:
             await loop.run_in_executor(
                 None,
                 lambda: self.client.messages.create(
-                    body=full_message,
-                    from_=self.from_number,
-                    to=full_to
-                )
+                    body=full_message, from_=self.from_number, to=full_to
+                ),
             )
 
             logger.info(f"SMS sent successfully to {full_to}")
@@ -73,5 +69,6 @@ class SMSService:
         except Exception as e:
             logger.error(f"Failed to send SMS to {to_phone}: {str(e)}")
             return False
+
 
 sms_service = SMSService()

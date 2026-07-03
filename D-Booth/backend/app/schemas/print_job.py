@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.models import PrintJobStatus
 
 
@@ -32,7 +34,7 @@ class PrintJobResponse(PrintJobBase):
     printed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

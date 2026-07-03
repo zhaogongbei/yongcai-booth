@@ -1,14 +1,15 @@
-from celery import shared_task
-from io import BytesIO
-from PIL import Image, ImageFilter, ImageEnhance
-import requests
 import asyncio
+from io import BytesIO
+
 import aioboto3
+import requests
 from botocore.exceptions import ClientError
+from celery import shared_task
+from PIL import Image, ImageEnhance, ImageFilter
 
 from app.celery_app import celery_app
-from app.core.logging import logger
 from app.core.config import settings
+from app.core.logging import logger
 
 
 def get_s3_client():
@@ -17,16 +18,19 @@ def get_s3_client():
         return None
 
     import boto3
+
     return boto3.client(
-        's3',
+        "s3",
         endpoint_url=settings.R2_ENDPOINT_URL,
         aws_access_key_id=settings.R2_ACCESS_KEY_ID,
         aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-        region_name=settings.R2_REGION
+        region_name=settings.R2_REGION,
     )
 
 
-async def upload_to_s3_async(file_data: bytes, filename: str, content_type: str, folder: str) -> str:
+async def upload_to_s3_async(
+    file_data: bytes, filename: str, content_type: str, folder: str
+) -> str:
     """
     Asynchronous S3 upload using aioboto3.
     Much faster than synchronous uploads, allows Celery worker to handle more tasks.
@@ -36,25 +40,25 @@ async def upload_to_s3_async(file_data: bytes, filename: str, content_type: str,
     if not settings.R2_ACCESS_KEY_ID or not settings.R2_SECRET_ACCESS_KEY:
         raise RuntimeError("S3 credentials not configured")
 
-    file_ext = filename.split('.')[-1] if '.' in filename else ''
+    file_ext = filename.split(".")[-1] if "." in filename else ""
     unique_filename = f"{uuid4()}.{file_ext}" if file_ext else str(uuid4())
     object_key = f"{folder}/{unique_filename}"
 
     session = aioboto3.Session()
     try:
         async with session.client(
-            's3',
+            "s3",
             endpoint_url=settings.R2_ENDPOINT_URL,
             aws_access_key_id=settings.R2_ACCESS_KEY_ID,
             aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-            region_name=settings.R2_REGION
+            region_name=settings.R2_REGION,
         ) as s3:
             await s3.put_object(
                 Bucket=settings.R2_BUCKET_NAME,
                 Key=object_key,
                 Body=file_data,
                 ContentType=content_type,
-                CacheControl='public, max-age=31536000'
+                CacheControl="public, max-age=31536000",
             )
 
             public_url = f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{object_key}"
@@ -108,7 +112,7 @@ def process_photo(self, photo_url: str, photo_id: str, operations: dict = None):
 
         # Save processed image
         output = BytesIO()
-        image.save(output, format='JPEG', quality=90)
+        image.save(output, format="JPEG", quality=90)
         processed_data = output.getvalue()
 
         # Upload processed image (asynchronous for better performance)
@@ -120,8 +124,8 @@ def process_photo(self, photo_url: str, photo_id: str, operations: dict = None):
                     upload_to_s3_async(
                         file_data=processed_data,
                         filename=f"processed_{photo_id}.jpg",
-                        content_type='image/jpeg',
-                        folder="photos/processed"
+                        content_type="image/jpeg",
+                        folder="photos/processed",
                     )
                 )
             finally:
@@ -132,11 +136,7 @@ def process_photo(self, photo_url: str, photo_id: str, operations: dict = None):
 
         logger.info(f"Photo {photo_id} processed successfully")
 
-        return {
-            "status": "completed",
-            "photo_id": photo_id,
-            "processed_url": processed_url
-        }
+        return {"status": "completed", "photo_id": photo_id, "processed_url": processed_url}
 
     except Exception as e:
         logger.error(f"Failed to process photo {photo_id}: {e}")
@@ -169,7 +169,7 @@ def generate_collage(self, photo_urls: list, layout: str = "grid"):
             cell_width = 400
             cell_height = 400
 
-            collage = Image.new('RGB', (cols * cell_width, rows * cell_height), 'white')
+            collage = Image.new("RGB", (cols * cell_width, rows * cell_height), "white")
 
             for idx, img in enumerate(images):
                 img.thumbnail((cell_width, cell_height), Image.Resampling.LANCZOS)
@@ -179,7 +179,7 @@ def generate_collage(self, photo_urls: list, layout: str = "grid"):
 
         # Save collage
         output = BytesIO()
-        collage.save(output, format='JPEG', quality=90)
+        collage.save(output, format="JPEG", quality=90)
         collage_data = output.getvalue()
 
         # Upload (asynchronous for better performance)
@@ -191,8 +191,8 @@ def generate_collage(self, photo_urls: list, layout: str = "grid"):
                     upload_to_s3_async(
                         file_data=collage_data,
                         filename="collage.jpg",
-                        content_type='image/jpeg',
-                        folder="photos/collages"
+                        content_type="image/jpeg",
+                        folder="photos/collages",
                     )
                 )
             finally:
@@ -203,10 +203,7 @@ def generate_collage(self, photo_urls: list, layout: str = "grid"):
 
         logger.info("Collage generated successfully")
 
-        return {
-            "status": "completed",
-            "collage_url": collage_url
-        }
+        return {"status": "completed", "collage_url": collage_url}
 
     except Exception as e:
         logger.error(f"Failed to generate collage: {e}")
@@ -218,33 +215,33 @@ def cleanup_expired_shares():
     """Periodic task to clean up expired share links"""
     try:
         logger.info("Running cleanup for expired shares")
-        
+
+        import asyncio
+        from datetime import datetime, timezone
+
+        from sqlalchemy import delete
+
         from app.core.database import async_session_maker
         from app.models.models import Share
-        from datetime import datetime, timezone
-        from sqlalchemy import delete
-        import asyncio
-        
+
         async def _cleanup():
             async with async_session_maker() as db:
-                stmt = delete(Share).where(
-                    Share.expires_at < datetime.now(timezone.utc)
-                )
+                stmt = delete(Share).where(Share.expires_at < datetime.now(timezone.utc))
                 result = await db.execute(stmt)
                 await db.commit()
                 return result.rowcount
-        
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             deleted_count = loop.run_until_complete(_cleanup())
         finally:
             loop.close()
-        
+
         logger.info(f"Cleaned up {deleted_count} expired shares")
-        
+
         return {"status": "completed", "deleted": deleted_count}
-        
+
     except Exception as e:
         logger.error(f"Failed to cleanup expired shares: {e}")
         return {"status": "failed", "error": str(e)}

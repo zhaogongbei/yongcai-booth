@@ -1,9 +1,11 @@
-from typing import Optional, List
-from uuid import UUID
 from datetime import datetime
+from typing import List, Optional
+from uuid import UUID
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from sqlalchemy.orm import noload
+
 from app.models.models import Event, EventStatus
 from app.repositories.base import BaseRepository, log_query_performance
 from app.repositories.cache_decorator import cached, invalidate_cache
@@ -22,6 +24,7 @@ class EventRepository(BaseRepository[Event]):
 
     def __init__(self, db: AsyncSession):
         super().__init__(Event, db)
+
     @log_query_performance(threshold_ms=50.0)
     @cached(ttl=300, key_builder=lambda self, id: f"event:{id}")
     async def get(self, id: UUID) -> Optional[Event]:
@@ -36,19 +39,15 @@ class EventRepository(BaseRepository[Event]):
         Returns:
             Event instance if found, None otherwise
         """
-        result = await self.db.execute(
-            select(Event).options(noload("*")).where(Event.id == id)
-        )
+        result = await self.db.execute(select(Event).options(noload("*")).where(Event.id == id))
         return result.scalar_one_or_none()
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(ttl=300, key_builder=lambda self, team_id, skip, limit: f"team:{team_id}:events:{skip}:{limit}")
-    async def get_by_team(
-        self,
-        team_id: UUID,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[Event]:
+    @cached(
+        ttl=300,
+        key_builder=lambda self, team_id, skip, limit: f"team:{team_id}:events:{skip}:{limit}",
+    )
+    async def get_by_team(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Event]:
         """
         Get all events for a team.
 
@@ -72,13 +71,12 @@ class EventRepository(BaseRepository[Event]):
         return list(result.scalars().all())
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(ttl=300, key_builder=lambda self, team_id, status, skip, limit: f"team:{team_id}:events:status:{status}:{skip}:{limit}")
+    @cached(
+        ttl=300,
+        key_builder=lambda self, team_id, status, skip, limit: f"team:{team_id}:events:status:{status}:{skip}:{limit}",
+    )
     async def get_by_status(
-        self,
-        team_id: UUID,
-        status: EventStatus,
-        skip: int = 0,
-        limit: int = 100
+        self, team_id: UUID, status: EventStatus, skip: int = 0, limit: int = 100
     ) -> List[Event]:
         """
         Get events by status for a team.
@@ -94,10 +92,7 @@ class EventRepository(BaseRepository[Event]):
         """
         result = await self.db.execute(
             select(Event)
-            .where(
-                Event.team_id == team_id,
-                Event.status == status
-            )
+            .where(Event.team_id == team_id, Event.status == status)
             .order_by(Event.start_date.desc())
             .offset(skip)
             .limit(limit)
@@ -119,10 +114,7 @@ class EventRepository(BaseRepository[Event]):
             List of active Event instances
         """
         result = await self.db.execute(
-            select(Event).where(
-                Event.team_id == team_id,
-                Event.status == EventStatus.ACTIVE
-            )
+            select(Event).where(Event.team_id == team_id, Event.status == EventStatus.ACTIVE)
         )
         return list(result.scalars().all())
 
@@ -133,7 +125,7 @@ class EventRepository(BaseRepository[Event]):
         start_from: datetime,
         start_to: datetime,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Event]:
         """
         Get events within a date range for a team.
@@ -155,7 +147,7 @@ class EventRepository(BaseRepository[Event]):
             .where(
                 Event.team_id == team_id,
                 Event.start_date >= start_from,
-                Event.start_date <= start_to
+                Event.start_date <= start_to,
             )
             .order_by(Event.start_date)
             .offset(skip)
@@ -167,11 +159,7 @@ class EventRepository(BaseRepository[Event]):
     @invalidate_cache("event:*")
     @invalidate_cache("team:*:events:*")
     @invalidate_cache("team:*:active_events")
-    async def update_status(
-        self,
-        event_id: UUID,
-        status: EventStatus
-    ) -> Optional[Event]:
+    async def update_status(self, event_id: UUID, status: EventStatus) -> Optional[Event]:
         """
         Update event status and invalidate related caches.
 
@@ -206,19 +194,16 @@ class EventRepository(BaseRepository[Event]):
             Total number of events for the team
         """
         result = await self.db.execute(
-            select(func.count()).select_from(Event).where(
-                Event.team_id == team_id
-            )
+            select(func.count()).select_from(Event).where(Event.team_id == team_id)
         )
         return result.scalar_one()
 
     @log_query_performance(threshold_ms=50.0)
-    @cached(ttl=300, key_builder=lambda self, team_id, status: f"team:{team_id}:event_count:status:{status}")
-    async def count_by_status(
-        self,
-        team_id: UUID,
-        status: EventStatus
-    ) -> int:
+    @cached(
+        ttl=300,
+        key_builder=lambda self, team_id, status: f"team:{team_id}:event_count:status:{status}",
+    )
+    async def count_by_status(self, team_id: UUID, status: EventStatus) -> int:
         """
         Count events by status for a team.
 
@@ -230,10 +215,9 @@ class EventRepository(BaseRepository[Event]):
             Number of events matching the status
         """
         result = await self.db.execute(
-            select(func.count()).select_from(Event).where(
-                Event.team_id == team_id,
-                Event.status == status
-            )
+            select(func.count())
+            .select_from(Event)
+            .where(Event.team_id == team_id, Event.status == status)
         )
         return result.scalar_one()
 
@@ -271,11 +255,7 @@ class EventRepository(BaseRepository[Event]):
     @invalidate_cache("event:*")
     @invalidate_cache("team:*:events:*")
     @invalidate_cache("team:*:active_events")
-    async def bulk_create(
-        self,
-        objects_in: List[dict],
-        batch_size: int = 500
-    ) -> List[Event]:
+    async def bulk_create(self, objects_in: List[dict], batch_size: int = 500) -> List[Event]:
         """
         Bulk create events with cache invalidation.
 
@@ -287,4 +267,3 @@ class EventRepository(BaseRepository[Event]):
             List of created Event instances
         """
         return await super().bulk_create(objects_in, batch_size)
-

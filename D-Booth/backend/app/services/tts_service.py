@@ -1,14 +1,15 @@
 import asyncio
 import hashlib
 import logging
-from typing import Optional, Dict, Tuple
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 # 尝试导入edge-tts，处理可能的安装失败情况
 try:
     import edge_tts
+
     EDGE_TTS_AVAILABLE = True
 except ImportError:
     EDGE_TTS_AVAILABLE = False
@@ -16,14 +17,8 @@ except ImportError:
 
 # 语音映射配置
 VOICE_MAPPING = {
-    "zh-CN": {
-        "female": "zh-CN-XiaoxiaoNeural",
-        "male": "zh-CN-YunxiNeural"
-    },
-    "en-US": {
-        "female": "en-US-JennyNeural",
-        "male": "en-US-GuyNeural"
-    }
+    "zh-CN": {"female": "zh-CN-XiaoxiaoNeural", "male": "zh-CN-YunxiNeural"},
+    "en-US": {"female": "en-US-JennyNeural", "male": "en-US-GuyNeural"},
 }
 
 # TTS缓存，key为text+language+voice的哈希，value为音频bytes

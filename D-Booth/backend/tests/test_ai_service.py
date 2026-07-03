@@ -1,5 +1,5 @@
-from decimal import Decimal
 import sys
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -89,9 +89,7 @@ async def test_complete_task_writes_zero_actual_cost_and_clears_error(db_session
     await db_session.commit()
     await db_session.refresh(team)
 
-    fake_ai_tasks = SimpleNamespace(
-        generate_ai_image=SimpleNamespace(delay=lambda *args: None)
-    )
+    fake_ai_tasks = SimpleNamespace(generate_ai_image=SimpleNamespace(delay=lambda *args: None))
     monkeypatch.setitem(sys.modules, "app.tasks.ai_tasks", fake_ai_tasks)
 
     service = AIService(db_session)

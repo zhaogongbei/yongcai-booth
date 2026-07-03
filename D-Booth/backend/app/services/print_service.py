@@ -1,20 +1,21 @@
-from typing import Optional, List, Dict, Any
+import asyncio
+import os
+import tempfile
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
-import tempfile
-import os
-import asyncio
 
-from app.repositories.print_job_repository import PrintJobRepository
-from app.schemas.print_job import PrintJobCreate, BatchPrintRequest, PrintJobUpdate
 from app.models.models import PrintJob, PrintJobStatus
+from app.repositories.print_job_repository import PrintJobRepository
+from app.schemas.print_job import BatchPrintRequest, PrintJobCreate, PrintJobUpdate
+from app.schemas.printer import PrinterStatus
+from app.services.base_service import BaseService, BusinessRuleError, ValidationError
+from app.services.printer_driver_service import PrinterDriverService
 from app.services.sharpen_service import SharpenService
 from app.services.watermark_service import WatermarkService
-from app.services.printer_driver_service import PrinterDriverService
-from app.schemas.printer import PrinterStatus
-from app.services.base_service import BaseService, ValidationError, BusinessRuleError
 
 
 class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
@@ -53,9 +54,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
 
     @staticmethod
     async def process_image_for_print(
-        image_url: str,
-        sharpen_profile: str = "medium",
-        watermark_settings: Optional[dict] = None
+        image_url: str, sharpen_profile: str = "medium", watermark_settings: Optional[dict] = None
     ) -> bytes:
         """Process image for printing: apply sharpening and watermark if configured."""
         # Download original image
@@ -86,11 +85,12 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
                         position=watermark_settings.get("position", "bottom_right"),
                         opacity=watermark_settings.get("opacity", 0.5),
                         scale=watermark_settings.get("scale", 0.2),
-                        tile=watermark_settings.get("tile", False)
+                        tile=watermark_settings.get("tile", False),
                     )
             except Exception as e:
                 # Log error but continue printing without watermark
                 from app.core.logging import logger
+
                 logger.error(f"Failed to apply watermark: {str(e)}")
 
         return image_bytes
@@ -105,7 +105,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         status: Optional[str] = None,
         team_event_ids: Optional[List[UUID]] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[PrintJob]:
         """Get print jobs with optional filters.
 
@@ -127,6 +127,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         # is responsible for scoping via team_event_ids when no photo_id.
         if team_event_ids:
             from app.models.models import Photo
+
             stmt = (
                 select(PrintJob)
                 .join(Photo, PrintJob.photo_id == Photo.id)
@@ -141,11 +142,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         return await self.repository.get_multi(skip, limit)
 
     async def get_print_jobs_visible_to_user(
-        self,
-        user_id: UUID,
-        status: Optional[str] = None,
-        skip: int = 0,
-        limit: int = 100
+        self, user_id: UUID, status: Optional[str] = None, skip: int = 0, limit: int = 100
     ) -> List[PrintJob]:
         """Get print jobs scoped to teams the user belongs to, with optional status filter."""
         return await self.repository.get_visible_to_user(user_id, status, skip, limit)
@@ -154,10 +151,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         """Create a new print job (alias for route compatibility)."""
         return await self.create(job_in)
 
-    async def batch_create_print_jobs(
-        self,
-        batch_in: BatchPrintRequest
-    ) -> List[PrintJob]:
+    async def batch_create_print_jobs(self, batch_in: BatchPrintRequest) -> List[PrintJob]:
         """Create multiple print jobs at once"""
         jobs = []
         for photo_id in batch_in.photo_ids:
@@ -183,27 +177,15 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         """Mark job as completed"""
         return await self.repository.update_status(job_id, PrintJobStatus.COMPLETED)
 
-    async def fail_job(
-        self,
-        job_id: UUID,
-        error_message: str
-    ) -> Optional[PrintJob]:
+    async def fail_job(self, job_id: UUID, error_message: str) -> Optional[PrintJob]:
         """Mark job as failed"""
-        return await self.repository.update_status(
-            job_id,
-            PrintJobStatus.FAILED,
-            error_message
-        )
+        return await self.repository.update_status(job_id, PrintJobStatus.FAILED, error_message)
 
     async def cancel_job(self, job_id: UUID) -> Optional[PrintJob]:
         """Cancel a print job"""
         return await self.repository.update_status(job_id, PrintJobStatus.CANCELLED)
 
-    async def update_print_job(
-        self,
-        job_id: UUID,
-        job_in: PrintJobUpdate
-    ) -> Optional[PrintJob]:
+    async def update_print_job(self, job_id: UUID, job_in: PrintJobUpdate) -> Optional[PrintJob]:
         """Update print job fields (status, error_message, etc.)."""
         update_data = job_in.model_dump(exclude_unset=True)
         if not update_data:
@@ -211,9 +193,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         if "status" in update_data:
             # Delegate status change through repository to update printed_at etc.
             return await self.repository.update_status(
-                job_id,
-                update_data["status"],
-                update_data.get("error_message")
+                job_id, update_data["status"], update_data.get("error_message")
             )
         return await self.update(job_id, job_in)
 
@@ -246,11 +226,11 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
             image_bytes = await self.process_image_for_print(
                 image_url=job.photo_url,
                 sharpen_profile=job.sharpen_profile,
-                watermark_settings=job.watermark_settings
+                watermark_settings=job.watermark_settings,
             )
 
             # 保存为临时文件
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
                 f.write(image_bytes)
                 temp_path = f.name
 
@@ -273,16 +253,17 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
                 if printer_status not in [PrinterStatus.READY, PrinterStatus.INK_LOW]:
                     # 打印机不可用，模拟打印（优雅降级）
                     from app.core.logging import logger
-                    logger.warning(f"Printer {printer_name} is not available (status: {printer_status}), falling back to simulation")
+
+                    logger.warning(
+                        f"Printer {printer_name} is not available (status: {printer_status}), falling back to simulation"
+                    )
                     await asyncio.sleep(2)
                     await self.complete_job(job_id)
                     return True
 
                 # 发送到打印机
                 success = await PrinterDriverService.print_file(
-                    printer_name=printer_name,
-                    file_path=temp_path,
-                    copies=job.copies or 1
+                    printer_name=printer_name, file_path=temp_path, copies=job.copies or 1
                 )
 
                 if success:
@@ -301,6 +282,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
 
         except Exception as e:
             from app.core.logging import logger
+
             logger.error(f"Error executing print job {job_id}: {str(e)}")
             try:
                 await self.fail_job(job_id, str(e))

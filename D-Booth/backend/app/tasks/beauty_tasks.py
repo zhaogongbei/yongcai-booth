@@ -2,8 +2,11 @@
 Celery async tasks for beauty processing.
 Offloads heavy CPU work from the web server to background workers.
 """
+
 from uuid import UUID
+
 from celery import shared_task
+
 from app.celery_app import celery_app
 from app.core.logging import logger
 
@@ -26,9 +29,11 @@ def apply_beauty_task(
 
     Returns: {"status": "completed", "photo_id": ..., "processed_url": ...}
     """
-    import io
     import asyncio
+    import io
+
     import requests
+
     from app.services.beauty_service import BeautyParams, beauty_processor
     from app.tasks.photo_tasks import upload_to_s3_async
 
@@ -41,16 +46,14 @@ def apply_beauty_task(
         image_bytes = resp.content
 
         # 2. Build params
-        bp = BeautyParams(**{
-            k: params.get(k, 50)
-            for k in BeautyParams.model_fields
-        })
+        bp = BeautyParams(**{k: params.get(k, 50) for k in BeautyParams.model_fields})
 
         # 3. Process
         result = beauty_processor.process_image(image_bytes, bp, quality=quality)
 
         # 4. Upload result to storage
         from app.core.config import settings
+
         safe_name = f"beauty_{photo_id}.jpg"
         if settings.R2_ACCESS_KEY_ID and settings.R2_SECRET_ACCESS_KEY:
             loop = asyncio.new_event_loop()
@@ -68,6 +71,7 @@ def apply_beauty_task(
                 loop.close()
         else:
             from pathlib import Path
+
             target_dir = Path("uploads/photos/beauty")
             target_dir.mkdir(parents=True, exist_ok=True)
             target_path = target_dir / safe_name
@@ -75,9 +79,10 @@ def apply_beauty_task(
             processed_url = f"/uploads/photos/beauty/{safe_name}"
 
         # 5. Update photo record in DB
+        from sqlalchemy import update
+
         from app.core.database import async_session_maker
         from app.models.models import Photo
-        from sqlalchemy import update
 
         async def _update():
             async with async_session_maker() as db:

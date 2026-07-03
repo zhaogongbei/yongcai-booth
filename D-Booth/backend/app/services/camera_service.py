@@ -1,12 +1,13 @@
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, Tuple
 import asyncio
-import subprocess
-import shutil
-from PIL import Image, ImageStat
 import io
 import logging
+import shutil
+import subprocess
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
+from PIL import Image, ImageStat
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CameraCapabilities:
     """相机能力数据类"""
+
     iso_range: Tuple[int, int] = (100, 6400)
     shutter_speeds: list[str] = None
     wb_modes: list[str] = None
@@ -93,12 +95,9 @@ class WebcamCameraController(CameraController):
             "aperture": "f/4.0",
             "white_balance": "自动",
             "exposure_compensation": 0.0,
-            "focus_mode": "AF-C"
+            "focus_mode": "AF-C",
         }
-        self._capabilities = CameraCapabilities(
-            iso_range=(100, 3200),
-            supports_live_view=True
-        )
+        self._capabilities = CameraCapabilities(iso_range=(100, 3200), supports_live_view=True)
 
     async def connect(self) -> bool:
         self._connected = True
@@ -138,7 +137,7 @@ class WebcamCameraController(CameraController):
             "firmware_version": "1.0.0",
             "battery_level": 100,
             "storage_remaining": 999999,
-            "controller_type": "webcam"
+            "controller_type": "webcam",
         }
 
 
@@ -158,10 +157,7 @@ class GPhoto2CameraController(CameraController):
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                self._gphoto2_path,
-                *args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                self._gphoto2_path, *args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             return stdout, stderr, proc.returncode
@@ -237,8 +233,7 @@ class GPhoto2CameraController(CameraController):
 
         # 拍摄并下载到stdout
         stdout, stderr, code = await self._run_command(
-            ["--capture-image-and-download", "--stdout"],
-            timeout=60
+            ["--capture-image-and-download", "--stdout"], timeout=60
         )
 
         if code != 0:
@@ -253,8 +248,7 @@ class GPhoto2CameraController(CameraController):
 
         # 捕获实时取景帧
         stdout, stderr, code = await self._run_command(
-            ["--capture-movie", "--stdout", "--frames=1"],
-            timeout=10
+            ["--capture-movie", "--stdout", "--frames=1"], timeout=10
         )
 
         if code != 0:
@@ -275,7 +269,7 @@ class GPhoto2CameraController(CameraController):
             "aperture": "f/4.0",
             "white_balance": "自动",
             "exposure_compensation": 0.0,
-            "focus_mode": "AF-C"
+            "focus_mode": "AF-C",
         }
 
     async def set_setting(self, key: str, value: Any) -> None:
@@ -288,7 +282,7 @@ class GPhoto2CameraController(CameraController):
             "aperture": "aperture",
             "white_balance": "whitebalance",
             "exposure_compensation": "exposurecompensation",
-            "focus_mode": "focusmode"
+            "focus_mode": "focusmode",
         }
 
         gphoto_key = config_map.get(key)
@@ -296,9 +290,7 @@ class GPhoto2CameraController(CameraController):
             logger.warning(f"Unknown setting: {key}")
             return
 
-        _, stderr, code = await self._run_command(
-            ["--set-config", f"{gphoto_key}={value}"]
-        )
+        _, stderr, code = await self._run_command(["--set-config", f"{gphoto_key}={value}"])
 
         if code != 0:
             logger.error(f"Failed to set {key}={value}: {stderr.decode()}")
@@ -319,12 +311,13 @@ class GPhoto2CameraController(CameraController):
             "firmware_version": "Unknown",
             "battery_level": None,  # TODO: 实现电池状态读取
             "storage_remaining": None,  # TODO: 实现存储读取
-            "controller_type": "gphoto2"
+            "controller_type": "gphoto2",
         }
 
 
 class CameraManager:
     """相机管理器单例"""
+
     _instance = None
 
     def __new__(cls):

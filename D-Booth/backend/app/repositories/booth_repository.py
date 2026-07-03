@@ -2,9 +2,10 @@
 Booth repository for data access operations.
 """
 
+from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,17 +21,10 @@ class BoothRepository(BaseRepository[Booth]):
 
     async def get_by_device_id(self, device_id: str) -> Optional[Booth]:
         """Get booth by device ID."""
-        result = await self.db.execute(
-            select(Booth).where(Booth.device_id == device_id)
-        )
+        result = await self.db.execute(select(Booth).where(Booth.device_id == device_id))
         return result.scalar_one_or_none()
 
-    async def get_by_team(
-        self,
-        team_id: UUID,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[Booth]:
+    async def get_by_team(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Booth]:
         """Get booths by team ID."""
         result = await self.db.execute(
             select(Booth)
@@ -65,11 +59,7 @@ class BoothRepository(BaseRepository[Booth]):
         await self.db.commit()
         return result.rowcount
 
-    async def update_config_hash(
-        self,
-        booth_id: UUID,
-        config_hash: str
-    ) -> Optional[Booth]:
+    async def update_config_hash(self, booth_id: UUID, config_hash: str) -> Optional[Booth]:
         """Update booth configuration hash."""
         booth = await self.get(booth_id)
         if not booth:

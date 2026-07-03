@@ -1,18 +1,19 @@
 import os
 import uuid
-from uuid import UUID
-from typing import List, Optional, Tuple, Dict, Any
-from PIL import Image
 from io import BytesIO
+from typing import Any, Dict, List, Optional, Tuple
+from uuid import UUID
+
 from fastapi import UploadFile
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.models import Prop, PropCategory
-from app.schemas.prop import PropCreate, PropUpdate
 from app.repositories.prop_repository import PropRepository
+from app.schemas.prop import PropCreate, PropUpdate
 from app.services.base_service import BaseService, BusinessRuleError
 from app.services.storage_service import r2_storage
-from app.core.config import settings
 
 
 class AppliedProp:
@@ -25,7 +26,7 @@ class AppliedProp:
         rotation: float = 0.0,
         flip_h: bool = False,
         flip_v: bool = False,
-        opacity: float = 1.0
+        opacity: float = 1.0,
     ):
         self.prop_id = prop_id
         self.x = max(0.0, min(1.0, x))  # 0-1比例
@@ -55,19 +56,13 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
         team_id: Optional[UUID] = None,
         category: Optional[PropCategory] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> Tuple[List[Prop], int]:
         """获取道具列表（团队私有 + 公共道具）"""
         props = await self.repository.get_accessible_props(
-            team_id=team_id,
-            category=category,
-            skip=skip,
-            limit=limit
+            team_id=team_id, category=category, skip=skip, limit=limit
         )
-        total = await self.repository.count_accessible_props(
-            team_id=team_id,
-            category=category
-        )
+        total = await self.repository.count_accessible_props(team_id=team_id, category=category)
         return props, total
 
     async def upload_prop(
@@ -76,11 +71,11 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
         file: UploadFile,
         name: str,
         category: PropCategory,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> Prop:
         """上传自定义道具PNG"""
         # 验证文件类型
-        if not file.filename.lower().endswith('.png'):
+        if not file.filename.lower().endswith(".png"):
             raise BusinessRuleError("Only PNG files are allowed")
 
         # 生成唯一文件名
@@ -94,33 +89,27 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
         # 处理图片生成缩略图
         with Image.open(BytesIO(content)) as img:
             # 确保是RGBA格式（支持透明）
-            if img.mode != 'RGBA':
-                img = img.convert('RGBA')
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
 
             # 保存原图
             original_io = BytesIO()
-            img.save(original_io, format='PNG')
+            img.save(original_io, format="PNG")
             original_io.seek(0)
 
             # 生成缩略图（最大200x200）
             thumb_size = (200, 200)
             img.thumbnail(thumb_size, Image.Resampling.LANCZOS)
             thumb_io = BytesIO()
-            img.save(thumb_io, format='PNG')
+            img.save(thumb_io, format="PNG")
             thumb_io.seek(0)
 
         # 上传到存储
         original_url = await r2_storage.upload_file(
-            original_io.getvalue(),
-            original_filename,
-            content_type="image/png",
-            folder="props"
+            original_io.getvalue(), original_filename, content_type="image/png", folder="props"
         )
         thumbnail_url = await r2_storage.upload_file(
-            thumb_io.getvalue(),
-            thumbnail_filename,
-            content_type="image/png",
-            folder="props"
+            thumb_io.getvalue(), thumbnail_filename, content_type="image/png", folder="props"
         )
 
         # 创建道具记录
@@ -132,7 +121,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
             thumbnail_url=thumbnail_url,
             is_public=False,
             is_default=False,
-            tags=tags or []
+            tags=tags or [],
         )
 
         return await self.create(prop_create)
@@ -143,18 +132,15 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
 
     async def get_categories(self) -> List[dict]:
         """获取分类列表"""
-        return [
-            {"value": category.value, "name": category.name}
-            for category in PropCategory
-        ]
+        return [{"value": category.value, "name": category.name} for category in PropCategory]
 
     async def apply_props(self, image_bytes: bytes, applied_props: List[AppliedProp]) -> bytes:
         """将道具应用到图片上"""
         # 打开基础图片
         with Image.open(BytesIO(image_bytes)) as base_img:
             # 确保基础图片是RGBA格式
-            if base_img.mode != 'RGBA':
-                base_img = base_img.convert('RGBA')
+            if base_img.mode != "RGBA":
+                base_img = base_img.convert("RGBA")
 
             base_width, base_height = base_img.size
 
@@ -170,8 +156,8 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
                 prop_bytes = await r2_storage.download_file(prop.image_url)
                 with Image.open(BytesIO(prop_bytes)) as prop_img:
                     # 确保道具图片是RGBA格式
-                    if prop_img.mode != 'RGBA':
-                        prop_img = prop_img.convert('RGBA')
+                    if prop_img.mode != "RGBA":
+                        prop_img = prop_img.convert("RGBA")
 
                     # 计算缩放后的尺寸
                     prop_width, prop_height = prop_img.size
@@ -180,8 +166,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
 
                     # 缩放
                     prop_img = prop_img.resize(
-                        (scaled_width, scaled_height),
-                        Image.Resampling.LANCZOS
+                        (scaled_width, scaled_height), Image.Resampling.LANCZOS
                     )
 
                     # 翻转
@@ -193,9 +178,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
                     # 旋转（expand=True确保旋转后图片不会被裁剪）
                     if applied_prop.rotation != 0:
                         prop_img = prop_img.rotate(
-                            applied_prop.rotation,
-                            expand=True,
-                            resample=Image.Resampling.BICUBIC
+                            applied_prop.rotation, expand=True, resample=Image.Resampling.BICUBIC
                         )
 
                     # 应用透明度
@@ -217,7 +200,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
 
             # 保存处理后的图片
             output_io = BytesIO()
-            base_img.save(output_io, format='PNG')
+            base_img.save(output_io, format="PNG")
             output_io.seek(0)
 
             return output_io.getvalue()

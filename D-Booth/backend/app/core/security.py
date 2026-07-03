@@ -5,12 +5,12 @@ Provides JWT token creation, verification, and refresh token rotation
 with comprehensive security validations.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
-from uuid import UUID, uuid4
 import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+from uuid import UUID, uuid4
 
-from jose import jwt, JWTError, ExpiredSignatureError
+from jose import ExpiredSignatureError, JWTError, jwt
 
 from app.core.config import settings
 
@@ -19,28 +19,32 @@ logger = logging.getLogger(__name__)
 
 class TokenError(Exception):
     """Base exception for token-related errors."""
+
     pass
 
 
 class TokenExpiredError(TokenError):
     """Raised when a token has expired."""
+
     pass
 
 
 class TokenInvalidError(TokenError):
     """Raised when a token is invalid or malformed."""
+
     pass
 
 
 class TokenTypeMismatchError(TokenError):
     """Raised when token type doesn't match expected type."""
+
     pass
 
 
 def create_access_token(
     user_id: UUID,
     expires_delta: Optional[timedelta] = None,
-    additional_claims: Optional[Dict[str, Any]] = None
+    additional_claims: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Create a JWT access token with optional additional claims.
@@ -79,11 +83,7 @@ def create_access_token(
         to_encode.update(additional_claims)
 
     try:
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
-        )
+        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         logger.debug(f"Access token created for user {user_id}")
         return encoded_jwt
     except Exception as e:
@@ -91,10 +91,7 @@ def create_access_token(
         raise TokenError(f"Token creation failed: {e}") from e
 
 
-def create_refresh_token(
-    user_id: UUID,
-    additional_claims: Optional[Dict[str, Any]] = None
-) -> str:
+def create_refresh_token(user_id: UUID, additional_claims: Optional[Dict[str, Any]] = None) -> str:
     """
     Create a JWT refresh token with optional additional claims.
 
@@ -108,9 +105,7 @@ def create_refresh_token(
     Example:
         refresh_token = create_refresh_token(user_id=user.id)
     """
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-    )
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     to_encode = {
         "sub": str(user_id),
@@ -125,11 +120,7 @@ def create_refresh_token(
         to_encode.update(additional_claims)
 
     try:
-        encoded_jwt = jwt.encode(
-            to_encode,
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
-        )
+        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         logger.debug(f"Refresh token created for user {user_id}")
         return encoded_jwt
     except Exception as e:
@@ -137,10 +128,7 @@ def create_refresh_token(
         raise TokenError(f"Token creation failed: {e}") from e
 
 
-def verify_token(
-    token: str,
-    expected_type: str = "access"
-) -> Optional[UUID]:
+def verify_token(token: str, expected_type: str = "access") -> Optional[UUID]:
     """
     Verify JWT token and return user_id.
 
@@ -162,11 +150,7 @@ def verify_token(
             pass
     """
     try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
         user_id_str: Optional[str] = payload.get("sub")
         token_type: str = payload.get("type", "")
@@ -177,9 +161,7 @@ def verify_token(
 
         # Reject token-type mismatch (e.g. refresh token used as access token)
         if token_type != expected_type:
-            logger.warning(
-                f"Token type mismatch: expected '{expected_type}', got '{token_type}'"
-            )
+            logger.warning(f"Token type mismatch: expected '{expected_type}', got '{token_type}'")
             return None
 
         user_id = UUID(user_id_str)
@@ -200,10 +182,7 @@ def verify_token(
         return None
 
 
-def decode_token(
-    token: str,
-    verify: bool = True
-) -> Optional[Dict[str, Any]]:
+def decode_token(token: str, verify: bool = True) -> Optional[Dict[str, Any]]:
     """
     Decode JWT token and return full payload.
 
@@ -222,16 +201,9 @@ def decode_token(
     """
     try:
         if verify:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
-            )
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         else:
-            payload = jwt.decode(
-                token,
-                options={"verify_signature": False}
-            )
+            payload = jwt.decode(token, options={"verify_signature": False})
         return payload
     except ExpiredSignatureError:
         logger.debug("Token expired during decode")
@@ -262,10 +234,7 @@ def get_token_jti(token: str) -> Optional[str]:
     return None
 
 
-def rotate_refresh_token(
-    old_refresh_token: str,
-    user_id: UUID
-) -> Optional[tuple[str, str]]:
+def rotate_refresh_token(old_refresh_token: str, user_id: UUID) -> Optional[tuple[str, str]]:
     """
     Rotate refresh token: verify old token and issue new access + refresh tokens.
 

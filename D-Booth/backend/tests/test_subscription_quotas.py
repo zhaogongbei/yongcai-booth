@@ -25,11 +25,7 @@ async def _create_team(db_session, slug: str = "quota-team"):
     await db_session.refresh(team)
 
     # Add user as team member (owner)
-    team_member = TeamMember(
-        team_id=team.id,
-        user_id=user.id,
-        role=UserRole.OWNER
-    )
+    team_member = TeamMember(team_id=team.id, user_id=user.id, role=UserRole.OWNER)
     db_session.add(team_member)
     await db_session.commit()
 

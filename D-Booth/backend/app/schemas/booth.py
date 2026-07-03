@@ -1,12 +1,15 @@
-from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.models import BoothStatus
 
 
 class BoothCreate(BaseModel):
     """展位注册请求"""
+
     team_id: UUID
     name: str = Field(..., min_length=1, max_length=255, description="展位名称，如'主舞台拍照亭'")
     device_id: str = Field(..., min_length=1, max_length=255, description="设备唯一标识")
@@ -18,6 +21,7 @@ class BoothCreate(BaseModel):
 
 class BoothUpdate(BaseModel):
     """展位信息更新请求"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     status: Optional[BoothStatus] = None
     version: Optional[str] = Field(None, max_length=50)
@@ -28,6 +32,7 @@ class BoothUpdate(BaseModel):
 
 class BoothResponse(BaseModel):
     """展位响应"""
+
     id: UUID
     team_id: UUID
     name: str
@@ -47,6 +52,7 @@ class BoothResponse(BaseModel):
 
 class HeartbeatResponse(BaseModel):
     """心跳响应"""
+
     booth_id: UUID
     status: BoothStatus
     last_heartbeat: datetime
@@ -55,6 +61,7 @@ class HeartbeatResponse(BaseModel):
 
 class SyncStateResponse(BaseModel):
     """同步状态响应"""
+
     booth_id: str
     team_id: str
     templates_hash: str
@@ -73,6 +80,7 @@ class SyncStateResponse(BaseModel):
 
 class SyncPushResponse(BaseModel):
     """推送配置响应"""
+
     booth_id: str
     config_hash: str
     pushed: dict
@@ -80,6 +88,7 @@ class SyncPushResponse(BaseModel):
 
 class SyncPullResponse(BaseModel):
     """拉取配置响应"""
+
     booth_id: str
     name: str
     status: str
@@ -93,6 +102,7 @@ class SyncPullResponse(BaseModel):
 
 class SyncLogResponse(BaseModel):
     """同步日志响应"""
+
     team_id: str
     booths: list
     total: int

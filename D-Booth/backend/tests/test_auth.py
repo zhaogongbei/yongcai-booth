@@ -30,13 +30,10 @@ async def test_register_user(client: AsyncClient, test_user_data):
 @pytest.mark.anyio
 async def test_login_success(client: AsyncClient, test_user_data):
     await client.post("/api/v1/auth/register", json=test_user_data)
-    
+
     response = await client.post(
         "/api/v1/auth/login",
-        data={
-            "username": test_user_data["email"],
-            "password": test_user_data["password"]
-        }
+        data={"username": test_user_data["email"], "password": test_user_data["password"]},
     )
     assert response.status_code == 200
     data = response.json()
@@ -47,13 +44,10 @@ async def test_login_success(client: AsyncClient, test_user_data):
 @pytest.mark.anyio
 async def test_login_invalid_password(client: AsyncClient, test_user_data):
     await client.post("/api/v1/auth/register", json=test_user_data)
-    
+
     response = await client.post(
         "/api/v1/auth/login",
-        data={
-            "username": test_user_data["email"],
-            "password": "WrongPassword123!"
-        }
+        data={"username": test_user_data["email"], "password": "WrongPassword123!"},
     )
     assert response.status_code == 401
 

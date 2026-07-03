@@ -9,28 +9,27 @@ Tests cover:
 - Cache behavior (mocked)
 """
 
-import pytest
 import uuid
 from datetime import datetime, timezone
 from typing import List
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import IntegrityError
 
 from app.core.database import Base
-from app.models.models import User, Event, Photo, EventStatus
-from app.repositories.user_repository import UserRepository
+from app.models.models import Event, EventStatus, Photo, User
+from app.repositories.base import (
+    DatabaseOperationError,
+    DuplicateRecordError,
+    RecordNotFoundError,
+    ValidationError,
+)
 from app.repositories.event_repository import EventRepository
 from app.repositories.photo_repository import PhotoRepository
-from app.repositories.base import (
-    RecordNotFoundError,
-    DuplicateRecordError,
-    ValidationError,
-    DatabaseOperationError,
-)
-
+from app.repositories.user_repository import UserRepository
 
 # Test database setup
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -136,11 +135,13 @@ class TestBaseRepository:
         """Test retrieving multiple users with pagination."""
         # Create 5 users
         for i in range(5):
-            await user_repo.create({
-                "email": f"user{i}@example.com",
-                "hashed_password": "password",
-                "full_name": f"User {i}",
-            })
+            await user_repo.create(
+                {
+                    "email": f"user{i}@example.com",
+                    "hashed_password": "password",
+                    "full_name": f"User {i}",
+                }
+            )
 
         # Get first 3 users
         users = await user_repo.get_multi(skip=0, limit=3)
@@ -161,8 +162,7 @@ class TestBaseRepository:
         user = await user_repo.create(user_data)
 
         updated_user = await user_repo.update(
-            user.id,
-            {"full_name": "Updated Name", "is_active": False}
+            user.id, {"full_name": "Updated Name", "is_active": False}
         )
 
         assert updated_user is not None
@@ -226,11 +226,13 @@ class TestBaseRepository:
 
         # Create 3 users
         for i in range(3):
-            await user_repo.create({
-                "email": f"user{i}@example.com",
-                "hashed_password": "password",
-                "full_name": f"User {i}",
-            })
+            await user_repo.create(
+                {
+                    "email": f"user{i}@example.com",
+                    "hashed_password": "password",
+                    "full_name": f"User {i}",
+                }
+            )
 
         final_count = await user_repo.count()
         assert final_count == initial_count + 3
@@ -270,12 +272,14 @@ class TestBulkOperations:
         # Create 3 users
         users = []
         for i in range(3):
-            user = await user_repo.create({
-                "email": f"user{i}@example.com",
-                "hashed_password": "password",
-                "full_name": f"User {i}",
-                "is_active": True,
-            })
+            user = await user_repo.create(
+                {
+                    "email": f"user{i}@example.com",
+                    "hashed_password": "password",
+                    "full_name": f"User {i}",
+                    "is_active": True,
+                }
+            )
             users.append(user)
 
         # Bulk update
@@ -307,11 +311,13 @@ class TestBulkOperations:
         # Create 3 users
         user_ids = []
         for i in range(3):
-            user = await user_repo.create({
-                "email": f"user{i}@example.com",
-                "hashed_password": "password",
-                "full_name": f"User {i}",
-            })
+            user = await user_repo.create(
+                {
+                    "email": f"user{i}@example.com",
+                    "hashed_password": "password",
+                    "full_name": f"User {i}",
+                }
+            )
             user_ids.append(user.id)
 
         # Bulk delete
@@ -401,20 +407,24 @@ class TestUserRepository:
     async def test_get_by_email_active(self, user_repo):
         """Test finding active user by email."""
         # Create active user
-        await user_repo.create({
-            "email": "active@example.com",
-            "hashed_password": "password",
-            "full_name": "Active User",
-            "is_active": True,
-        })
+        await user_repo.create(
+            {
+                "email": "active@example.com",
+                "hashed_password": "password",
+                "full_name": "Active User",
+                "is_active": True,
+            }
+        )
 
         # Create inactive user
-        await user_repo.create({
-            "email": "inactive@example.com",
-            "hashed_password": "password",
-            "full_name": "Inactive User",
-            "is_active": False,
-        })
+        await user_repo.create(
+            {
+                "email": "inactive@example.com",
+                "hashed_password": "password",
+                "full_name": "Inactive User",
+                "is_active": False,
+            }
+        )
 
         active_user = await user_repo.get_by_email_active("active@example.com")
         assert active_user is not None
@@ -425,11 +435,13 @@ class TestUserRepository:
     @pytest.mark.asyncio
     async def test_email_exists(self, user_repo):
         """Test checking if email exists."""
-        await user_repo.create({
-            "email": "exists@example.com",
-            "hashed_password": "password",
-            "full_name": "User",
-        })
+        await user_repo.create(
+            {
+                "email": "exists@example.com",
+                "hashed_password": "password",
+                "full_name": "User",
+            }
+        )
 
         exists = await user_repo.email_exists("exists@example.com")
         assert exists is True
@@ -440,12 +452,14 @@ class TestUserRepository:
     @pytest.mark.asyncio
     async def test_verify_email(self, user_repo):
         """Test email verification."""
-        user = await user_repo.create({
-            "email": "test@example.com",
-            "hashed_password": "password",
-            "full_name": "User",
-            "is_verified": False,
-        })
+        user = await user_repo.create(
+            {
+                "email": "test@example.com",
+                "hashed_password": "password",
+                "full_name": "User",
+                "is_verified": False,
+            }
+        )
 
         result = await user_repo.verify_email(user.id)
         assert result is True
@@ -456,12 +470,14 @@ class TestUserRepository:
     @pytest.mark.asyncio
     async def test_deactivate_user(self, user_repo):
         """Test deactivating a user."""
-        user = await user_repo.create({
-            "email": "test@example.com",
-            "hashed_password": "password",
-            "full_name": "User",
-            "is_active": True,
-        })
+        user = await user_repo.create(
+            {
+                "email": "test@example.com",
+                "hashed_password": "password",
+                "full_name": "User",
+                "is_active": True,
+            }
+        )
 
         result = await user_repo.deactivate(user.id)
         assert result is True
@@ -474,11 +490,11 @@ class TestPerformanceLogging:
     """Test query performance logging."""
 
     @pytest.mark.asyncio
-    @patch('app.repositories.base.logger')
+    @patch("app.repositories.base.logger")
     async def test_slow_query_warning(self, mock_logger, user_repo):
         """Test that slow queries are logged as warnings."""
         # Mock a slow operation by patching time.perf_counter
-        with patch('app.repositories.base.time.perf_counter') as mock_time:
+        with patch("app.repositories.base.time.perf_counter") as mock_time:
             # First call returns start time, second returns end time
             mock_time.side_effect = [0.0, 0.2]  # 200ms duration
 
@@ -491,10 +507,10 @@ class TestPerformanceLogging:
             assert "get_multi" in warning_call
 
     @pytest.mark.asyncio
-    @patch('app.repositories.base.logger')
+    @patch("app.repositories.base.logger")
     async def test_fast_query_debug(self, mock_logger, user_repo):
         """Test that fast queries are logged as debug."""
-        with patch('app.repositories.base.time.perf_counter') as mock_time:
+        with patch("app.repositories.base.time.perf_counter") as mock_time:
             # Simulate fast query (10ms)
             mock_time.side_effect = [0.0, 0.01]
 
@@ -510,8 +526,8 @@ class TestCacheDecorator:
     """Test cache decorator behavior (mocked)."""
 
     @pytest.mark.asyncio
-    @patch('app.repositories.cache_decorator.RedisCache.get')
-    @patch('app.repositories.cache_decorator.RedisCache.set')
+    @patch("app.repositories.cache_decorator.RedisCache.get")
+    @patch("app.repositories.cache_decorator.RedisCache.set")
     async def test_cache_hit(self, mock_set, mock_get, user_repo):
         """Test that cached results are returned on cache hit."""
         # Mock cache hit
@@ -530,19 +546,21 @@ class TestCacheDecorator:
         assert mock_set.call_count == 0
 
     @pytest.mark.asyncio
-    @patch('app.repositories.cache_decorator.RedisCache.get')
-    @patch('app.repositories.cache_decorator.RedisCache.set')
+    @patch("app.repositories.cache_decorator.RedisCache.get")
+    @patch("app.repositories.cache_decorator.RedisCache.set")
     async def test_cache_miss(self, mock_set, mock_get, user_repo):
         """Test that DB is queried on cache miss and result is cached."""
         # Mock cache miss
         mock_get.return_value = None
 
         # Create actual user in DB
-        await user_repo.create({
-            "email": "test@example.com",
-            "hashed_password": "password",
-            "full_name": "Test User",
-        })
+        await user_repo.create(
+            {
+                "email": "test@example.com",
+                "hashed_password": "password",
+                "full_name": "Test User",
+            }
+        )
 
         # This should query DB and cache the result
         user = await user_repo.get_by_email("test@example.com")

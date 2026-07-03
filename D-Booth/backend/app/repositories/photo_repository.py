@@ -1,8 +1,10 @@
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+
 from app.models.models import Event, Photo, PhotoSession, TeamMember
 from app.repositories.base import BaseRepository, log_query_performance
 from app.repositories.cache_decorator import cached, invalidate_cache
@@ -23,13 +25,11 @@ class PhotoRepository(BaseRepository[Photo]):
         super().__init__(Photo, db)
 
     @log_query_performance(threshold_ms=200.0)
-    @cached(ttl=300, key_builder=lambda self, event_id, skip, limit: f"event:{event_id}:photos:{skip}:{limit}")
-    async def get_by_event(
-        self,
-        event_id: UUID,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[Photo]:
+    @cached(
+        ttl=300,
+        key_builder=lambda self, event_id, skip, limit: f"event:{event_id}:photos:{skip}:{limit}",
+    )
+    async def get_by_event(self, event_id: UUID, skip: int = 0, limit: int = 100) -> List[Photo]:
         """
         Get all photos for an event with preloaded relationships.
 
@@ -51,9 +51,7 @@ class PhotoRepository(BaseRepository[Photo]):
             select(Photo)
             .where(Photo.event_id == event_id)
             .options(
-                selectinload(Photo.event),
-                selectinload(Photo.session),
-                selectinload(Photo.ai_tasks)
+                selectinload(Photo.event), selectinload(Photo.session), selectinload(Photo.ai_tasks)
             )
             .order_by(Photo.created_at.desc())
             .offset(skip)
@@ -62,12 +60,12 @@ class PhotoRepository(BaseRepository[Photo]):
         return list(result.scalars().all())
 
     @log_query_performance(threshold_ms=200.0)
-    @cached(ttl=300, key_builder=lambda self, session_id, skip, limit: f"session:{session_id}:photos:{skip}:{limit}")
+    @cached(
+        ttl=300,
+        key_builder=lambda self, session_id, skip, limit: f"session:{session_id}:photos:{skip}:{limit}",
+    )
     async def get_by_session(
-        self,
-        session_id: UUID,
-        skip: int = 0,
-        limit: int = 100
+        self, session_id: UUID, skip: int = 0, limit: int = 100
     ) -> List[Photo]:
         """
         Get all photos for a session with preloaded relationships.
@@ -84,9 +82,7 @@ class PhotoRepository(BaseRepository[Photo]):
             select(Photo)
             .where(Photo.session_id == session_id)
             .options(
-                selectinload(Photo.event),
-                selectinload(Photo.session),
-                selectinload(Photo.ai_tasks)
+                selectinload(Photo.event), selectinload(Photo.session), selectinload(Photo.ai_tasks)
             )
             .order_by(Photo.created_at)
             .offset(skip)
@@ -96,10 +92,7 @@ class PhotoRepository(BaseRepository[Photo]):
 
     @log_query_performance(threshold_ms=300.0)
     async def get_visible_to_user(
-        self,
-        user_id: UUID,
-        skip: int = 0,
-        limit: int = 100
+        self, user_id: UUID, skip: int = 0, limit: int = 100
     ) -> List[Photo]:
         """
         Get photos from events owned by teams the user belongs to.
@@ -120,9 +113,7 @@ class PhotoRepository(BaseRepository[Photo]):
             .join(TeamMember, TeamMember.team_id == Event.team_id)
             .where(TeamMember.user_id == user_id)
             .options(
-                selectinload(Photo.event),
-                selectinload(Photo.session),
-                selectinload(Photo.ai_tasks)
+                selectinload(Photo.event), selectinload(Photo.session), selectinload(Photo.ai_tasks)
             )
             .order_by(Photo.created_at.desc())
             .offset(skip)
@@ -145,9 +136,7 @@ class PhotoRepository(BaseRepository[Photo]):
             Total number of photos for the event
         """
         result = await self.db.execute(
-            select(func.count()).select_from(Photo).where(
-                Photo.event_id == event_id
-            )
+            select(func.count()).select_from(Photo).where(Photo.event_id == event_id)
         )
         return result.scalar_one()
 
@@ -184,9 +173,7 @@ class PhotoRepository(BaseRepository[Photo]):
             Total number of photos in the session
         """
         result = await self.db.execute(
-            select(func.count()).select_from(Photo).where(
-                Photo.session_id == session_id
-            )
+            select(func.count()).select_from(Photo).where(Photo.session_id == session_id)
         )
         return result.scalar_one()
 
@@ -203,9 +190,7 @@ class PhotoRepository(BaseRepository[Photo]):
             Total file size in bytes (0 if no photos)
         """
         result = await self.db.execute(
-            select(func.sum(Photo.file_size)).where(
-                Photo.event_id == event_id
-            )
+            select(func.sum(Photo.file_size)).where(Photo.event_id == event_id)
         )
         return result.scalar_one() or 0
 
@@ -225,11 +210,7 @@ class PhotoRepository(BaseRepository[Photo]):
 
     @invalidate_cache("event:*:photos:*")
     @invalidate_cache("session:*:photos:*")
-    async def bulk_create(
-        self,
-        objects_in: List[dict],
-        batch_size: int = 500
-    ) -> List[Photo]:
+    async def bulk_create(self, objects_in: List[dict], batch_size: int = 500) -> List[Photo]:
         """
         Bulk create photos with cache invalidation.
 
@@ -257,12 +238,12 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         super().__init__(PhotoSession, db)
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(ttl=300, key_builder=lambda self, event_id, skip, limit: f"event:{event_id}:sessions:{skip}:{limit}")
+    @cached(
+        ttl=300,
+        key_builder=lambda self, event_id, skip, limit: f"event:{event_id}:sessions:{skip}:{limit}",
+    )
     async def get_by_event(
-        self,
-        event_id: UUID,
-        skip: int = 0,
-        limit: int = 100
+        self, event_id: UUID, skip: int = 0, limit: int = 100
     ) -> List[PhotoSession]:
         """
         Get all sessions for an event.
@@ -318,8 +299,7 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         """
         result = await self.db.execute(
             select(PhotoSession).where(
-                PhotoSession.event_id == event_id,
-                PhotoSession.completed_at.is_(None)
+                PhotoSession.event_id == event_id, PhotoSession.completed_at.is_(None)
             )
         )
         return list(result.scalars().all())
@@ -338,6 +318,7 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
             Updated PhotoSession instance, or None if not found
         """
         from datetime import datetime, timezone
+
         stmt = select(PhotoSession).where(PhotoSession.id == session_id)
         result = await self.db.execute(stmt)
         session = result.scalar_one_or_none()
@@ -362,9 +343,7 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
             Total number of sessions for the event
         """
         result = await self.db.execute(
-            select(func.count()).select_from(PhotoSession).where(
-                PhotoSession.event_id == event_id
-            )
+            select(func.count()).select_from(PhotoSession).where(PhotoSession.event_id == event_id)
         )
         return result.scalar_one()
 
@@ -385,9 +364,7 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
     @invalidate_cache("event:*:sessions:*")
     @invalidate_cache("event:*:active_sessions")
     async def bulk_create(
-        self,
-        objects_in: List[dict],
-        batch_size: int = 500
+        self, objects_in: List[dict], batch_size: int = 500
     ) -> List[PhotoSession]:
         """
         Bulk create photo sessions with cache invalidation.
@@ -400,4 +377,3 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
             List of created PhotoSession instances
         """
         return await super().bulk_create(objects_in, batch_size)
-

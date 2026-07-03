@@ -1,14 +1,15 @@
-from typing import Optional, List, Dict, Any
-from uuid import UUID
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.models import Photo, Share
 from app.repositories.share_repository import ShareRepository
 from app.schemas.share import ShareCreate
-from app.models.models import Share, Photo
-from app.services.base_service import BaseService, ValidationError, BusinessRuleError
+from app.services.base_service import BaseService, BusinessRuleError, ValidationError
 
 
 class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
@@ -57,11 +58,13 @@ class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
         if "expires_at" not in obj_dict or obj_dict["expires_at"] is None:
             obj_dict["expires_at"] = datetime.now(timezone.utc) + timedelta(days=7)
 
-        obj_dict.update({
-            "short_code": short_code,
-            "full_url": full_url,
-            "view_count": 0,
-        })
+        obj_dict.update(
+            {
+                "short_code": short_code,
+                "full_url": full_url,
+                "view_count": 0,
+            }
+        )
 
         return obj_dict
 
@@ -73,9 +76,7 @@ class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
         return secrets.token_urlsafe(length)[:length]
 
     async def create_share(
-        self,
-        share_in: ShareCreate,
-        base_url: str = "https://aibooth.app"
+        self, share_in: ShareCreate, base_url: str = "https://aibooth.app"
     ) -> Share:
         """
         Create a new share link.
@@ -93,6 +94,7 @@ class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
 
         # Use a temporary schema-like object to pass through create()
         from pydantic import BaseModel
+
         class ShareCreateWithBase(BaseModel):
             photo_id: UUID
             channel: Optional[str] = None
@@ -112,7 +114,7 @@ class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
         channel: Optional[str] = None,
         team_event_ids: Optional[List[UUID]] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Share]:
         """Get shares with optional filters.
 
@@ -141,11 +143,7 @@ class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
         return await self.repository.get_multi(skip, limit)
 
     async def get_shares_visible_to_user(
-        self,
-        user_id: UUID,
-        channel: Optional[str] = None,
-        skip: int = 0,
-        limit: int = 100
+        self, user_id: UUID, channel: Optional[str] = None, skip: int = 0, limit: int = 100
     ) -> List[Share]:
         """Get shares scoped to teams the user belongs to, with optional channel filter."""
         return await self.repository.get_visible_to_user(user_id, channel, skip, limit)

@@ -1,13 +1,16 @@
-from typing import List, Dict, Any, Optional
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-import qrcode
-from datetime import datetime
 import io
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import qrcode
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
 class TemplateRenderService:
     @staticmethod
-    def render_template_to_image(template: Dict[str, Any], photos: List[bytes], dpi: int = 300) -> bytes:
+    def render_template_to_image(
+        template: Dict[str, Any], photos: List[bytes], dpi: int = 300
+    ) -> bytes:
         """
         渲染模板为可打印图像
         :param template: 模板定义
@@ -16,35 +19,35 @@ class TemplateRenderService:
         :return: JPEG图像字节
         """
         # 获取模板配置
-        paper_width = template.get('paper_width', 4 * dpi)  # 默认4x6英寸
-        paper_height = template.get('paper_height', 6 * dpi)
-        background_color = template.get('background_color', '#FFFFFF')
-        orientation = template.get('orientation', 'portrait')
+        paper_width = template.get("paper_width", 4 * dpi)  # 默认4x6英寸
+        paper_height = template.get("paper_height", 6 * dpi)
+        background_color = template.get("background_color", "#FFFFFF")
+        orientation = template.get("orientation", "portrait")
 
         # 创建画布
-        if orientation == 'landscape':
+        if orientation == "landscape":
             paper_width, paper_height = paper_height, paper_width
 
-        image = Image.new('RGB', (int(paper_width), int(paper_height)), background_color)
+        image = Image.new("RGB", (int(paper_width), int(paper_height)), background_color)
         draw = ImageDraw.Draw(image)
 
         # 渲染图层
-        layers = template.get('layers', [])
+        layers = template.get("layers", [])
         photo_index = 0
 
         for layer in layers:
-            layer_type = layer.get('type')
+            layer_type = layer.get("type")
 
-            if layer_type == 'photo' and photo_index < len(photos):
+            if layer_type == "photo" and photo_index < len(photos):
                 # 渲染照片图层
                 try:
                     photo = Image.open(io.BytesIO(photos[photo_index]))
                     photo = ImageOps.exif_transpose(photo)  # 处理EXIF旋转
 
-                    x = int(layer.get('x', 0) * dpi / 25.4)  # 转换mm为像素
-                    y = int(layer.get('y', 0) * dpi / 25.4)
-                    width = int(layer.get('width', 100) * dpi / 25.4)
-                    height = int(layer.get('height', 150) * dpi / 25.4)
+                    x = int(layer.get("x", 0) * dpi / 25.4)  # 转换mm为像素
+                    y = int(layer.get("y", 0) * dpi / 25.4)
+                    width = int(layer.get("width", 100) * dpi / 25.4)
+                    height = int(layer.get("height", 150) * dpi / 25.4)
 
                     # 缩放裁剪
                     photo_aspect = photo.width / photo.height
@@ -71,20 +74,20 @@ class TemplateRenderService:
                 except Exception as e:
                     print(f"Error rendering photo layer: {e}")
 
-            elif layer_type == 'text':
+            elif layer_type == "text":
                 # 渲染文本图层
                 try:
-                    text = layer.get('content', '')
+                    text = layer.get("content", "")
                     # 变量替换
-                    text = text.replace('{date}', datetime.now().strftime('%Y-%m-%d'))
-                    text = text.replace('{time}', datetime.now().strftime('%H:%M:%S'))
-                    text = text.replace('{datetime}', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                    text = text.replace("{date}", datetime.now().strftime("%Y-%m-%d"))
+                    text = text.replace("{time}", datetime.now().strftime("%H:%M:%S"))
+                    text = text.replace("{datetime}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-                    x = int(layer.get('x', 0) * dpi / 25.4)
-                    y = int(layer.get('y', 0) * dpi / 25.4)
-                    font_size = int(layer.get('font_size', 12) * dpi / 72)  # 转换pt为像素
-                    font_color = layer.get('color', '#000000')
-                    font_family = layer.get('font_family', 'arial.ttf')
+                    x = int(layer.get("x", 0) * dpi / 25.4)
+                    y = int(layer.get("y", 0) * dpi / 25.4)
+                    font_size = int(layer.get("font_size", 12) * dpi / 72)  # 转换pt为像素
+                    font_color = layer.get("color", "#000000")
+                    font_family = layer.get("font_family", "arial.ttf")
 
                     try:
                         font = ImageFont.truetype(font_family, font_size)
@@ -95,48 +98,46 @@ class TemplateRenderService:
                 except Exception as e:
                     print(f"Error rendering text layer: {e}")
 
-            elif layer_type == 'shape':
+            elif layer_type == "shape":
                 # 渲染形状图层
                 try:
-                    shape_type = layer.get('shape_type', 'rectangle')
-                    x = int(layer.get('x', 0) * dpi / 25.4)
-                    y = int(layer.get('y', 0) * dpi / 25.4)
-                    width = int(layer.get('width', 100) * dpi / 25.4)
-                    height = int(layer.get('height', 100) * dpi / 25.4)
-                    fill_color = layer.get('fill_color', None)
-                    stroke_color = layer.get('stroke_color', '#000000')
-                    stroke_width = int(layer.get('stroke_width', 1) * dpi / 25.4)
+                    shape_type = layer.get("shape_type", "rectangle")
+                    x = int(layer.get("x", 0) * dpi / 25.4)
+                    y = int(layer.get("y", 0) * dpi / 25.4)
+                    width = int(layer.get("width", 100) * dpi / 25.4)
+                    height = int(layer.get("height", 100) * dpi / 25.4)
+                    fill_color = layer.get("fill_color", None)
+                    stroke_color = layer.get("stroke_color", "#000000")
+                    stroke_width = int(layer.get("stroke_width", 1) * dpi / 25.4)
 
-                    if shape_type == 'rectangle':
+                    if shape_type == "rectangle":
                         draw.rectangle(
                             [x, y, x + width, y + height],
                             fill=fill_color,
                             outline=stroke_color,
-                            width=stroke_width
+                            width=stroke_width,
                         )
-                    elif shape_type == 'ellipse':
+                    elif shape_type == "ellipse":
                         draw.ellipse(
                             [x, y, x + width, y + height],
                             fill=fill_color,
                             outline=stroke_color,
-                            width=stroke_width
+                            width=stroke_width,
                         )
-                    elif shape_type == 'line':
+                    elif shape_type == "line":
                         draw.line(
-                            [x, y, x + width, y + height],
-                            fill=stroke_color,
-                            width=stroke_width
+                            [x, y, x + width, y + height], fill=stroke_color, width=stroke_width
                         )
                 except Exception as e:
                     print(f"Error rendering shape layer: {e}")
 
-            elif layer_type == 'qrcode':
+            elif layer_type == "qrcode":
                 # 渲染二维码图层
                 try:
-                    content = layer.get('content', '')
-                    x = int(layer.get('x', 0) * dpi / 25.4)
-                    y = int(layer.get('y', 0) * dpi / 25.4)
-                    size = int(layer.get('size', 50) * dpi / 25.4)
+                    content = layer.get("content", "")
+                    x = int(layer.get("x", 0) * dpi / 25.4)
+                    y = int(layer.get("y", 0) * dpi / 25.4)
+                    size = int(layer.get("size", 50) * dpi / 25.4)
 
                     qr = qrcode.QRCode(
                         version=1,
@@ -147,7 +148,7 @@ class TemplateRenderService:
                     qr.add_data(content)
                     qr.make(fit=True)
 
-                    qr_img = qr.make_image(fill_color='black', back_color='white')
+                    qr_img = qr.make_image(fill_color="black", back_color="white")
                     qr_img = qr_img.resize((size, size), Image.Resampling.NEAREST)
 
                     image.paste(qr_img, (x, y))
@@ -156,91 +157,91 @@ class TemplateRenderService:
 
         # 保存为JPEG
         output = io.BytesIO()
-        image.save(output, format='JPEG', quality=95, dpi=(dpi, dpi))
+        image.save(output, format="JPEG", quality=95, dpi=(dpi, dpi))
         return output.getvalue()
 
     @staticmethod
     def generate_test_page(dpi: int = 300) -> bytes:
         """生成测试页"""
         template = {
-            'paper_width': 101.6,  # 4英寸
-            'paper_height': 152.4,  # 6英寸
-            'layers': [
+            "paper_width": 101.6,  # 4英寸
+            "paper_height": 152.4,  # 6英寸
+            "layers": [
                 {
-                    'type': 'text',
-                    'content': '=== 打印机校准测试页 ===',
-                    'x': 10,
-                    'y': 10,
-                    'font_size': 16,
-                    'color': '#000000'
+                    "type": "text",
+                    "content": "=== 打印机校准测试页 ===",
+                    "x": 10,
+                    "y": 10,
+                    "font_size": 16,
+                    "color": "#000000",
                 },
                 {
-                    'type': 'text',
-                    'content': f'打印时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
-                    'x': 10,
-                    'y': 30,
-                    'font_size': 12,
-                    'color': '#000000'
+                    "type": "text",
+                    "content": f'打印时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                    "x": 10,
+                    "y": 30,
+                    "font_size": 12,
+                    "color": "#000000",
                 },
                 # 四个角落的对齐标记
                 {
-                    'type': 'shape',
-                    'shape_type': 'rectangle',
-                    'x': 5,
-                    'y': 5,
-                    'width': 10,
-                    'height': 10,
-                    'fill_color': '#000000'
+                    "type": "shape",
+                    "shape_type": "rectangle",
+                    "x": 5,
+                    "y": 5,
+                    "width": 10,
+                    "height": 10,
+                    "fill_color": "#000000",
                 },
                 {
-                    'type': 'shape',
-                    'shape_type': 'rectangle',
-                    'x': 86.6,  # 101.6 - 10 -5
-                    'y': 5,
-                    'width': 10,
-                    'height': 10,
-                    'fill_color': '#000000'
+                    "type": "shape",
+                    "shape_type": "rectangle",
+                    "x": 86.6,  # 101.6 - 10 -5
+                    "y": 5,
+                    "width": 10,
+                    "height": 10,
+                    "fill_color": "#000000",
                 },
                 {
-                    'type': 'shape',
-                    'shape_type': 'rectangle',
-                    'x': 5,
-                    'y': 137.4,  # 152.4 -10 -5
-                    'width': 10,
-                    'height': 10,
-                    'fill_color': '#000000'
+                    "type": "shape",
+                    "shape_type": "rectangle",
+                    "x": 5,
+                    "y": 137.4,  # 152.4 -10 -5
+                    "width": 10,
+                    "height": 10,
+                    "fill_color": "#000000",
                 },
                 {
-                    'type': 'shape',
-                    'shape_type': 'rectangle',
-                    'x': 86.6,
-                    'y': 137.4,
-                    'width': 10,
-                    'height': 10,
-                    'fill_color': '#000000'
+                    "type": "shape",
+                    "shape_type": "rectangle",
+                    "x": 86.6,
+                    "y": 137.4,
+                    "width": 10,
+                    "height": 10,
+                    "fill_color": "#000000",
                 },
                 # 中心十字
                 {
-                    'type': 'shape',
-                    'shape_type': 'line',
-                    'x': 50.8,
-                    'y': 40,
-                    'width': 0,
-                    'height': 72.4,
-                    'stroke_color': '#000000',
-                    'stroke_width': 1
+                    "type": "shape",
+                    "shape_type": "line",
+                    "x": 50.8,
+                    "y": 40,
+                    "width": 0,
+                    "height": 72.4,
+                    "stroke_color": "#000000",
+                    "stroke_width": 1,
                 },
                 {
-                    'type': 'shape',
-                    'shape_type': 'line',
-                    'x': 10,
-                    'y': 76.2,
-                    'width': 81.6,
-                    'height': 0,
-                    'stroke_color': '#000000',
-                    'stroke_width': 1
-                }
-            ]
+                    "type": "shape",
+                    "shape_type": "line",
+                    "x": 10,
+                    "y": 76.2,
+                    "width": 81.6,
+                    "height": 0,
+                    "stroke_color": "#000000",
+                    "stroke_width": 1,
+                },
+            ],
         }
 
         return TemplateRenderService.render_template_to_image(template, [], dpi=dpi)

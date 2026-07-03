@@ -1,25 +1,26 @@
+import uuid
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
 
 from app.core.database import get_db
 from app.core.logging import logger
 from app.models.models import Disclaimer, DisclaimerAcceptance
-from app.schemas.disclaimer import DisclaimerResponse, DisclaimerUpdate, DisclaimerAcceptanceCreate, DisclaimerAcceptanceResponse
+from app.schemas.disclaimer import (
+    DisclaimerAcceptanceCreate,
+    DisclaimerAcceptanceResponse,
+    DisclaimerResponse,
+    DisclaimerUpdate,
+)
 
 router = APIRouter(prefix="/disclaimers", tags=["disclaimers"])
 
 
 @router.get("/event/{event_id}", response_model=DisclaimerResponse)
-async def get_event_disclaimer(
-    event_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_event_disclaimer(event_id: UUID, db: AsyncSession = Depends(get_db)):
     """获取事件的免责声明"""
-    result = await db.execute(
-        Disclaimer.__table__.select().where(Disclaimer.event_id == event_id)
-    )
+    result = await db.execute(Disclaimer.__table__.select().where(Disclaimer.event_id == event_id))
     disclaimer = result.first()
 
     if not disclaimer:
@@ -30,7 +31,7 @@ async def get_event_disclaimer(
             enabled=False,
             title="免责声明",
             text="请仔细阅读本免责声明...",
-            require_signature=False
+            require_signature=False,
         )
         db.add(disclaimer)
         await db.commit()
@@ -41,9 +42,7 @@ async def get_event_disclaimer(
 
 @router.put("/event/{event_id}", response_model=DisclaimerResponse)
 async def update_event_disclaimer(
-    event_id: UUID,
-    disclaimer_data: DisclaimerUpdate,
-    db: AsyncSession = Depends(get_db)
+    event_id: UUID, disclaimer_data: DisclaimerUpdate, db: AsyncSession = Depends(get_db)
 ):
     """更新事件的免责声明"""
     try:
@@ -53,11 +52,7 @@ async def update_event_disclaimer(
         disclaimer = result.first()
 
         if not disclaimer:
-            disclaimer = Disclaimer(
-                id=uuid.uuid4(),
-                event_id=event_id,
-                **disclaimer_data.dict()
-            )
+            disclaimer = Disclaimer(id=uuid.uuid4(), event_id=event_id, **disclaimer_data.dict())
             db.add(disclaimer)
         else:
             for field, value in disclaimer_data.dict().items():
@@ -75,8 +70,7 @@ async def update_event_disclaimer(
 
 @router.post("/accept", response_model=DisclaimerAcceptanceResponse)
 async def accept_disclaimer(
-    acceptance_data: DisclaimerAcceptanceCreate,
-    db: AsyncSession = Depends(get_db)
+    acceptance_data: DisclaimerAcceptanceCreate, db: AsyncSession = Depends(get_db)
 ):
     """记录来宾确认免责声明"""
     try:
@@ -92,7 +86,7 @@ async def accept_disclaimer(
         acceptance = DisclaimerAcceptance(
             id=uuid.uuid4(),
             event_id=acceptance_data.event_id,
-            session_id=acceptance_data.session_id
+            session_id=acceptance_data.session_id,
         )
 
         db.add(acceptance)

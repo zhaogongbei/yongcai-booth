@@ -5,15 +5,15 @@ Provides structured JSON logging with async support, request tracing,
 and performance monitoring capabilities.
 """
 
+import json
 import logging
 import sys
-import json
-from pathlib import Path
-from logging.handlers import RotatingFileHandler, QueueHandler, QueueListener
-from typing import Any, Dict, Optional
-from datetime import datetime
-from queue import Queue
 import traceback
+from datetime import datetime
+from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
+from pathlib import Path
+from queue import Queue
+from typing import Any, Dict, Optional
 
 from app.core.config import settings
 
@@ -72,12 +72,34 @@ class JSONFormatter(logging.Formatter):
         # Add any other custom attributes
         for key, value in record.__dict__.items():
             if key not in [
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "message", "pathname", "process", "processName",
-                "relativeCreated", "thread", "threadName", "exc_info",
-                "exc_text", "stack_info", "request_id", "user_id",
-                "duration_ms", "status_code", "method", "path", "ip"
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "message",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "request_id",
+                "user_id",
+                "duration_ms",
+                "status_code",
+                "method",
+                "path",
+                "ip",
             ]:
                 try:
                     json.dumps(value)  # Test if serializable
@@ -141,10 +163,14 @@ def setup_logging() -> logging.Logger:
     json_formatter = JSONFormatter()
 
     # Human-readable formatter for console in dev mode
-    console_formatter = logging.Formatter(
-        "[%(asctime)s] %(levelname)-8s [%(name)s.%(funcName)s:%(lineno)d] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    ) if settings.DEBUG else json_formatter
+    console_formatter = (
+        logging.Formatter(
+            "[%(asctime)s] %(levelname)-8s [%(name)s.%(funcName)s:%(lineno)d] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        if settings.DEBUG
+        else json_formatter
+    )
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
@@ -154,10 +180,7 @@ def setup_logging() -> logging.Logger:
 
     # File handler for all logs (JSON format)
     file_handler = RotatingFileHandler(
-        log_dir / "app.log",
-        maxBytes=10_485_760,  # 10MB
-        backupCount=10,
-        encoding="utf-8"
+        log_dir / "app.log", maxBytes=10_485_760, backupCount=10, encoding="utf-8"  # 10MB
     )
     file_handler.setLevel(log_level)
     file_handler.setFormatter(json_formatter)
@@ -165,10 +188,7 @@ def setup_logging() -> logging.Logger:
 
     # File handler for errors only (JSON format)
     error_handler = RotatingFileHandler(
-        log_dir / "error.log",
-        maxBytes=10_485_760,  # 10MB
-        backupCount=10,
-        encoding="utf-8"
+        log_dir / "error.log", maxBytes=10_485_760, backupCount=10, encoding="utf-8"  # 10MB
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(json_formatter)
@@ -179,10 +199,7 @@ def setup_logging() -> logging.Logger:
 
     # Queue listener handles actual I/O in background thread
     queue_listener = QueueListener(
-        log_queue,
-        file_handler,
-        error_handler,
-        respect_handler_level=True
+        log_queue, file_handler, error_handler, respect_handler_level=True
     )
     queue_listener.start()
 
@@ -250,7 +267,7 @@ def log_with_context(
     message: str,
     request_id: Optional[str] = None,
     user_id: Optional[str] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> None:
     """
     Log message with additional context fields.

@@ -5,8 +5,8 @@ Provides request ID tracking, performance monitoring, and custom middleware
 for request/response processing.
 """
 
-import time
 import logging
+import time
 from typing import Callable, Optional
 from uuid import uuid4
 
@@ -83,7 +83,7 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
         self,
         app: ASGIApp,
         slow_request_threshold_ms: float = 1000.0,
-        log_all_requests: bool = False
+        log_all_requests: bool = False,
     ):
         """
         Initialize performance monitoring middleware.
@@ -142,15 +142,14 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
         # Log based on configuration
         if duration_ms >= self.slow_request_threshold_ms:
             logger.warning(
-                f"Slow request: {request.method} {request.url.path} "
-                f"took {duration_ms:.2f}ms",
-                extra=log_extra
+                f"Slow request: {request.method} {request.url.path} " f"took {duration_ms:.2f}ms",
+                extra=log_extra,
             )
         elif self.log_all_requests:
             logger.info(
                 f"{request.method} {request.url.path} - "
                 f"{response.status_code} ({duration_ms:.2f}ms)",
-                extra=log_extra
+                extra=log_extra,
             )
 
         # Add performance headers
@@ -174,7 +173,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self,
         app: ASGIApp,
         content_security_policy: Optional[str] = None,
-        permissions_policy: Optional[str] = None
+        permissions_policy: Optional[str] = None,
     ):
         """
         Initialize security headers middleware.

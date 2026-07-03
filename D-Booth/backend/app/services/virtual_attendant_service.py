@@ -1,6 +1,7 @@
 import logging
 from enum import Enum
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -8,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 class PlayTiming(str, Enum):
     """播放时机枚举"""
+
     attract_screen = "attract_screen"
     before_countdown = "before_countdown"
     after_capture = "after_capture"
@@ -39,6 +41,7 @@ DEFAULT_TEXTS_EN = {
 
 class PlaylistItem(BaseModel):
     """播放列表项"""
+
     timing: PlayTiming = Field(..., description="播放时机")
     enabled: bool = Field(default=True, description="是否启用")
     text: str = Field(..., description="提示文本")
@@ -48,6 +51,7 @@ class PlaylistItem(BaseModel):
 
 class Playlist(BaseModel):
     """播放列表"""
+
     event_id: str
     items: List[PlaylistItem] = Field(default_factory=list)
 
@@ -64,13 +68,15 @@ class VirtualAttendantService:
         """获取默认播放列表（中文女声）"""
         items = []
         for timing in PlayTiming:
-            items.append(PlaylistItem(
-                timing=timing,
-                enabled=True,
-                text=DEFAULT_TEXTS_CN[timing],
-                language="zh-CN",
-                voice="female"
-            ))
+            items.append(
+                PlaylistItem(
+                    timing=timing,
+                    enabled=True,
+                    text=DEFAULT_TEXTS_CN[timing],
+                    language="zh-CN",
+                    voice="female",
+                )
+            )
         return items
 
     @staticmethod

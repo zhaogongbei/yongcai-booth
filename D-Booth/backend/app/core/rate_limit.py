@@ -1,8 +1,9 @@
-from fastapi import Request, HTTPException, status
-from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Dict
-import time
 import asyncio
+import time
+from typing import Dict
+
+from fastapi import HTTPException, Request, status
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -37,8 +38,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             forwarded = request.headers.get("X-Forwarded-For")
             if forwarded:
                 logger.warning(
-                    "Suspicious X-Forwarded-For header from untrusted client: "
-                    "client=%s xff=%s",
+                    "Suspicious X-Forwarded-For header from untrusted client: " "client=%s xff=%s",
                     request.client.host if request.client else "unknown",
                     forwarded,
                 )
@@ -53,7 +53,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Remove all clients with no recent requests"""
         current_time = time.time()
         expired_clients = [
-            client_id for client_id, timestamps in self.requests.items()
+            client_id
+            for client_id, timestamps in self.requests.items()
             if not timestamps or current_time - timestamps[-1] > 3600
         ]
         for client_id in expired_clients:
@@ -77,33 +78,29 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if client_id not in self.requests:
                 # Evict oldest client if at capacity
                 if len(self.requests) >= self.MAX_CLIENTS:
-                    oldest = min(self.requests, key=lambda k: self.requests[k][-1] if self.requests[k] else 0)
+                    oldest = min(
+                        self.requests, key=lambda k: self.requests[k][-1] if self.requests[k] else 0
+                    )
                     del self.requests[oldest]
                 self.requests[client_id] = []
 
             # Clean old timestamps for this client
-            self.requests[client_id] = self._clean_old_requests(
-                self.requests[client_id],
-                3600
-            )
+            self.requests[client_id] = self._clean_old_requests(self.requests[client_id], 3600)
 
             # Check rate limits
-            minute_requests = [
-                ts for ts in self.requests[client_id]
-                if current_time - ts < 60
-            ]
+            minute_requests = [ts for ts in self.requests[client_id] if current_time - ts < 60]
             hour_requests = self.requests[client_id]
 
             if len(minute_requests) >= settings.RATE_LIMIT_PER_MINUTE:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Rate limit exceeded: {settings.RATE_LIMIT_PER_MINUTE} requests per minute"
+                    detail=f"Rate limit exceeded: {settings.RATE_LIMIT_PER_MINUTE} requests per minute",
                 )
 
             if len(hour_requests) >= settings.RATE_LIMIT_PER_HOUR:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Rate limit exceeded: {settings.RATE_LIMIT_PER_HOUR} requests per hour"
+                    detail=f"Rate limit exceeded: {settings.RATE_LIMIT_PER_HOUR} requests per hour",
                 )
 
             # Add current request

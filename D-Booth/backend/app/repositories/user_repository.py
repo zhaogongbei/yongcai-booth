@@ -1,8 +1,10 @@
 from typing import Optional
 from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
+
 from app.models.models import User
 from app.repositories.base import BaseRepository, log_query_performance
 from app.repositories.cache_decorator import cached, invalidate_cache
@@ -36,9 +38,7 @@ class UserRepository(BaseRepository[User]):
         Returns:
             User instance if found, None otherwise
         """
-        result = await self.db.execute(
-            select(User).options(noload("*")).where(User.id == id)
-        )
+        result = await self.db.execute(select(User).options(noload("*")).where(User.id == id))
         return result.scalar_one_or_none()
 
     @log_query_performance(threshold_ms=50.0)
@@ -55,9 +55,7 @@ class UserRepository(BaseRepository[User]):
         Returns:
             User instance if found, None otherwise
         """
-        result = await self.db.execute(
-            select(User).options(noload("*")).where(User.email == email)
-        )
+        result = await self.db.execute(select(User).options(noload("*")).where(User.email == email))
         return result.scalar_one_or_none()
 
     @log_query_performance(threshold_ms=50.0)
@@ -74,10 +72,7 @@ class UserRepository(BaseRepository[User]):
             User instance if found and active, None otherwise
         """
         result = await self.db.execute(
-            select(User).options(noload("*")).where(
-                User.email == email,
-                User.is_active == True
-            )
+            select(User).options(noload("*")).where(User.email == email, User.is_active == True)
         )
         return result.scalar_one_or_none()
 
@@ -92,9 +87,7 @@ class UserRepository(BaseRepository[User]):
         Returns:
             True if email exists, False otherwise
         """
-        result = await self.db.execute(
-            select(User.id).where(User.email == email)
-        )
+        result = await self.db.execute(select(User.id).where(User.email == email))
         return result.scalar_one_or_none() is not None
 
     @log_query_performance(threshold_ms=100.0)
@@ -169,4 +162,3 @@ class UserRepository(BaseRepository[User]):
             Updated User instance, or None if not found
         """
         return await super().update(id, obj_in)
-

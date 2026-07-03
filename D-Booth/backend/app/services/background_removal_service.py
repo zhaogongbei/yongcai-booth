@@ -2,10 +2,12 @@
 Background Removal Service using AI segmentation models
 Gracefully degrades when dependencies are not available
 """
+
 import io
 import logging
+from typing import Literal, Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional, Literal
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -17,12 +19,14 @@ REMBG_AVAILABLE = False
 
 try:
     import cv2
+
     OPENCV_AVAILABLE = True
 except ImportError:
     logger.warning("OpenCV not available, background analysis will be limited")
 
 try:
     import mediapipe as mp
+
     mp_selfie_segmentation = mp.solutions.selfie_segmentation
     selfie_segmenter = mp_selfie_segmentation.SelfieSegmentation(model_selection=1)
     MEDIAPIPE_AVAILABLE = True
@@ -33,6 +37,7 @@ except Exception as exc:
 
 try:
     from rembg import remove as rembg_remove
+
     REMBG_AVAILABLE = True
 except ImportError:
     logger.warning("rembg not available, fallback to MediaPipe if available")
@@ -48,15 +53,15 @@ class BackgroundRemovalService:
         self.opencv_available = OPENCV_AVAILABLE
         self.mediapipe_available = MEDIAPIPE_AVAILABLE
         self.rembg_available = REMBG_AVAILABLE
-        logger.info(f"Background removal service initialized: "
-                    f"OpenCV={self.opencv_available}, "
-                    f"MediaPipe={self.mediapipe_available}, "
-                    f"rembg={self.rembg_available}")
+        logger.info(
+            f"Background removal service initialized: "
+            f"OpenCV={self.opencv_available}, "
+            f"MediaPipe={self.mediapipe_available}, "
+            f"rembg={self.rembg_available}"
+        )
 
     def remove_background_ai(
-        self,
-        image: np.ndarray,
-        model: Literal["mediapipe", "rembg", "u2net"] = "mediapipe"
+        self, image: np.ndarray, model: Literal["mediapipe", "rembg", "u2net"] = "mediapipe"
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Remove background using AI segmentation
@@ -66,7 +71,11 @@ class BackgroundRemovalService:
         if not (self.mediapipe_available or self.rembg_available):
             logger.warning("No AI background removal models available, returning original image")
             # Create RGBA image with full alpha
-            rgba = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA) if self.opencv_available else self._numpy_to_rgba(image)
+            rgba = (
+                cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+                if self.opencv_available
+                else self._numpy_to_rgba(image)
+            )
             mask = np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
             return rgba, mask
 
@@ -81,14 +90,22 @@ class BackgroundRemovalService:
 
             # Last resort: return original
             logger.warning("Requested AI model not available, returning original image")
-            rgba = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA) if self.opencv_available else self._numpy_to_rgba(image)
+            rgba = (
+                cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+                if self.opencv_available
+                else self._numpy_to_rgba(image)
+            )
             mask = np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
             return rgba, mask
 
         except Exception as e:
             logger.error(f"AI background removal failed: {str(e)}", exc_info=True)
             # Return original image on error
-            rgba = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA) if self.opencv_available else self._numpy_to_rgba(image)
+            rgba = (
+                cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+                if self.opencv_available
+                else self._numpy_to_rgba(image)
+            )
             mask = np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
             return rgba, mask
 
@@ -122,7 +139,9 @@ class BackgroundRemovalService:
             raise RuntimeError("rembg not available")
 
         # Convert numpy array to PIL Image
-        img_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if self.opencv_available else image)
+        img_pil = Image.fromarray(
+            cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if self.opencv_available else image
+        )
 
         # Process with rembg
         result_pil = rembg_remove(img_pil)
@@ -165,7 +184,7 @@ class BackgroundRemovalService:
             val_score = 1 - min(val_variance / max_val_var, 1)
 
             # Weighted average
-            complexity_score = (hue_score * 0.5 + sat_score * 0.3 + val_score * 0.2)
+            complexity_score = hue_score * 0.5 + sat_score * 0.3 + val_score * 0.2
 
             return float(complexity_score)
 
@@ -173,7 +192,9 @@ class BackgroundRemovalService:
             logger.error(f"Background complexity analysis failed: {str(e)}")
             return 0.5
 
-    def detect_green_background(self, image: np.ndarray, threshold: float = 0.3) -> Tuple[bool, int]:
+    def detect_green_background(
+        self, image: np.ndarray, threshold: float = 0.3
+    ) -> Tuple[bool, int]:
         """
         Detect if background is primarily green
         Returns: (is_green_background, suggested_sensitivity)

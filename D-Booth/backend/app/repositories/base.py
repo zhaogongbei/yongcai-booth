@@ -11,20 +11,15 @@ This module implements a generic repository pattern with:
 
 import logging
 import time
-from typing import Generic, TypeVar, Type, Optional, List, Sequence, Any, Dict
-from uuid import UUID
-from functools import wraps
 from contextlib import asynccontextmanager
+from functools import wraps
+from typing import Any, Dict, Generic, List, Optional, Sequence, Type, TypeVar
+from uuid import UUID
 
+from sqlalchemy import delete, func, inspect, select, update
+from sqlalchemy.exc import DatabaseError, DataError, IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, func, inspect
 from sqlalchemy.orm import DeclarativeMeta
-from sqlalchemy.exc import (
-    SQLAlchemyError,
-    IntegrityError,
-    DataError,
-    DatabaseError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -34,26 +29,31 @@ ModelType = TypeVar("ModelType", bound=DeclarativeMeta)
 # Custom Exceptions
 class RepositoryError(Exception):
     """Base exception for repository operations."""
+
     pass
 
 
 class RecordNotFoundError(RepositoryError):
     """Raised when a requested record does not exist."""
+
     pass
 
 
 class DuplicateRecordError(RepositoryError):
     """Raised when attempting to create a duplicate record."""
+
     pass
 
 
 class ValidationError(RepositoryError):
     """Raised when data validation fails."""
+
     pass
 
 
 class DatabaseOperationError(RepositoryError):
     """Raised when a database operation fails."""
+
     pass
 
 
@@ -70,6 +70,7 @@ def log_query_performance(threshold_ms: float = 100.0):
             # Query implementation
             pass
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -89,11 +90,11 @@ def log_query_performance(threshold_ms: float = 100.0):
                 return result
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
-                logger.error(
-                    f"Query failed: {func.__name__} after {duration_ms:.2f}ms - {str(e)}"
-                )
+                logger.error(f"Query failed: {func.__name__} after {duration_ms:.2f}ms - {str(e)}")
                 raise
+
         return wrapper
+
     return decorator
 
 
@@ -159,22 +160,14 @@ class BaseRepository(Generic[ModelType]):
                 print(f"Found user: {user.email}")
         """
         try:
-            result = await self.db.execute(
-                select(self.model).where(self.model.id == id)
-            )
+            result = await self.db.execute(select(self.model).where(self.model.id == id))
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
             logger.error(f"Failed to get {self._model_name} with id {id}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to retrieve {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to retrieve {self._model_name}") from e
 
     @log_query_performance(threshold_ms=200.0)
-    async def get_multi(
-        self,
-        skip: int = 0,
-        limit: int = 100
-    ) -> List[ModelType]:
+    async def get_multi(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
         """
         Get multiple records with pagination.
 
@@ -202,15 +195,11 @@ class BaseRepository(Generic[ModelType]):
             raise ValidationError("limit must be between 1 and 1000")
 
         try:
-            result = await self.db.execute(
-                select(self.model).offset(skip).limit(limit)
-            )
+            result = await self.db.execute(select(self.model).offset(skip).limit(limit))
             return list(result.scalars().all())
         except SQLAlchemyError as e:
             logger.error(f"Failed to get multiple {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to retrieve {self._model_name} records"
-            ) from e
+            raise DatabaseOperationError(f"Failed to retrieve {self._model_name} records") from e
 
     @log_query_performance(threshold_ms=100.0)
     async def create(self, obj_in: dict) -> ModelType:
@@ -246,9 +235,7 @@ class BaseRepository(Generic[ModelType]):
         except IntegrityError as e:
             await self.db.rollback()
             logger.warning(f"Integrity error creating {self._model_name}: {e}")
-            raise DuplicateRecordError(
-                f"Record violates unique constraint"
-            ) from e
+            raise DuplicateRecordError(f"Record violates unique constraint") from e
         except (DataError, TypeError) as e:
             await self.db.rollback()
             logger.warning(f"Validation error creating {self._model_name}: {e}")
@@ -256,16 +243,10 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(f"Failed to create {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to create {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to create {self._model_name}") from e
 
     @log_query_performance(threshold_ms=500.0)
-    async def bulk_create(
-        self,
-        objects_in: List[dict],
-        batch_size: int = 500
-    ) -> List[ModelType]:
+    async def bulk_create(self, objects_in: List[dict], batch_size: int = 500) -> List[ModelType]:
         """
         Create multiple records in bulk with automatic batching.
 
@@ -304,7 +285,7 @@ class BaseRepository(Generic[ModelType]):
         try:
             # Process in batches
             for i in range(0, len(objects_in), batch_size):
-                batch = objects_in[i:i + batch_size]
+                batch = objects_in[i : i + batch_size]
                 db_objects = [self.model(**obj_data) for obj_data in batch]
                 self.db.add_all(db_objects)
                 await self.db.flush()
@@ -325,9 +306,7 @@ class BaseRepository(Generic[ModelType]):
         except IntegrityError as e:
             await self.db.rollback()
             logger.warning(f"Integrity error in bulk create {self._model_name}: {e}")
-            raise DuplicateRecordError(
-                f"One or more records violate unique constraint"
-            ) from e
+            raise DuplicateRecordError(f"One or more records violate unique constraint") from e
         except (DataError, TypeError) as e:
             await self.db.rollback()
             logger.warning(f"Validation error in bulk create {self._model_name}: {e}")
@@ -335,9 +314,7 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(f"Failed to bulk create {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to bulk create {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to bulk create {self._model_name}") from e
 
     @log_query_performance(threshold_ms=150.0)
     async def update(self, id: UUID, obj_in: dict) -> Optional[ModelType]:
@@ -383,9 +360,7 @@ class BaseRepository(Generic[ModelType]):
         except IntegrityError as e:
             await self.db.rollback()
             logger.warning(f"Integrity error updating {self._model_name}: {e}")
-            raise DuplicateRecordError(
-                f"Update violates unique constraint"
-            ) from e
+            raise DuplicateRecordError(f"Update violates unique constraint") from e
         except (DataError, TypeError) as e:
             await self.db.rollback()
             logger.warning(f"Validation error updating {self._model_name}: {e}")
@@ -393,16 +368,10 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(f"Failed to update {self._model_name} with id {id}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to update {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to update {self._model_name}") from e
 
     @log_query_performance(threshold_ms=500.0)
-    async def bulk_update(
-        self,
-        updates: List[Dict[str, Any]],
-        id_field: str = "id"
-    ) -> int:
+    async def bulk_update(self, updates: List[Dict[str, Any]], id_field: str = "id") -> int:
         """
         Update multiple records in a single database round-trip.
 
@@ -435,9 +404,7 @@ class BaseRepository(Generic[ModelType]):
         # Validate all updates have id_field
         for upd in updates:
             if id_field not in upd:
-                raise ValidationError(
-                    f"Each update must contain '{id_field}' field"
-                )
+                raise ValidationError(f"Each update must contain '{id_field}' field")
 
         try:
             count = 0
@@ -463,9 +430,7 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(f"Failed to bulk update {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to bulk update {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to bulk update {self._model_name}") from e
 
     @log_query_performance(threshold_ms=100.0)
     async def delete(self, id: UUID) -> bool:
@@ -499,9 +464,7 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(f"Failed to delete {self._model_name} with id {id}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to delete {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to delete {self._model_name}") from e
 
     @log_query_performance(threshold_ms=300.0)
     async def bulk_delete(self, ids: List[UUID]) -> int:
@@ -536,9 +499,7 @@ class BaseRepository(Generic[ModelType]):
         except SQLAlchemyError as e:
             await self.db.rollback()
             logger.error(f"Failed to bulk delete {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to bulk delete {self._model_name}"
-            ) from e
+            raise DatabaseOperationError(f"Failed to bulk delete {self._model_name}") from e
 
     async def exists(self, id: UUID) -> bool:
         """
@@ -558,15 +519,11 @@ class BaseRepository(Generic[ModelType]):
                 print("User exists")
         """
         try:
-            result = await self.db.execute(
-                select(self.model.id).where(self.model.id == id)
-            )
+            result = await self.db.execute(select(self.model.id).where(self.model.id == id))
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
             logger.error(f"Failed to check existence of {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to check {self._model_name} existence"
-            ) from e
+            raise DatabaseOperationError(f"Failed to check {self._model_name} existence") from e
 
     @log_query_performance(threshold_ms=100.0)
     async def count(self) -> int:
@@ -584,15 +541,11 @@ class BaseRepository(Generic[ModelType]):
             print(f"Total users: {total_users}")
         """
         try:
-            result = await self.db.execute(
-                select(func.count()).select_from(self.model)
-            )
+            result = await self.db.execute(select(func.count()).select_from(self.model))
             return result.scalar_one()
         except SQLAlchemyError as e:
             logger.error(f"Failed to count {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Failed to count {self._model_name} records"
-            ) from e
+            raise DatabaseOperationError(f"Failed to count {self._model_name} records") from e
 
     @asynccontextmanager
     async def transaction(self):
@@ -620,6 +573,4 @@ class BaseRepository(Generic[ModelType]):
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Transaction failed for {self._model_name}: {e}")
-            raise DatabaseOperationError(
-                f"Transaction failed: {str(e)}"
-            ) from e
+            raise DatabaseOperationError(f"Transaction failed: {str(e)}") from e

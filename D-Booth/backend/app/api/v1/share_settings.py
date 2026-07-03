@@ -1,14 +1,15 @@
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr, field_validator
 
-from app.api.deps import get_db, get_current_active_user, check_team_member
-from app.services.email_service import email_service
-from app.services.sms_service import sms_service
-from app.services.event_service import EventService
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.models.models import User
+from app.services.email_service import email_service
+from app.services.event_service import EventService
+from app.services.sms_service import sms_service
 
 router = APIRouter()
 
@@ -83,16 +84,13 @@ class TestSMSRequest(BaseModel):
 async def get_share_settings(
     event_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """获取活动的分享配置"""
     event_service = EventService(db)
     event = await event_service.get_event(event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     await check_team_member(event.team_id, current_user, db)
 
@@ -100,10 +98,7 @@ async def get_share_settings(
     settings = event.settings or {}
     share_settings = settings.get("sharing", ShareSettings().model_dump())
 
-    return {
-        "event_id": event_id,
-        **share_settings
-    }
+    return {"event_id": event_id, **share_settings}
 
 
 @router.put("/settings/sharing/{event_id}", response_model=ShareSettingsResponse)
@@ -111,16 +106,13 @@ async def update_share_settings(
     event_id: UUID,
     settings: ShareSettings,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """更新活动的分享配置"""
     event_service = EventService(db)
     event = await event_service.get_event(event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     await check_team_member(event.team_id, current_user, db)
 
@@ -131,26 +123,20 @@ async def update_share_settings(
 
     await event_service.update_event(event_id, {"settings": event_settings})
 
-    return {
-        "event_id": event_id,
-        **settings.model_dump()
-    }
+    return {"event_id": event_id, **settings.model_dump()}
 
 
 @router.post("/shares/email/test", status_code=status.HTTP_200_OK)
 async def test_email_send(
     request: TestEmailRequest,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """测试邮件发送"""
     event_service = EventService(db)
     event = await event_service.get_event(request.event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     await check_team_member(event.team_id, current_user, db)
 
@@ -167,13 +153,13 @@ async def test_email_send(
         photo_urls=request.photo_urls,
         share_url=request.share_url,
         event_name=event.name,
-        date=event.start_date.strftime("%Y-%m-%d")
+        date=event.start_date.strftime("%Y-%m-%d"),
     )
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send test email. Please check your SMTP configuration."
+            detail="Failed to send test email. Please check your SMTP configuration.",
         )
 
     return {"status": "success", "message": "Test email sent successfully"}
@@ -183,16 +169,13 @@ async def test_email_send(
 async def test_sms_send(
     request: TestSMSRequest,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """测试SMS发送"""
     event_service = EventService(db)
     event = await event_service.get_event(request.event_id)
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     await check_team_member(event.team_id, current_user, db)
 
@@ -201,22 +184,19 @@ async def test_sms_send(
     share_settings = settings.get("sharing", ShareSettings().model_dump())
     templates = share_settings.get("templates", TemplateSettings().model_dump())
 
-    message = templates["sms_message"].format(
-        event_name=event.name,
-        share_url=request.share_url
-    )
+    message = templates["sms_message"].format(event_name=event.name, share_url=request.share_url)
 
     success = await sms_service.send_photo_sms(
         to_phone=request.to_phone,
         message=message,
         share_url=request.share_url,
-        country_code=request.country_code
+        country_code=request.country_code,
     )
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send test SMS. Please check your Twilio configuration."
+            detail="Failed to send test SMS. Please check your Twilio configuration.",
         )
 
     return {"status": "success", "message": "Test SMS sent successfully"}

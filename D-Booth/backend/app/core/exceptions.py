@@ -6,12 +6,13 @@ structured error responses and logging.
 """
 
 import logging
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
+
 from fastapi import Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class BoothBaseException(Exception):
         message: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         error_code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize base exception.
@@ -53,7 +54,7 @@ class AuthenticationError(BoothBaseException):
             message=message,
             status_code=status.HTTP_401_UNAUTHORIZED,
             error_code="AUTHENTICATION_FAILED",
-            **kwargs
+            **kwargs,
         )
 
 
@@ -65,7 +66,7 @@ class AuthorizationError(BoothBaseException):
             message=message,
             status_code=status.HTTP_403_FORBIDDEN,
             error_code="AUTHORIZATION_FAILED",
-            **kwargs
+            **kwargs,
         )
 
 
@@ -79,7 +80,7 @@ class ResourceNotFoundError(BoothBaseException):
             status_code=status.HTTP_404_NOT_FOUND,
             error_code="RESOURCE_NOT_FOUND",
             details={"resource": resource, "resource_id": str(resource_id)},
-            **kwargs
+            **kwargs,
         )
 
 
@@ -91,7 +92,7 @@ class ResourceConflictError(BoothBaseException):
             message=message,
             status_code=status.HTTP_409_CONFLICT,
             error_code="RESOURCE_CONFLICT",
-            **kwargs
+            **kwargs,
         )
 
 
@@ -102,7 +103,7 @@ class ValidationException(BoothBaseException):
         self,
         message: str = "Validation failed",
         field_errors: Optional[List[Dict[str, str]]] = None,
-        **kwargs
+        **kwargs,
     ):
         details = kwargs.pop("details", {})
         if field_errors:
@@ -112,7 +113,7 @@ class ValidationException(BoothBaseException):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             error_code="VALIDATION_ERROR",
             details=details,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -124,25 +125,20 @@ class DatabaseError(BoothBaseException):
             message=message,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             error_code="DATABASE_ERROR",
-            **kwargs
+            **kwargs,
         )
 
 
 class ExternalServiceError(BoothBaseException):
     """Raised when external service integration fails."""
 
-    def __init__(
-        self,
-        service: str,
-        message: str = "External service error",
-        **kwargs
-    ):
+    def __init__(self, service: str, message: str = "External service error", **kwargs):
         super().__init__(
             message=message,
             status_code=status.HTTP_502_BAD_GATEWAY,
             error_code="EXTERNAL_SERVICE_ERROR",
             details={"service": service},
-            **kwargs
+            **kwargs,
         )
 
 
@@ -150,10 +146,7 @@ class RateLimitExceededError(BoothBaseException):
     """Raised when rate limit is exceeded."""
 
     def __init__(
-        self,
-        message: str = "Rate limit exceeded",
-        retry_after: Optional[int] = None,
-        **kwargs
+        self, message: str = "Rate limit exceeded", retry_after: Optional[int] = None, **kwargs
     ):
         details = kwargs.pop("details", {})
         if retry_after:
@@ -163,7 +156,7 @@ class RateLimitExceededError(BoothBaseException):
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             error_code="RATE_LIMIT_EXCEEDED",
             details=details,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -175,17 +168,14 @@ class FileProcessingError(BoothBaseException):
             message=message,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             error_code="FILE_PROCESSING_ERROR",
-            **kwargs
+            **kwargs,
         )
 
 
 # Exception Handlers
 
 
-async def booth_exception_handler(
-    request: Request,
-    exc: BoothBaseException
-) -> JSONResponse:
+async def booth_exception_handler(request: Request, exc: BoothBaseException) -> JSONResponse:
     """
     Handle all custom D-Booth exceptions.
 
@@ -203,8 +193,8 @@ async def booth_exception_handler(
             "method": request.method,
             "path": str(request.url.path),
             "error_code": exc.error_code,
-            "details": exc.details
-        }
+            "details": exc.details,
+        },
     )
 
     return JSONResponse(
@@ -214,16 +204,13 @@ async def booth_exception_handler(
                 "code": exc.error_code,
                 "message": exc.message,
                 "status_code": exc.status_code,
-                "details": exc.details
+                "details": exc.details,
             }
-        }
+        },
     )
 
 
-async def http_exception_handler(
-    request: Request,
-    exc: StarletteHTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """
     Handle standard HTTP exceptions.
 
@@ -239,25 +226,18 @@ async def http_exception_handler(
         extra={
             "status_code": exc.status_code,
             "method": request.method,
-            "path": str(request.url.path)
-        }
+            "path": str(request.url.path),
+        },
     )
 
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": {
-                "code": exc.status_code,
-                "message": exc.detail,
-                "type": "http_error"
-            }
-        }
+        content={"error": {"code": exc.status_code, "message": exc.detail, "type": "http_error"}},
     )
 
 
 async def validation_exception_handler(
-    request: Request,
-    exc: RequestValidationError
+    request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """
     Handle Pydantic validation errors from request parsing.
@@ -272,12 +252,14 @@ async def validation_exception_handler(
     errors = []
     for error in exc.errors():
         field_path = ".".join(str(x) for x in error["loc"][1:]) or "body"
-        errors.append({
-            "field": field_path,
-            "message": error["msg"],
-            "type": error["type"],
-            "input": error.get("input")
-        })
+        errors.append(
+            {
+                "field": field_path,
+                "message": error["msg"],
+                "type": error["type"],
+                "input": error.get("input"),
+            }
+        )
 
     logger.warning(
         f"Validation error: {len(errors)} field(s)",
@@ -285,8 +267,8 @@ async def validation_exception_handler(
             "method": request.method,
             "path": str(request.url.path),
             "error_count": len(errors),
-            "errors": errors
-        }
+            "errors": errors,
+        },
     )
 
     return JSONResponse(
@@ -296,16 +278,13 @@ async def validation_exception_handler(
                 "code": "VALIDATION_ERROR",
                 "message": "Request validation failed",
                 "type": "validation_error",
-                "details": {"errors": errors}
+                "details": {"errors": errors},
             }
-        }
+        },
     )
 
 
-async def general_exception_handler(
-    request: Request,
-    exc: Exception
-) -> JSONResponse:
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Handle all uncaught exceptions.
 
@@ -321,13 +300,14 @@ async def general_exception_handler(
         extra={
             "method": request.method,
             "path": str(request.url.path),
-            "exception_type": type(exc).__name__
+            "exception_type": type(exc).__name__,
         },
-        exc_info=True
+        exc_info=True,
     )
 
     # Hide internal error details in production
     from app.core.config import settings
+
     if settings.DEBUG:
         error_message = f"Internal server error: {str(exc)}"
         details = {"exception": type(exc).__name__}
@@ -342,9 +322,9 @@ async def general_exception_handler(
                 "code": "INTERNAL_SERVER_ERROR",
                 "message": error_message,
                 "type": "server_error",
-                "details": details
+                "details": details,
             }
-        }
+        },
     )
 
 

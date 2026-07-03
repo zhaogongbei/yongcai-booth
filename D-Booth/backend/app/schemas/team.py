@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
-from uuid import UUID
 from datetime import datetime
+from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.models import UserRole
 
 
@@ -29,7 +31,7 @@ class TeamResponse(TeamBase):
     subscription_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -56,7 +58,7 @@ class TeamMemberResponse(BaseModel):
     user_id: UUID
     role: UserRole
     created_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

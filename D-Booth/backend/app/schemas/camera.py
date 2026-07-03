@@ -1,11 +1,13 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List, Dict, Any
-from uuid import UUID
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
 
 
 class CameraCapabilities(BaseModel):
     """相机能力模型"""
+
     iso_range: tuple[int, int] = (100, 6400)
     shutter_speeds: List[str] = ["1/30", "1/60", "1/125", "1/250", "1/500", "1/1000"]
     wb_modes: List[str] = ["自动", "日光", "阴天", "钨丝灯", "荧光灯", "闪光灯", "自定义"]
@@ -18,6 +20,7 @@ class CameraCapabilities(BaseModel):
 
 class CameraSettings(BaseModel):
     """相机设置模型"""
+
     iso: int = 800
     shutter_speed: str = "1/125"
     aperture: str = "f/4.0"
@@ -29,6 +32,7 @@ class CameraSettings(BaseModel):
 
 class CameraStatus(BaseModel):
     """相机状态模型"""
+
     connected: bool = False
     model: Optional[str] = None
     firmware_version: Optional[str] = None
@@ -40,6 +44,7 @@ class CameraStatus(BaseModel):
 
 class CameraSettingsUpdate(BaseModel):
     """相机设置更新请求"""
+
     iso: Optional[int] = None
     shutter_speed: Optional[str] = None
     aperture: Optional[str] = None
@@ -54,6 +59,7 @@ class CameraCapabilitiesResponse(CameraCapabilities):
 
 class CameraWizardStep(BaseModel):
     """相机向导步骤"""
+
     step: int
     title: str
     description: str
@@ -62,6 +68,7 @@ class CameraWizardStep(BaseModel):
 
 class CameraWizardResult(BaseModel):
     """相机向导结果"""
+
     success: bool
     settings: CameraSettings
     recommendations: List[str]
@@ -70,6 +77,7 @@ class CameraWizardResult(BaseModel):
 
 class ExposureAnalysis(BaseModel):
     """曝光分析结果"""
+
     brightness: float  # 0-1
     is_underexposed: bool
     is_overexposed: bool

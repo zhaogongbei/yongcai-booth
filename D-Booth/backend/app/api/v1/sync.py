@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
-from app.schemas.booth import SyncStateResponse, SyncPushResponse, SyncPullResponse, SyncLogResponse
-from app.services.sync_service import SyncService
+from app.schemas.booth import SyncLogResponse, SyncPullResponse, SyncPushResponse, SyncStateResponse
 from app.services.booth_service import BoothService
+from app.services.sync_service import SyncService
 
 router = APIRouter(prefix="/sync", tags=["Sync - 配置同步"])
 
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/sync", tags=["Sync - 配置同步"])
 async def get_sync_state(
     booth_id: UUID,
     team_id: UUID = Query(..., description="团队ID"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     # 验证展位是否存在且属于该团队
     booth = await BoothService.get_booth(db, booth_id)
@@ -28,7 +29,7 @@ async def get_sync_state(
 async def push_config(
     booth_id: UUID,
     team_id: UUID = Query(..., description="团队ID"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     # 验证展位是否存在且属于该团队
     booth = await BoothService.get_booth(db, booth_id)
@@ -42,7 +43,7 @@ async def push_config(
 async def pull_config(
     booth_id: UUID,
     team_id: UUID = Query(..., description="团队ID"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     # 验证展位是否存在且属于该团队
     booth = await BoothService.get_booth(db, booth_id)
@@ -53,8 +54,5 @@ async def pull_config(
 
 
 @router.get("/log/{team_id}", response_model=SyncLogResponse, summary="同步历史日志")
-async def get_sync_log(
-    team_id: UUID,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_sync_log(team_id: UUID, db: AsyncSession = Depends(get_db)):
     return await SyncService.get_sync_log(db, team_id)

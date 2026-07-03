@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.models import PropCategory
 
 
@@ -41,7 +43,9 @@ class AppliedPropRequest(BaseModel):
     x: float = Field(ge=0.0, le=1.0, description="X position ratio (0-1)")
     y: float = Field(ge=0.0, le=1.0, description="Y position ratio (0-1)")
     scale: float = Field(default=1.0, ge=0.1, le=3.0, description="Scale factor (0.1-3.0)")
-    rotation: float = Field(default=0.0, ge=0.0, le=360.0, description="Rotation angle (0-360 degrees)")
+    rotation: float = Field(
+        default=0.0, ge=0.0, le=360.0, description="Rotation angle (0-360 degrees)"
+    )
     flip_h: bool = Field(default=False, description="Horizontal flip")
     flip_v: bool = Field(default=False, description="Vertical flip")
     opacity: float = Field(default=1.0, ge=0.0, le=1.0, description="Opacity (0-1)")

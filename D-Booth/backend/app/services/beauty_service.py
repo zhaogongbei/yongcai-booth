@@ -11,6 +11,7 @@ Speed targets (i5‑14600KF, CPU‑only):
   1080p single face →  < 120 ms   (preview)
   4000px single face → < 600 ms   (final print)
 """
+
 from __future__ import annotations
 
 import io
@@ -22,7 +23,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
-
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 try:
     import cv2
+
     OPENCV_AVAILABLE = True
 except ImportError:  # pragma: no cover
     OPENCV_AVAILABLE = False
@@ -62,11 +63,13 @@ try:
             # always copy if the bundled path is non-ASCII
             if not _MODEL_PATH.isascii():
                 import shutil
+
                 shutil.copy2(_MODEL_PATH, str(_safe_path))
                 _MODEL_PATH = str(_safe_path)
                 _needs_copy = True
             elif not _safe_path.exists():
                 import shutil
+
                 shutil.copy2(_MODEL_PATH, str(_safe_path))
                 _MODEL_PATH = str(_safe_path)
                 _needs_copy = True
@@ -105,16 +108,40 @@ _DETECT_MAX_SIDE = 480
 _JAWLINE = list(range(0, 17))
 _LEFT_EYE = [33, 133, 155, 154, 153, 145, 144, 163, 7, 173, 157, 158, 159, 160, 161, 246]
 _RIGHT_EYE = [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382]
-_LIPS_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95]
+_LIPS_OUTER = [
+    61,
+    146,
+    91,
+    181,
+    84,
+    17,
+    314,
+    405,
+    321,
+    375,
+    291,
+    308,
+    324,
+    318,
+    402,
+    317,
+    14,
+    87,
+    178,
+    88,
+    95,
+]
 _MOUTH_INNER = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14]
 _IRIS_LEFT = [468, 469, 470, 471, 472]
 _IRIS_RIGHT = [473, 474, 475, 476, 477]
+
 
 # ---------------------------------------------------------------------------
 # schema
 # ---------------------------------------------------------------------------
 class BeautyParams(BaseModel):
     """0‑100 sliders matching front‑end UX"""
+
     smooth: int = Field(default=50, ge=0, le=100)
     whiten: int = Field(default=50, ge=0, le=100)
     thinFace: int = Field(default=50, ge=0, le=100)
@@ -125,21 +152,28 @@ class BeautyParams(BaseModel):
     teethWhiten: int = Field(default=50, ge=0, le=100)
     lipColor: int = Field(default=50, ge=0, le=100)
 
+
 # ---------------------------------------------------------------------------
 # data classes
 # ---------------------------------------------------------------------------
 @dataclass
 class FaceBox:
-    x: int; y: int; width: int; height: int
+    x: int
+    y: int
+    width: int
+    height: int
     landmarks: Optional[List[Tuple[int, int]]] = None
     confidence: float = 0.0
+
 
 @dataclass
 class _FaceData:
     """Per‑face data extracted once, reused by all operators."""
+
     box: FaceBox
     landmarks: List[Tuple[int, int]]
     skin_mask: Optional[np.ndarray] = None  # 0‑255 uint8
+
 
 # ---------------------------------------------------------------------------
 # LUT cache for whitening  (pre‑computed lookup → O(1) per pixel)
@@ -149,13 +183,16 @@ def _build_whiten_lut(strength: float) -> np.ndarray:
     lut = lut + strength * 40.0 * np.sin(lut / 256.0 * np.pi * 0.5)
     return np.clip(lut, 0, 255).astype(np.uint8)
 
+
 _WHITEN_LUTS: dict[int, np.ndarray] = {}
+
 
 def _get_whiten_lut(level: int) -> np.ndarray:
     level = max(0, min(100, level))
     if level not in _WHITEN_LUTS:
         _WHITEN_LUTS[level] = _build_whiten_lut(level / 100.0)
     return _WHITEN_LUTS[level]
+
 
 # ---------------------------------------------------------------------------
 # persistent FaceLandmarker (created once at module load; reuse across calls)
@@ -174,6 +211,7 @@ def _get_landmarker() -> "mp_vision.FaceLandmarker":
 
     if _IMG_LANDMARKER_LOCK is None:
         import threading as _thr
+
         _IMG_LANDMARKER_LOCK = _thr.Lock()
 
     with _IMG_LANDMARKER_LOCK:
@@ -192,6 +230,7 @@ def _get_landmarker() -> "mp_vision.FaceLandmarker":
         _IMG_LANDMARKER = mp_vision.FaceLandmarker.create_from_options(opts)
         logger.info("FaceLandmarker created (persistent singleton)")
     return _IMG_LANDMARKER
+
 
 # ---------------------------------------------------------------------------
 # main processor
@@ -334,12 +373,16 @@ class BeautyProcessor:
             xs = [lt.x * w for lt in face_lm]
             ys = [lt.y * h for lt in face_lm]
             pts = [(int(lt.x * w), int(lt.y * h)) for lt in face_lm]
-            faces.append(FaceBox(
-                x=int(min(xs)), y=int(min(ys)),
-                width=int(max(xs) - min(xs)),
-                height=int(max(ys) - min(ys)),
-                landmarks=pts, confidence=1.0,
-            ))
+            faces.append(
+                FaceBox(
+                    x=int(min(xs)),
+                    y=int(min(ys)),
+                    width=int(max(xs) - min(xs)),
+                    height=int(max(ys) - min(ys)),
+                    landmarks=pts,
+                    confidence=1.0,
+                )
+            )
         return faces
 
     # -- skin mask ---------------------------------------------------------
@@ -396,15 +439,25 @@ class BeautyProcessor:
                 for ci in (61, 291):
                     cx = (nose[0] + fd.landmarks[ci][0]) // 2
                     cy = (nose[1] + fd.landmarks[ci][1]) // 2
-                    r = max(10, int(np.hypot(nose[0] - fd.landmarks[ci][0], nose[1] - fd.landmarks[ci][1]) * 0.3))
-                    x1 = max(0, cx - r); y1 = max(0, cy - r)
-                    x2 = min(img.shape[1], cx + r); y2 = min(img.shape[0], cy + r)
+                    r = max(
+                        10,
+                        int(
+                            np.hypot(nose[0] - fd.landmarks[ci][0], nose[1] - fd.landmarks[ci][1])
+                            * 0.3
+                        ),
+                    )
+                    x1 = max(0, cx - r)
+                    y1 = max(0, cy - r)
+                    x2 = min(img.shape[1], cx + r)
+                    y2 = min(img.shape[0], cy + r)
                     if x2 - x1 < 4 or y2 - y1 < 4:
                         continue
                     roi = result[y1:y2, x1:x2]
                     s = (level / 100.0) * 10.0 + 1.0
                     roi_s = cv2.bilateralFilter(roi, 5, s, s)
-                    result[y1:y2, x1:x2] = cv2.addWeighted(roi_s, level / 100.0 * 0.6, roi, 1.0 - level / 100.0 * 0.6, 0)
+                    result[y1:y2, x1:x2] = cv2.addWeighted(
+                        roi_s, level / 100.0 * 0.6, roi, 1.0 - level / 100.0 * 0.6, 0
+                    )
             except Exception:
                 continue
         return result
@@ -436,9 +489,14 @@ class BeautyProcessor:
             dx = np.clip(dx, -w * 0.08, w * 0.08)
             dy = np.clip(dy, -h * 0.08, h * 0.08)
             map_x = (np.arange(w, dtype=np.float32) + dx.T).T
-            map_y = (np.arange(h, dtype=np.float32)[:, None] + dy)
-            return cv2.remap(img, map_x.astype(np.float32), map_y.astype(np.float32),
-                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            map_y = np.arange(h, dtype=np.float32)[:, None] + dy
+            return cv2.remap(
+                img,
+                map_x.astype(np.float32),
+                map_y.astype(np.float32),
+                cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
         except Exception:
             return img
 
@@ -461,8 +519,13 @@ class BeautyProcessor:
                 influence = np.clip(1.0 - dist / r, 0, 1) ** 3
                 map_x += (xx - cx) * strength * influence
                 map_y += (yy - cy) * strength * influence
-            return cv2.remap(img, map_x.astype(np.float32), map_y.astype(np.float32),
-                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            return cv2.remap(
+                img,
+                map_x.astype(np.float32),
+                map_y.astype(np.float32),
+                cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
         except Exception:
             return img
 
@@ -478,15 +541,19 @@ class BeautyProcessor:
                     pts = np.array([fd.landmarks[i] for i in idx], dtype=np.float32)
                     cx, cy = int(np.mean(pts[:, 0])), int(np.mean(pts[:, 1]))
                     r = max(6, int(np.max(np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)) * 2.5))
-                    x1 = max(0, cx - r); y1 = max(0, cy - r)
-                    x2 = min(img.shape[1], cx + r); y2 = min(img.shape[0], cy + r)
+                    x1 = max(0, cx - r)
+                    y1 = max(0, cy - r)
+                    x2 = min(img.shape[1], cx + r)
+                    y2 = min(img.shape[0], cy + r)
                     if x2 - x1 < 2 or y2 - y1 < 2:
                         continue
                     roi = cv2.cvtColor(result[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
                     h_c, s_c, v_c = cv2.split(roi)
                     v_c = cv2.convertScaleAbs(v_c, alpha=1.0 + (level / 100.0 * 0.4), beta=0)
                     s_c = cv2.convertScaleAbs(s_c, alpha=0.85, beta=0)
-                    result[y1:y2, x1:x2] = cv2.cvtColor(cv2.merge([h_c, s_c, v_c]), cv2.COLOR_HSV2BGR)
+                    result[y1:y2, x1:x2] = cv2.cvtColor(
+                        cv2.merge([h_c, s_c, v_c]), cv2.COLOR_HSV2BGR
+                    )
             except Exception:
                 continue
         return result

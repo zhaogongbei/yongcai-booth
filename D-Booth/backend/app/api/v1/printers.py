@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
 from typing import List
-from app.schemas.printer import PrinterInfo, PrinterStatus, PrintQueueItem, CalibrationParams
+
+from fastapi import APIRouter, HTTPException
+
+from app.schemas.printer import CalibrationParams, PrinterInfo, PrinterStatus, PrintQueueItem
 from app.services.printer_driver_service import PrinterDriverService
 
 router = APIRouter()

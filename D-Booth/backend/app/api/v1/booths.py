@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_active_user, check_team_member
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.models.models import User
-from app.schemas.booth import BoothCreate, BoothUpdate, BoothResponse, HeartbeatResponse
+from app.schemas.booth import BoothCreate, BoothResponse, BoothUpdate, HeartbeatResponse
 from app.services.booth_service import BoothService
 
 router = APIRouter(prefix="/booths", tags=["Booths - 展位管理"])
@@ -15,16 +16,18 @@ router = APIRouter(prefix="/booths", tags=["Booths - 展位管理"])
 async def register_booth(
     booth_create: BoothCreate,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     return await BoothService.register_booth(db, booth_create)
 
 
-@router.post("/{booth_id}/heartbeat", response_model=HeartbeatResponse, summary="展位心跳（30秒间隔）")
+@router.post(
+    "/{booth_id}/heartbeat", response_model=HeartbeatResponse, summary="展位心跳（30秒间隔）"
+)
 async def booth_heartbeat(
     booth_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     booth = await BoothService.heartbeat(db, booth_id)
     if not booth:
@@ -33,7 +36,7 @@ async def booth_heartbeat(
         booth_id=booth_id,
         status=booth.status,
         last_heartbeat=booth.last_heartbeat,
-        message="心跳已接收"
+        message="心跳已接收",
     )
 
 
@@ -41,7 +44,7 @@ async def booth_heartbeat(
 async def list_booths(
     team_id: UUID = Query(..., description="团队ID"),
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     await check_team_member(team_id, current_user, db)
     return await BoothService.get_team_booths(db, team_id)
@@ -51,7 +54,7 @@ async def list_booths(
 async def get_booth(
     booth_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     booth = await BoothService.get_booth(db, booth_id)
     if not booth:
@@ -64,7 +67,7 @@ async def update_booth(
     booth_id: UUID,
     booth_update: BoothUpdate,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     booth = await BoothService.update_booth(db, booth_id, booth_update)
     if not booth:
@@ -76,7 +79,7 @@ async def update_booth(
 async def deregister_booth(
     booth_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     success = await BoothService.deregister_booth(db, booth_id)
     if not success:

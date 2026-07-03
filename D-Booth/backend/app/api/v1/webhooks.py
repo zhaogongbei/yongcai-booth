@@ -1,14 +1,15 @@
+import secrets
 from typing import List
 from uuid import UUID, uuid4
-import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_active_user, check_team_member
+from app.api.deps import check_team_member, get_current_active_user, get_db
+from app.models.models import User
+from app.models.models import Webhook as WebhookModel
 from app.services.trigger_service import WebhookService
-from app.models.models import User, Webhook as WebhookModel
 
 router = APIRouter()
 
@@ -37,18 +38,19 @@ class WebhookCreateResponse(BaseModel):
 async def create_webhook(
     data: WebhookCreate,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new webhook for the user's team"""
     # For simplicity, create webhook for user's first team
     # In production, you'd have team selection
     from app.services.team_service import TeamService
+
     team_service = TeamService(db)
     teams = await team_service.get_user_teams(current_user.id)
     if not teams:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to a team to create webhooks"
+            detail="User must belong to a team to create webhooks",
         )
     team_id = teams[0].id
 
@@ -74,11 +76,11 @@ async def create_webhook(
 
 @router.get("", response_model=List[dict])
 async def list_webhooks(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)
 ):
     """List all webhooks for the user's teams"""
     from app.services.team_service import TeamService
+
     team_service = TeamService(db)
     teams = await team_service.get_user_teams(current_user.id)
 
@@ -106,16 +108,13 @@ async def list_webhooks(
 async def delete_webhook(
     webhook_id: UUID,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete a webhook"""
     webhook_service = WebhookService(db)
     success = await webhook_service.delete_webhook(webhook_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Webhook not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found")
 
 
 @router.get("/{webhook_id}/logs", response_model=List[dict])
@@ -124,7 +123,7 @@ async def get_webhook_logs(
     skip: int = 0,
     limit: int = 100,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get webhook dispatch logs"""
     webhook_service = WebhookService(db)
