@@ -94,6 +94,19 @@ const form = useForm<LoginForm>({
 
 ### UI & Interaction
 
+#### `useToggle`
+Boolean state management with convenient toggle and set helpers.
+
+```tsx
+const [isOpen, toggle, open, close] = useToggle(false);
+```
+
+**Features:**
+- Simple boolean state management
+- Toggle, setTrue, setFalse helpers
+- Multi-toggle support: `useMultiToggle`
+- Ideal for modals, dropdowns, accordions
+
 #### `useResponsive`
 Responsive design hook with breakpoint detection and orientation tracking.
 

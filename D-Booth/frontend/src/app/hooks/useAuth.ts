@@ -52,30 +52,31 @@ export interface LoginParams {
  * ```
  */
 export function useAuth() {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    isLoading: true,
-    token: null,
-    refreshToken: null,
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    // Initialize from storage to avoid flash of unauthenticated state
+    if (typeof window !== 'undefined') {
+      const token = tokenStorage.access;
+      const refreshToken = tokenStorage.refresh;
+      return {
+        isAuthenticated: !!token,
+        isLoading: false,
+        token,
+        refreshToken,
+      };
+    }
+    return {
+      isAuthenticated: false,
+      isLoading: true,
+      token: null,
+      refreshToken: null,
+    };
   });
   const [error, setError] = useState<string | null>(null);
-
-  // Initialize auth state from storage
-  useEffect(() => {
-    const token = tokenStorage.access;
-    const refreshToken = tokenStorage.refresh;
-
-    setAuthState({
-      isAuthenticated: !!token,
-      isLoading: false,
-      token,
-      refreshToken,
-    });
-  }, []);
 
   // Listen for unauthorized events
   useEffect(() => {
     const handleUnauthorized = () => {
+      tokenStorage.clear();
       setAuthState({
         isAuthenticated: false,
         isLoading: false,
@@ -85,8 +86,10 @@ export function useAuth() {
       setError('Session expired. Please login again.');
     };
 
-    window.addEventListener('aibooth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('aibooth:unauthorized', handleUnauthorized);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('aibooth:unauthorized', handleUnauthorized);
+      return () => window.removeEventListener('aibooth:unauthorized', handleUnauthorized);
+    }
   }, []);
 
   /**

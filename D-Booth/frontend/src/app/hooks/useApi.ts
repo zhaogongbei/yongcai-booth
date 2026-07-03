@@ -115,6 +115,7 @@ export function useApi<T = unknown>(
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceResolveRef = useRef<((value: T | null) => void) | null>(null);
   const mountedRef = useRef(true);
 
   // Cleanup on unmount
@@ -125,36 +126,20 @@ export function useApi<T = unknown>(
       abortControllerRef.current?.abort();
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceResolveRef.current?.(null);
+        debounceResolveRef.current = null;
       }
     };
   }, []);
 
   /**
-   * Execute the API request
-   *
-   * @param body - Request body (for POST, PUT, PATCH)
-   * @returns Promise resolving to response data or null on error
+   * Execute the API request (internal implementation without debounce)
    */
-  const execute = useCallback(
+  const executeInternal = useCallback(
     async (body?: unknown): Promise<T | null> => {
       // Cancel previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
-      }
-
-      // Clear previous debounce timer
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      // Debounced execution
-      if (debounce > 0) {
-        return new Promise((resolve) => {
-          debounceTimerRef.current = setTimeout(async () => {
-            const result = await execute(body);
-            resolve(result);
-          }, debounce);
-        });
       }
 
       const controller = new AbortController();
@@ -183,6 +168,11 @@ export function useApi<T = unknown>(
 
         return data;
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === 'AbortError') {
+          return null;
+        }
+
         if (mountedRef.current) {
           const error = err instanceof Error ? err : new Error('Unknown error');
           const status = err instanceof ApiError ? err.status : null;
@@ -200,7 +190,41 @@ export function useApi<T = unknown>(
         return null;
       }
     },
-    [path, debounce, onSuccess, onError, requestOptions]
+    [path, onSuccess, onError, requestOptions]
+  );
+
+  /**
+   * Execute the API request
+   *
+   * @param body - Request body (for POST, PUT, PATCH)
+   * @returns Promise resolving to response data or null on error
+   */
+  const execute = useCallback(
+    async (body?: unknown): Promise<T | null> => {
+      // Clear previous debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceResolveRef.current?.(null);
+        debounceTimerRef.current = null;
+        debounceResolveRef.current = null;
+      }
+
+      // Debounced execution
+      if (debounce > 0) {
+        return new Promise((resolve) => {
+          debounceResolveRef.current = resolve;
+          debounceTimerRef.current = setTimeout(async () => {
+            debounceTimerRef.current = null;
+            debounceResolveRef.current = null;
+            const result = await executeInternal(body);
+            resolve(result);
+          }, debounce);
+        });
+      }
+
+      return executeInternal(body);
+    },
+    [debounce, executeInternal]
   );
 
   /**
@@ -219,6 +243,9 @@ export function useApi<T = unknown>(
     }
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceResolveRef.current?.(null);
+      debounceResolveRef.current = null;
+      debounceTimerRef.current = null;
     }
     setState({
       data: null,

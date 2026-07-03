@@ -46,3 +46,6 @@ export type {
   UseWebSocketOptions,
   UseWebSocketReturn,
 } from './useWebSocket';
+
+export { useToggle, useMultiToggle } from './useToggle';
+export type { UseToggleReturn } from './useToggle';
