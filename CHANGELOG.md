@@ -30,6 +30,7 @@
 - 固定后端 CI lint 所需的 `isort` 依赖，并让 Python/Node 依赖审计在发现问题时阻断 CI。
 - 格式化后端 Python 代码并恢复 Black/isort 门禁可通过；后端 Ruff CI 暂收敛为致命错误检查，避免历史 broad lint/mypy 债务阻塞主线流水线。
 - 合并后端 pytest 配置到 `pyproject.toml`，移除被优先读取的重复 `pytest.ini`，并将结构化日志时间戳改为时区感知 UTC。
+- 扩展仓库卫生检查，阻止重复 Unreleased、旧安全审计命令和不可通过的后端 lint 门禁回归。
 
 ### 变更
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。

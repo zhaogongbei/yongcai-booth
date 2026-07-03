@@ -1,9 +1,10 @@
-"""Check that generated artifacts and local-only files are not tracked."""
+"""Check repository hygiene rules that keep automation reproducible."""
 
 from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 from pathlib import PurePosixPath
 
 
@@ -36,6 +37,31 @@ BLOCKED_FILENAMES = {
     "yarn.lock",
 }
 
+ROOT = Path(__file__).resolve().parents[1]
+
+EXPECTED_TEXT = {
+    ".github/workflows/ci.yml": [
+        "python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict",
+        "npm run audit:security",
+        "ruff check app/ --select E9,F63,F7,F82",
+    ],
+}
+
+BLOCKED_TEXT = {
+    ".github/workflows/ci.yml": [
+        "continue-on-error: true",
+        "safety check",
+        "mypy app/",
+    ],
+    "Makefile": [
+        "black . && isort . && mypy app/ && ruff check app/",
+    ],
+    "SECURITY.md": [
+        "safety check",
+        "pnpm audit",
+    ],
+}
+
 
 def tracked_files() -> list[str]:
     result = subprocess.run(
@@ -63,16 +89,50 @@ def is_blocked(path: str) -> bool:
     )
 
 
+def read_repo_text(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+def content_offenders() -> list[str]:
+    offenders: list[str] = []
+
+    changelog = read_repo_text("CHANGELOG.md")
+    unreleased_count = changelog.count("## [Unreleased]")
+    if unreleased_count != 1:
+        offenders.append(
+            f"CHANGELOG.md must contain exactly one Unreleased section, found {unreleased_count}."
+        )
+
+    for path, patterns in EXPECTED_TEXT.items():
+        content = read_repo_text(path)
+        for pattern in patterns:
+            if pattern not in content:
+                offenders.append(f"{path} is missing required text: {pattern}")
+
+    for path, patterns in BLOCKED_TEXT.items():
+        content = read_repo_text(path)
+        for pattern in patterns:
+            if pattern in content:
+                offenders.append(f"{path} contains blocked legacy text: {pattern}")
+
+    return offenders
+
+
 def main() -> int:
-    offenders = sorted(path for path in tracked_files() if is_blocked(path))
-    if not offenders:
+    tracked_offenders = sorted(path for path in tracked_files() if is_blocked(path))
+    text_offenders = content_offenders()
+    if not tracked_offenders and not text_offenders:
         print("Repository hygiene check passed.")
         return 0
 
-    print("Repository hygiene check failed: generated or local-only files are tracked.")
-    print("Remove them from the Git index and keep the working copies local.")
-    for path in offenders:
+    print("Repository hygiene check failed.")
+    if tracked_offenders:
+        print("Generated or local-only files are tracked.")
+        print("Remove them from the Git index and keep the working copies local.")
+    for path in tracked_offenders:
         print(f"- {path}")
+    for offender in text_offenders:
+        print(f"- {offender}")
     return 1
 
 
