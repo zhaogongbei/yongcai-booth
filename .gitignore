@@ -39,6 +39,9 @@ coverage.xml
 *.db
 *.sqlite
 *.sqlite3
+!D-Booth/runtime-dotnet/src/Booth.Infra.Storage.Sqlite/
+!D-Booth/runtime-dotnet/src/Booth.Infra.Storage.Sqlite/*.csproj
+!D-Booth/runtime-dotnet/src/Booth.Infra.Storage.Sqlite/*.cs
 
 # 日志
 logs/
