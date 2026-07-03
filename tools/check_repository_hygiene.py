@@ -75,6 +75,8 @@ EXPECTED_TEXT = {
     "D-Booth/frontend/package.json": [
         '"react": "^18.3.1"',
         '"react-dom": "^18.3.1"',
+        '"@types/react": "^18.3.31"',
+        '"@types/react-dom": "^18.3.7"',
     ],
 }
 
@@ -121,6 +123,8 @@ BLOCKED_TEXT = {
         "pywin32==308\n",
     ],
     "D-Booth/frontend/package.json": [
+        '"@types/react": "^19',
+        '"@types/react-dom": "^19',
         '"peerDependencies"',
         '"peerDependenciesMeta"',
     ],

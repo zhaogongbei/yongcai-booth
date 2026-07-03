@@ -16,6 +16,7 @@
 - 根目录 `.github/workflows/ci.yml` 是唯一权威 CI workflow。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
 - 前端是应用而不是库，`react` 和 `react-dom` 必须作为直接 runtime dependencies 声明。
+- 前端 React runtime 与 `@types/react` / `@types/react-dom` 必须保持同一主版本。
 - 后端 pytest 配置集中在 `D-Booth/backend/pyproject.toml`。
 - 后端全量 mypy 不是 CI 门禁；当前 CI 使用 Ruff 致命错误检查，类型债务按模块逐步收敛。
 - 后端模型 UUID 类型位于 `app.models.custom_types`；不要重新创建 `app.models.types`。
@@ -36,6 +37,7 @@
 - 已升级 `fastapi-csrf-protect` 到 Pydantic v2 兼容版本，消除测试中的第三方 validator 弃用警告。
 - 已将 Trivy 安全扫描 action 固定到版本 tag，避免浮动分支影响 CI 可复现性。
 - 已将 React 运行时依赖从 optional peer 声明改为直接依赖，保证干净 `npm ci` 环境可复现。
+- 已将 React 类型包从 19.x 收敛到 18.x，避免类型面领先运行时。
 
 ## 已知债务
 
