@@ -116,6 +116,7 @@
 - 前端页面层统一通过 `tokenStorage` 获取访问令牌，减少认证存储迁移成本。
 - 后端配置与 Schema 迁移到 Pydantic v2 原生配置写法，并改为从模型类读取 `model_fields`，减少内部弃用警告。
 - 后端用户和活动仓储的单条读取改为轻量查询，避免认证与活动校验路径预加载关系图并触发 SQLAlchemy 递归加载警告。
+- 后端 pytest 门禁将 SQLAlchemy `SAWarning` 提升为错误，防止递归 eager loading 等 ORM 警告回归。
 
 ### 修复
 - 新增仓库卫生检查，阻止 `bin/`、`obj/`、`dist/`、`node_modules/` 等生成产物进入版本控制。
