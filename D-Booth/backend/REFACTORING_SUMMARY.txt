@@ -1,0 +1,192 @@
+# Service Refactoring Summary - BaseService Inheritance
+
+## Completed Refactoring (3/4 Services)
+
+### 1. ✅ AIService (app/services/ai_service.py)
+**Status**: Refactored to inherit from BaseService
+
+**Changes**:
+- Now inherits: BaseService[AITask, AITaskCreate, AITaskUpdate]
+- Implemented hooks:
+  - validate_create(): Validates workflow, provider, prompt, and subscription limits
+  - before_create(): Transforms data (workflow normalization, cost estimation, status init)
+  - after_create(): Schedules Celery task for async AI generation
+  - validate_delete(): No special rules
+- Simplified methods:
+  - create_task() → delegates to self.create()
+  - get_task() → delegates to self.get()
+  - delete_task() → delegates to self.delete()
+- Improved error handling: ValueError → BusinessRuleError
+
+**Benefits**:
+- Consistent validation and error handling
+- Transaction management handled by BaseService
+- Cleaner separation of business rules
+
+---
+
+### 2. ✅ BoothService (app/services/booth_service.py)
+**Status**: Refactored to inherit from BaseService
+
+**New Files Created**:
+- app/repositories/booth_repository.py (BoothRepository)
+
+**Changes**:
+- Converted from static methods to instance methods
+- Now inherits: BaseService[Booth, BoothCreate, BoothUpdate]
+- Implemented hooks:
+  - before_create(): Sets status=ONLINE and last_heartbeat
+- Repository methods:
+  - get_by_device_id()
+  - get_by_team()
+  - update_heartbeat()
+  - mark_offline_booths()
+  - update_config_hash()
+- Simplified register_booth() logic using update() pattern
+
+**Benefits**:
+- Eliminated raw SQLAlchemy queries from service layer
+- Consistent CRUD operations
+- Better testability with repository pattern
+
+---
+
+### 3. ✅ PropsService (app/services/props_service.py)
+**Status**: Refactored to inherit from BaseService
+
+**New Files Created**:
+- app/repositories/prop_repository.py (PropRepository)
+- app/schemas/prop.py (added PropUpdate schema)
+
+**Changes**:
+- Now inherits: BaseService[Prop, PropCreate, PropUpdate]
+- Implemented hooks:
+  - validate_delete(): Prevents deletion of default public props
+- Repository methods:
+  - get_accessible_props(): Gets public + team-owned props
+  - count_accessible_props(): Counts accessible props
+  - get_by_team(): Gets team-owned props
+- Refactored upload_prop() to use self.create()
+- Refactored delete_prop() to use self.delete()
+- Enhanced PropCreate schema with all required fields
+
+**Benefits**:
+- Complex access control logic moved to repository
+- Consistent validation rules
+- Better error messages with BusinessRuleError
+
+---
+
+### 4. ❌ CameraService (app/services/camera_service.py)
+**Status**: NOT REFACTORED (Correctly excluded)
+
+**Reason**: 
+- Hardware abstraction layer (HAL) for camera hardware
+- No database model or repository
+- Pure hardware control logic (WebcamCameraController, GPhoto2CameraController)
+- Singleton pattern (CameraManager)
+- Not suitable for BaseService pattern
+
+**Conclusion**: Keep as-is - this is a hardware driver service, not a data service.
+
+---
+
+## Repository Pattern Compliance
+
+All refactored services now follow the 3-layer architecture:
+
+```
+API Layer (Routes)
+    ↓
+Service Layer (Business Logic + BaseService)
+    ↓
+Repository Layer (Data Access + BaseRepository)
+    ↓
+Database (SQLAlchemy Models)
+```
+
+---
+
+## Breaking Changes
+
+### AIService
+- `ValueError` → `BusinessRuleError` (catch BusinessRuleError in API routes)
+
+### BoothService
+- Changed from static methods to instance methods
+- Old: `BoothService.register_booth(db, booth_create)`
+- New: `BoothService(db).register_booth(booth_create)`
+
+### PropsService
+- `ValueError` → `BusinessRuleError`
+- `delete_prop()` now returns bool instead of raising exceptions
+
+---
+
+## Files Modified
+
+1. app/services/ai_service.py
+2. app/services/booth_service.py
+3. app/services/props_service.py
+4. app/schemas/prop.py (added PropUpdate)
+
+## Files Created
+
+1. app/repositories/booth_repository.py
+2. app/repositories/prop_repository.py
+
+---
+
+## Next Steps (API Route Updates Required)
+
+### 1. Update Booth API Routes
+```python
+# Old pattern
+booth = await BoothService.register_booth(db, booth_create)
+
+# New pattern
+booth_service = BoothService(db)
+booth = await booth_service.register_booth(booth_create)
+```
+
+### 2. Update Exception Handling
+```python
+# Old
+except ValueError as e:
+    raise HTTPException(status_code=400, detail=str(e))
+
+# New
+except BusinessRuleError as e:
+    raise HTTPException(status_code=400, detail=str(e))
+```
+
+### 3. Verify Prop Upload Logic
+- PropCreate now requires image_url and thumbnail_url
+- upload_prop() handles file processing before calling create()
+
+---
+
+## Testing Checklist
+
+- [ ] Test AIService.create_task() with invalid workflow
+- [ ] Test AIService.cancel_task() on completed tasks
+- [ ] Test BoothService.register_booth() with existing device_id
+- [ ] Test BoothService.check_offline_booths() timeout logic
+- [ ] Test PropsService.delete_prop() on default public props
+- [ ] Test PropsService.upload_prop() with non-PNG files
+- [ ] Verify all API routes still work with refactored services
+
+---
+
+## Summary
+
+✅ 3 services successfully refactored to BaseService
+❌ 1 service correctly excluded (hardware layer)
+📦 2 new repositories created
+📝 1 schema enhanced
+
+All services now follow consistent patterns for:
+- Validation (validate_create/update/delete hooks)
+- Transformation (before_create/update hooks)
+- Side effects (after_create/update/delete hooks)
+- Error handling (BusinessRuleError, ResourceNotFoundError)

@@ -58,37 +58,21 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
         limit: int = 100
     ) -> Tuple[List[Prop], int]:
         """获取道具列表（团队私有 + 公共道具）"""
-        query = select(Prop).where(
-            or_(
-                Prop.is_public == True,
-                Prop.team_id == team_id
-            )
+        props = await self.repository.get_accessible_props(
+            team_id=team_id,
+            category=category,
+            skip=skip,
+            limit=limit
         )
-
-        if category:
-            query = query.where(Prop.category == category)
-
-        # 排序：默认道具在前，然后按创建时间
-        query = query.order_by(Prop.is_default.desc(), Prop.created_at.desc())
-
-        # 分页
-        result = await self.db.execute(query.offset(skip).limit(limit))
-        props = result.scalars().all()
-
-        # 总数
-        count_result = await self.db.execute(select(Prop).where(
-            or_(
-                Prop.is_public == True,
-                Prop.team_id == team_id
-            )
-        ))
-        total = len(count_result.scalars().all())
-
+        total = await self.repository.count_accessible_props(
+            team_id=team_id,
+            category=category
+        )
         return props, total
 
     async def upload_prop(
         self,
-        team_id: str,
+        team_id: UUID,
         file: UploadFile,
         name: str,
         category: PropCategory,
@@ -97,7 +81,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
         """上传自定义道具PNG"""
         # 验证文件类型
         if not file.filename.lower().endswith('.png'):
-            raise ValueError("Only PNG files are allowed")
+            raise BusinessRuleError("Only PNG files are allowed")
 
         # 生成唯一文件名
         file_id = str(uuid.uuid4())
@@ -140,7 +124,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
         )
 
         # 创建道具记录
-        prop = Prop(
+        prop_create = PropCreate(
             team_id=team_id,
             name=name,
             category=category,
@@ -151,28 +135,11 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
             tags=tags or []
         )
 
-        self.db.add(prop)
-        await self.db.commit()
-        await self.db.refresh(prop)
+        return await self.create(prop_create)
 
-        return prop
-
-    async def delete_prop(self, prop_id: str) -> bool:
+    async def delete_prop(self, prop_id: UUID) -> bool:
         """删除道具"""
-        result = await self.db.execute(select(Prop).where(Prop.id == prop_id))
-        prop = result.scalar_one_or_none()
-
-        if not prop:
-            return False
-
-        # 不能删除默认公共道具
-        if prop.is_default and prop.is_public:
-            raise ValueError("Cannot delete default public props")
-
-        await self.db.delete(prop)
-        await self.db.commit()
-
-        return True
+        return await self.delete(prop_id)
 
     async def get_categories(self) -> List[dict]:
         """获取分类列表"""
@@ -194,8 +161,7 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
             # 逐个应用道具
             for applied_prop in applied_props:
                 # 获取道具图片
-                result = await self.db.execute(select(Prop).where(Prop.id == applied_prop.prop_id))
-                prop = result.scalar_one_or_none()
+                prop = await self.get(UUID(applied_prop.prop_id))
 
                 if not prop:
                     continue

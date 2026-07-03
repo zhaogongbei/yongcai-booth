@@ -561,7 +561,7 @@ class TriggerConfig(Base, TimestampMixin, SoftDeleteMixin):
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     event_type = Column(SQLEnum(TriggerType), nullable=False)
-    enabled = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=False, index=True)
     action_type = Column(SQLEnum(TriggerAction), nullable=False)
     target = Column(String(500), nullable=False)  # URL或可执行文件路径
     payload_template = Column(JSON, default=dict)  # 自定义payload
@@ -575,6 +575,7 @@ class TriggerConfig(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (
         Index('ix_trigger_config_event_id', 'event_id'),
         Index('ix_trigger_config_event_type', 'event_type'),
+        Index('ix_trigger_config_event_type_enabled', 'event_id', 'event_type', 'enabled'),
     )
 
 
@@ -586,7 +587,7 @@ class TriggerLog(Base, TimestampMixin):
     trigger_id = Column(GUID(), ForeignKey("trigger_configs.id", ondelete="CASCADE"), nullable=False)
     event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     event_type = Column(SQLEnum(TriggerType), nullable=False)
-    success = Column(Boolean, nullable=False)
+    success = Column(Boolean, nullable=False, index=True)
     response_status = Column(Integer)  # HTTP status code or exit code
     response_data = Column(Text)  # Response content or error message
     duration_ms = Column(Integer)  # Execution time in milliseconds
@@ -601,6 +602,8 @@ class TriggerLog(Base, TimestampMixin):
         Index('ix_trigger_log_event_id', 'event_id'),
         Index('ix_trigger_log_trigger_id', 'trigger_id'),
         Index('ix_trigger_log_event_type', 'event_type'),
+        Index('ix_trigger_log_trigger_created', 'trigger_id', 'created_at'),
+        Index('ix_trigger_log_success_created', 'success', 'created_at'),
     )
 
 
@@ -613,7 +616,7 @@ class Webhook(Base, TimestampMixin, SoftDeleteMixin):
     url = Column(String(500), nullable=False)
     events = Column(JSON, default=list)  # ["photo.created", "print.completed", ...]
     secret = Column(String(255), nullable=False)  # HMAC签名密钥
-    enabled = Column(Boolean, default=True)
+    enabled = Column(Boolean, default=True, index=True)
 
     # Relationships
     team = relationship("Team", lazy="joined")
@@ -622,6 +625,7 @@ class Webhook(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (
         Index('ix_webhook_team_id', 'team_id'),
         Index('ix_webhook_enabled', 'enabled'),
+        Index('ix_webhook_team_enabled', 'team_id', 'enabled'),
     )
 
 
@@ -633,7 +637,7 @@ class WebhookLog(Base, TimestampMixin):
     webhook_id = Column(GUID(), ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False)
     event_type = Column(String(50), nullable=False)
     payload = Column(JSON, default=dict)
-    success = Column(Boolean, nullable=False)
+    success = Column(Boolean, nullable=False, index=True)
     response_status = Column(Integer)
     response_data = Column(Text)
     duration_ms = Column(Integer)
@@ -647,4 +651,7 @@ class WebhookLog(Base, TimestampMixin):
     __table_args__ = (
         Index('ix_webhook_log_webhook_id', 'webhook_id'),
         Index('ix_webhook_log_event_type', 'event_type'),
+        Index('ix_webhook_log_created_at', 'created_at'),
+        Index('ix_webhook_log_webhook_created', 'webhook_id', 'created_at'),
+        Index('ix_webhook_log_success_created', 'success', 'created_at'),
     )
