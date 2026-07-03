@@ -221,6 +221,16 @@ function getRetryDelay(attempt: number, baseDelay: number): number {
   return baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
 }
 
+function createAbortError(): Error {
+  const error = new Error("The operation was aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error: unknown): error is Error {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 export async function request<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
   const {
     method = "GET",
@@ -269,10 +279,19 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
         headers["X-CSRF-Token"] = csrfToken;
       }
 
-      // Setup timeout
+      if (signal?.aborted) {
+        throw createAbortError();
+      }
+
+      // Setup timeout and forward caller cancellation into one fetch signal.
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      const effectiveSignal = signal || controller.signal;
+      let didTimeout = false;
+      const abortFromCaller = () => controller.abort();
+      signal?.addEventListener("abort", abortFromCaller, { once: true });
+      const timeoutId = setTimeout(() => {
+        didTimeout = true;
+        controller.abort();
+      }, timeout);
 
       try {
         let res = await fetch(buildUrl(path, query), {
@@ -280,10 +299,11 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
           method,
           headers,
           body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
-          signal: effectiveSignal,
+          signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", abortFromCaller);
 
         // Apply response interceptors
         for (const interceptor of responseInterceptors) {
@@ -345,9 +365,13 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
         return data as T;
       } catch (err) {
         clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", abortFromCaller);
 
-        // Handle timeout
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (isAbortError(err) && !didTimeout && signal?.aborted) {
+          throw err;
+        }
+
+        if (isAbortError(err)) {
           const timeoutError = new Error(`Request timeout after ${timeout}ms`);
           lastError = timeoutError;
 
