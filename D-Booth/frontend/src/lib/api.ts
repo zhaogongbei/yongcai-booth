@@ -187,6 +187,12 @@ interface RequestOptions {
   noAuth?: boolean;
   /** When true, skip the automatic token refresh flow on 401 */
   skipRefresh?: boolean;
+  /** Request timeout in milliseconds (overrides global config) */
+  timeout?: number;
+  /** Maximum retry attempts (overrides global config) */
+  maxRetries?: number;
+  /** Whether to retry this specific request on failure (default: true) */
+  retry?: boolean;
   signal?: AbortSignal;
 }
 
@@ -201,75 +207,188 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
   return qs ? `${url}?${qs}` : url;
 }
 
+/**
+ * Sleep helper for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Calculate exponential backoff delay
+ */
+function getRetryDelay(attempt: number, baseDelay: number): number {
+  return baseDelay * Math.pow(2, attempt) + Math.random() * 1000;
+}
+
 export async function request<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, query, token: explicitToken, noAuth, skipRefresh, signal } = opts;
-
-  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
-  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
-  if (body !== undefined && !isFormData && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  // Attach Bearer token — explicitToken takes precedence over tokenStorage
-  if (!noAuth) {
-    const token = explicitToken ?? tokenStorage.access;
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  // Attach CSRF token for state-changing requests
-  if (["POST", "PUT", "DELETE", "PATCH"].includes(method) && csrfToken) {
-    headers["X-CSRF-Token"] = csrfToken;
-  }
-
-  let res = await fetch(buildUrl(path, query), {
-    method,
-    headers,
-    body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+  const {
+    method = "GET",
+    body,
+    query,
+    token: explicitToken,
+    noAuth,
+    skipRefresh,
+    timeout = apiConfig.timeout,
+    maxRetries = apiConfig.maxRetries,
+    retry = true,
     signal,
-    credentials: "include",
-  });
+  } = opts;
 
-  // 401 → try token refresh
-  if (res.status === 401 && !noAuth && !skipRefresh && tokenStorage.refresh) {
-    const refreshed = await refreshTokens();
-    if (refreshed) {
-      return request<T>(path, { ...opts, skipRefresh: true });
-    }
-  }
+  let lastError: Error | null = null;
+  const attemptLimit = retry ? maxRetries + 1 : 1;
 
-  // 403 CSRF invalidation → refresh CSRF and retry
-  if (res.status === 403) {
+  for (let attempt = 0; attempt < attemptLimit; attempt++) {
     try {
-      const errorBody = await res.clone().json();
-      if (errorBody.detail === "CSRF token validation failed") {
-        await initCsrfToken();
-        return request<T>(path, opts);
+      // Apply request interceptors
+      let requestConfig: RequestInit = {
+        method,
+        headers: { ...(opts.headers ?? {}) },
+        credentials: "include",
+      };
+
+      for (const interceptor of requestInterceptors) {
+        requestConfig = await interceptor(requestConfig, path);
       }
-    } catch {
-      // Not a CSRF error - continue to normal error handling
+
+      const headers: Record<string, string> = { ...(requestConfig.headers as Record<string, string>) };
+      const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
+      if (body !== undefined && !isFormData && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+
+      // Attach Bearer token — explicitToken takes precedence over tokenStorage
+      if (!noAuth) {
+        const token = explicitToken ?? tokenStorage.access;
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      // Attach CSRF token for state-changing requests
+      if (["POST", "PUT", "DELETE", "PATCH"].includes(method) && csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+
+      // Setup timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const effectiveSignal = signal || controller.signal;
+
+      try {
+        let res = await fetch(buildUrl(path, query), {
+          ...requestConfig,
+          method,
+          headers,
+          body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
+          signal: effectiveSignal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Apply response interceptors
+        for (const interceptor of responseInterceptors) {
+          res = await interceptor(res);
+        }
+
+        // 401 → try token refresh
+        if (res.status === 401 && !noAuth && !skipRefresh && tokenStorage.refresh) {
+          const refreshed = await refreshTokens();
+          if (refreshed) {
+            return request<T>(path, { ...opts, skipRefresh: true });
+          }
+        }
+
+        // 403 CSRF invalidation → refresh CSRF and retry
+        if (res.status === 403) {
+          try {
+            const errorBody = await res.clone().json();
+            if (errorBody.detail === "CSRF token validation failed") {
+              await initCsrfToken();
+              return request<T>(path, opts);
+            }
+          } catch {
+            // Not a CSRF error - continue to normal error handling
+          }
+        }
+
+        const text = await res.text();
+        const data: unknown = text ? JSON.parse(text) : null;
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            tokenStorage.clear();
+            window.dispatchEvent(new CustomEvent("aibooth:unauthorized"));
+          }
+
+          const message: string =
+            (data && typeof data === "object" && typeof (data as Record<string, unknown>).detail === "string"
+              ? (data as Record<string, string>).detail
+              : undefined) ||
+            (data && typeof data === "object" && typeof (data as Record<string, unknown>).message === "string"
+              ? (data as Record<string, string>).message
+              : undefined) ||
+            res.statusText;
+
+          const error = new ApiError(res.status, message, data);
+
+          // Check if this error is retryable
+          if (retry && attempt < maxRetries && apiConfig.retryableStatuses.includes(res.status)) {
+            lastError = error;
+            const delay = getRetryDelay(attempt, apiConfig.retryDelay);
+            await sleep(delay);
+            continue;
+          }
+
+          throw error;
+        }
+
+        return data as T;
+      } catch (err) {
+        clearTimeout(timeoutId);
+
+        // Handle timeout
+        if (err instanceof Error && err.name === 'AbortError') {
+          const timeoutError = new Error(`Request timeout after ${timeout}ms`);
+          lastError = timeoutError;
+
+          if (retry && attempt < maxRetries) {
+            const delay = getRetryDelay(attempt, apiConfig.retryDelay);
+            await sleep(delay);
+            continue;
+          }
+
+          // Apply error interceptors
+          let processedError: Error = timeoutError;
+          for (const interceptor of errorInterceptors) {
+            processedError = await interceptor(processedError);
+          }
+          throw processedError;
+        }
+
+        throw err;
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      lastError = error;
+
+      // Don't retry on non-retryable errors
+      if (!retry || attempt >= maxRetries || !(error instanceof ApiError)) {
+        // Apply error interceptors
+        let processedError = error;
+        for (const interceptor of errorInterceptors) {
+          processedError = await interceptor(processedError);
+        }
+        throw processedError;
+      }
+
+      // Wait before retry
+      const delay = getRetryDelay(attempt, apiConfig.retryDelay);
+      await sleep(delay);
     }
   }
 
-  const text = await res.text();
-  const data: unknown = text ? JSON.parse(text) : null;
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      tokenStorage.clear();
-      window.dispatchEvent(new CustomEvent("aibooth:unauthorized"));
-    }
-    const message: string =
-      (data && typeof data === "object" && typeof (data as Record<string, unknown>).detail === "string"
-        ? (data as Record<string, string>).detail
-        : undefined) ||
-      (data && typeof data === "object" && typeof (data as Record<string, unknown>).message === "string"
-        ? (data as Record<string, string>).message
-        : undefined) ||
-      res.statusText;
-    throw new ApiError(res.status, message, data);
-  }
-
-  return data as T;
+  // This should never be reached, but TypeScript needs it
+  throw lastError || new Error('Request failed');
 }
 
 export interface BackendHealthResponse {
