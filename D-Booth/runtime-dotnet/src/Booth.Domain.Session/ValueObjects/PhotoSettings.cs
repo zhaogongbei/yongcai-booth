@@ -58,7 +58,7 @@ public sealed record PhotoSettings
     /// <summary>
     /// Gets the JPEG quality (1-100).
     /// </summary>
-    public int Quality { get; }
+    public int Quality { get; init; }
 
     /// <summary>
     /// Gets the image format (e.g., "jpeg", "png").

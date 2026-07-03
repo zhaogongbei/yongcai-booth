@@ -176,7 +176,7 @@ export class ApiError extends Error {
 
 type RequestMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: RequestMethod;
   body?: unknown;
   headers?: Record<string, string>;

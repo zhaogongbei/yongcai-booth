@@ -79,14 +79,13 @@ public sealed class SessionApplicationService
             """;
         await File.WriteAllTextAsync(rawAssetPath, capturePayload, cancellationToken);
 
-        var shot = new Shot
-        {
-            Id = shotId,
-            Index = shotIndex,
-            CapturedAtUtc = captureTimestamp,
-            RawAssetPath = rawAssetPath,
-            AiPickScore = request.AiPickScore
-        };
+        var shot = new Shot(
+            shotId,
+            shotIndex,
+            captureTimestamp,
+            rawAssetPath,
+            metadata: null,
+            request.AiPickScore);
 
         await _shotRepository.SaveAsync(request.SessionId, shot, cancellationToken);
         return shot;

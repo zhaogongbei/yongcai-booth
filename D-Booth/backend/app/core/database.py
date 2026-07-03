@@ -133,6 +133,16 @@ def get_session_maker() -> async_sessionmaker:
     return _async_session_maker
 
 
+class _AsyncSessionMakerProxy:
+    """Backward-compatible callable for modules that import async_session_maker."""
+
+    def __call__(self, *args, **kwargs):
+        return get_session_maker()(*args, **kwargs)
+
+
+async_session_maker = _AsyncSessionMakerProxy()
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI dependency for getting database sessions.
