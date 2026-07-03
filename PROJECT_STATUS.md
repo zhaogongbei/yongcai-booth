@@ -31,9 +31,9 @@
 - 已新增 URL 型前端请求 hook `useHttpFetch`，同时保留现有 async-function 型 `useFetch`。
 - 已为 CI 增加显式权限，并将生产 release 创建迁移到 GitHub CLI。
 - 已让 Docker 发布等待完整质量门禁，并移除硬编码镜像命名空间。
+- 已升级 `fastapi-csrf-protect` 到 Pydantic v2 兼容版本，消除测试中的第三方 validator 弃用警告。
 
 ## 已知债务
 
 - 后端全量 mypy 仍存在真实类型债务，应按模块收敛，不应重新作为全量 CI 门禁。
-- 第三方 `fastapi-csrf-protect` 在当前依赖下会输出 Pydantic v1 validator 弃用警告。
 - 若干旧的后端模块级 summary 文件仍作为历史信息保留；当前状态以本文件和 `CHANGELOG.md` 为准。
