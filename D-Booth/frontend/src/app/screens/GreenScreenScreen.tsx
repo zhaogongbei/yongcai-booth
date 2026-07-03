@@ -10,6 +10,15 @@ import { GlowBtn } from "../components/GlowBtn";
 import { SliderControl } from "../components/SliderControl";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import type { Screen } from "../types";
+import {
+  deleteGreenScreenBackground,
+  getGreenScreenSettings,
+  updateGreenScreenSettings,
+  uploadGreenScreenBackground,
+  type GreenScreenBackgroundResponse,
+  type GreenScreenSettingsPayload,
+  type GreenScreenSettingsResponse,
+} from "@/lib/api";
 
 // Types for green screen settings
 export type GreenScreenMode = "chroma_key" | "ai_removal" | "auto";
@@ -50,6 +59,45 @@ const defaultSettings: GreenScreenSettings = {
   currentBackgroundIndex: 0,
 };
 
+function fromApiBackground(background: GreenScreenBackgroundResponse): GreenScreenBackground {
+  return {
+    id: background.id,
+    name: background.name,
+    backgroundUrl: background.background_url,
+    overlayUrl: background.overlay_url ?? undefined,
+    order: background.order,
+  };
+}
+
+function fromApiSettings(settings: GreenScreenSettingsResponse): GreenScreenSettings {
+  return {
+    enabled: settings.enabled,
+    mode: settings.mode,
+    colorToRemove: settings.color_to_remove,
+    sensitivity: settings.sensitivity,
+    smoothness: settings.smoothness,
+    useFlash: settings.use_flash,
+    backgroundMode: settings.background_mode,
+    backgrounds: settings.backgrounds.map(fromApiBackground),
+    outputSize: settings.output_size,
+    currentBackgroundIndex: settings.current_background_index,
+  };
+}
+
+function toApiSettings(settings: GreenScreenSettings): GreenScreenSettingsPayload {
+  return {
+    enabled: settings.enabled,
+    mode: settings.mode,
+    color_to_remove: settings.colorToRemove,
+    sensitivity: settings.sensitivity,
+    smoothness: settings.smoothness,
+    use_flash: settings.useFlash,
+    background_mode: settings.backgroundMode,
+    output_size: settings.outputSize,
+    current_background_index: settings.currentBackgroundIndex,
+  };
+}
+
 // Debounce utility
 function debounce<T extends (...args: any[]) => any>(
   func: T,
@@ -67,6 +115,8 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
   const [settings, setSettings] = useState<GreenScreenSettings>(defaultSettings);
   const [compareMode, setCompareMode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [testPhotoAnalysis, setTestPhotoAnalysis] = useState<any>(null);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
@@ -75,6 +125,39 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
   const testPhotoUrl = "/images/scenes/wedding-guests-fun.webp";
   const abortControllerRef = useRef<AbortController | null>(null);
   const previousParamsRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!eventId) {
+      setSettings(defaultSettings);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingSettings(true);
+
+    getGreenScreenSettings(eventId)
+      .then(data => {
+        if (!cancelled) {
+          setSettings(fromApiSettings(data));
+          setSelectedBackgroundId(data.backgrounds[data.current_background_index]?.id ?? null);
+        }
+      })
+      .catch(error => {
+        if (!cancelled) {
+          console.error("Failed to load green screen settings:", error);
+          toast.error("绿幕设置加载失败");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSettings(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   // Fetch processed image from backend with debounce
   const fetchProcessedImage = useCallback(async (settings: GreenScreenSettings) => {
@@ -240,32 +323,12 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       if (!file) return;
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("name", file.name);
-        formData.append("event_id", eventId);
-
-        const response = await fetch("/api/v1/green-screen/backgrounds", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error("Upload failed");
-        }
-
-        const background = await response.json();
+        const background = await uploadGreenScreenBackground(eventId, file, file.name);
         setSettings(prev => ({
           ...prev,
           backgrounds: [
             ...prev.backgrounds,
-            {
-              id: background.id,
-              name: background.name,
-              backgroundUrl: background.background_url,
-              overlayUrl: background.overlay_url,
-              order: prev.backgrounds.length,
-            }
+            fromApiBackground(background),
           ]
         }));
 
@@ -279,15 +342,45 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
   }, [eventId]);
 
   // Delete background
-  const deleteBackground = useCallback((id: string) => {
-    setSettings(prev => ({
-      ...prev,
-      backgrounds: prev.backgrounds.filter(bg => bg.id !== id),
-      currentBackgroundIndex: 0,
-    }));
-    setSelectedBackgroundId(null);
-    toast.success("背景已删除");
-  }, []);
+  const deleteBackground = useCallback(async (id: string) => {
+    if (!eventId) {
+      toast.error("请先从活动进入拍照流程，再删除绿幕背景");
+      return;
+    }
+
+    try {
+      await deleteGreenScreenBackground(eventId, id);
+      setSettings(prev => ({
+        ...prev,
+        backgrounds: prev.backgrounds.filter(bg => bg.id !== id),
+        currentBackgroundIndex: 0,
+      }));
+      setSelectedBackgroundId(null);
+      toast.success("背景已删除");
+    } catch (error) {
+      console.error("Background delete failed:", error);
+      toast.error("背景删除失败");
+    }
+  }, [eventId]);
+
+  const saveSettings = useCallback(async () => {
+    if (!eventId) {
+      toast.error("请先从活动进入拍照流程，再保存绿幕设置");
+      return;
+    }
+
+    try {
+      setIsSavingSettings(true);
+      const saved = await updateGreenScreenSettings(eventId, toApiSettings(settings));
+      setSettings(fromApiSettings(saved));
+      toast.success("绿幕设置已保存");
+    } catch (error) {
+      console.error("Green screen settings save failed:", error);
+      toast.error("绿幕设置保存失败");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }, [eventId, settings]);
 
   const displayedImageUrl = processedImageUrl || testPhotoUrl;
 
@@ -318,6 +411,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
             返回
           </button>
           <span className="text-xs text-white/70">绿幕设置</span>
+          {isLoadingSettings && <span className="text-[10px] text-white/30">加载中</span>}
         </div>
 
         <div className="space-y-4">
@@ -654,13 +748,12 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
           <GlowBtn
             variant="primary"
             size="sm"
-            onClick={() => {
-              toast.error("绿幕设置保存暂不可用");
-            }}
+            onClick={saveSettings}
+            disabled={isSavingSettings || isLoadingSettings}
             className="w-full"
           >
             <RefreshCw size={14} />
-            保存设置
+            {isSavingSettings ? "保存中" : "保存设置"}
           </GlowBtn>
         </div>
       </GlassCard>

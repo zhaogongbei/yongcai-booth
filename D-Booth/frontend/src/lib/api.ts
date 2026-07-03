@@ -873,6 +873,85 @@ export async function sendShareSMS(params: SendSMSParams): Promise<{ status: str
   });
 }
 
+// ─── Green Screen ─────────────────────────────────────────────────────────────
+
+export type GreenScreenMode = "chroma_key" | "ai_removal" | "auto";
+export type GreenScreenBackgroundMode = "rotate" | "manual";
+export type GreenScreenOutputSize = "template" | "1800x1200" | "max";
+
+export interface GreenScreenBackgroundResponse {
+  id: string;
+  name: string;
+  background_url: string;
+  overlay_url?: string | null;
+  order: number;
+  created_at: string;
+}
+
+export interface GreenScreenSettingsPayload {
+  enabled: boolean;
+  mode: GreenScreenMode;
+  color_to_remove: string;
+  sensitivity: number;
+  smoothness: number;
+  use_flash: boolean;
+  background_mode: GreenScreenBackgroundMode;
+  output_size: GreenScreenOutputSize;
+  current_background_index: number;
+}
+
+export interface GreenScreenSettingsResponse extends GreenScreenSettingsPayload {
+  id: string;
+  event_id: string;
+  backgrounds: GreenScreenBackgroundResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getGreenScreenSettings(eventId: string): Promise<GreenScreenSettingsResponse> {
+  return request<GreenScreenSettingsResponse>(`/green-screen/settings/${eventId}`);
+}
+
+export async function updateGreenScreenSettings(
+  eventId: string,
+  settings: GreenScreenSettingsPayload
+): Promise<GreenScreenSettingsResponse> {
+  return request<GreenScreenSettingsResponse>(`/green-screen/settings/${eventId}`, {
+    method: "PUT",
+    body: settings,
+  });
+}
+
+export async function uploadGreenScreenBackground(
+  eventId: string,
+  file: File,
+  name: string,
+  overlayFile?: File
+): Promise<GreenScreenBackgroundResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("name", name);
+  formData.append("event_id", eventId);
+  if (overlayFile) {
+    formData.append("overlay_file", overlayFile);
+  }
+
+  return request<GreenScreenBackgroundResponse>("/green-screen/backgrounds", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function deleteGreenScreenBackground(
+  eventId: string,
+  backgroundId: string
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`/green-screen/backgrounds/${backgroundId}`, {
+    method: "DELETE",
+    query: { event_id: eventId },
+  });
+}
+
 // ─── Printers ──────────────────────────────────────────────────────────────────
 
 export interface PrinterInfo {
