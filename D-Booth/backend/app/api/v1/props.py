@@ -9,10 +9,11 @@ from app.api.deps import get_current_team, get_current_user
 from app.core.database import get_db
 from app.models.models import PropCategory, Team, User
 from app.schemas.prop import AppliedPropRequest, PropCreate, PropResponse
+from app.services.base_service import BusinessRuleError
 from app.services.props_service import PropsService
 from app.services.storage_service import r2_storage
 
-router = APIRouter(prefix="/props", tags=["props"])
+router = APIRouter(tags=["props"])
 
 
 @router.get("", response_model=dict)
@@ -55,6 +56,8 @@ async def upload_prop(
         prop = await props_service.upload_prop(
             team_id=str(current_team.id), file=file, name=name, category=category, tags=tags
         )
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -73,6 +76,8 @@ async def delete_prop(
 
     try:
         success = await props_service.delete_prop(str(prop_id))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

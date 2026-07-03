@@ -85,6 +85,10 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         """Get team with all members loaded."""
         return await self.repository.get_with_members(team_id)
 
+    async def get_team(self, team_id: UUID) -> Optional[Team]:
+        """Get a team by ID using the legacy service API."""
+        return await self.get(team_id)
+
     async def get_user_teams(self, user_id: UUID) -> List[Team]:
         """Get all teams for a user."""
         return await self.repository.get_user_teams(user_id)
