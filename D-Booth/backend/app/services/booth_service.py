@@ -1,134 +1,73 @@
-import uuid
-from datetime import datetime, timedelta
-from typing import List, Optional
-from sqlalchemy import select, update
+from datetime import datetime
+from typing import List, Optional, Dict, Any
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.models import Booth, BoothStatus
 from app.schemas.booth import BoothCreate, BoothUpdate
+from app.repositories.booth_repository import BoothRepository
+from app.services.base_service import BaseService, BusinessRuleError
 
 
-class BoothService:
-    @staticmethod
-    async def register_booth(db: AsyncSession, booth_create: BoothCreate) -> Booth:
-        """注册新展位"""
+class BoothService(BaseService[Booth, BoothCreate, BoothUpdate]):
+    """Service for booth business logic."""
+
+    def __init__(self, db: AsyncSession):
+        repository = BoothRepository(db)
+        super().__init__(repository, db)
+
+    async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Initialize booth defaults before creation."""
+        obj_dict["status"] = BoothStatus.ONLINE
+        obj_dict["last_heartbeat"] = datetime.utcnow()
+        return obj_dict
+
+    async def register_booth(self, booth_create: BoothCreate) -> Booth:
+        """注册新展位 - 如果device_id已存在则更新"""
         # 检查device_id是否已存在
-        existing_booth = await db.execute(
-            select(Booth).where(Booth.device_id == booth_create.device_id)
-        )
-        existing_booth = existing_booth.scalar_one_or_none()
+        existing_booth = await self.repository.get_by_device_id(booth_create.device_id)
 
         if existing_booth:
             # 更新现有展位信息
-            existing_booth.name = booth_create.name
-            existing_booth.version = booth_create.version
-            existing_booth.ip_address = booth_create.ip_address
-            existing_booth.os_info = booth_create.os_info
-            existing_booth.status = BoothStatus.ONLINE
+            update_data = BoothUpdate(
+                name=booth_create.name,
+                version=booth_create.version,
+                ip_address=booth_create.ip_address,
+                os_info=booth_create.os_info,
+                status=BoothStatus.ONLINE,
+                current_event_id=booth_create.current_event_id
+            )
             existing_booth.last_heartbeat = datetime.utcnow()
-            await db.commit()
-            await db.refresh(existing_booth)
-            return existing_booth
+            updated = await self.update(existing_booth.id, update_data)
+            return updated
 
         # 创建新展位
-        booth = Booth(
-            id=uuid.uuid4(),
-            team_id=booth_create.team_id,
-            name=booth_create.name,
-            device_id=booth_create.device_id,
-            status=BoothStatus.ONLINE,
-            version=booth_create.version,
-            last_heartbeat=datetime.utcnow(),
-            ip_address=booth_create.ip_address,
-            os_info=booth_create.os_info,
-            current_event_id=booth_create.current_event_id
-        )
+        return await self.create(booth_create)
 
-        db.add(booth)
-        await db.commit()
-        await db.refresh(booth)
-        return booth
-
-    @staticmethod
-    async def heartbeat(db: AsyncSession, booth_id: uuid.UUID) -> Optional[Booth]:
+    async def heartbeat(self, booth_id: UUID) -> Optional[Booth]:
         """更新展位心跳"""
-        booth = await db.get(Booth, booth_id)
-        if not booth:
-            return None
+        return await self.repository.update_heartbeat(booth_id)
 
-        booth.last_heartbeat = datetime.utcnow()
-        booth.status = BoothStatus.ONLINE
-        await db.commit()
-        await db.refresh(booth)
-        return booth
-
-    @staticmethod
-    async def check_offline_booths(db: AsyncSession) -> int:
+    async def check_offline_booths(self) -> int:
         """检查超时展位，标记为离线（60秒无心跳）"""
-        cutoff_time = datetime.utcnow() - timedelta(seconds=60)
-        result = await db.execute(
-            update(Booth)
-            .where(Booth.last_heartbeat < cutoff_time)
-            .where(Booth.status != BoothStatus.OFFLINE)
-            .values(status=BoothStatus.OFFLINE)
-        )
-        await db.commit()
-        return result.rowcount
+        return await self.repository.mark_offline_booths(timeout_seconds=60)
 
-    @staticmethod
-    async def get_team_booths(db: AsyncSession, team_id: uuid.UUID) -> List[Booth]:
+    async def get_team_booths(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Booth]:
         """获取团队所有展位"""
-        result = await db.execute(
-            select(Booth).where(Booth.team_id == team_id).order_by(Booth.created_at.desc())
-        )
-        return result.scalars().all()
+        return await self.repository.get_by_team(team_id, skip, limit)
 
-    @staticmethod
-    async def get_booth(db: AsyncSession, booth_id: uuid.UUID) -> Optional[Booth]:
+    async def get_booth(self, booth_id: UUID) -> Optional[Booth]:
         """获取单个展位详情"""
-        return await db.get(Booth, booth_id)
+        return await self.get(booth_id)
 
-    @staticmethod
-    async def update_booth(
-        db: AsyncSession,
-        booth_id: uuid.UUID,
-        booth_update: BoothUpdate
-    ) -> Optional[Booth]:
+    async def update_booth(self, booth_id: UUID, booth_update: BoothUpdate) -> Optional[Booth]:
         """更新展位信息"""
-        booth = await db.get(Booth, booth_id)
-        if not booth:
-            return None
+        return await self.update(booth_id, booth_update)
 
-        update_data = booth_update.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(booth, field, value)
-
-        await db.commit()
-        await db.refresh(booth)
-        return booth
-
-    @staticmethod
-    async def update_booth_config_hash(
-        db: AsyncSession,
-        booth_id: uuid.UUID,
-        config_hash: str
-    ) -> Optional[Booth]:
+    async def update_booth_config_hash(self, booth_id: UUID, config_hash: str) -> Optional[Booth]:
         """更新展位配置哈希"""
-        booth = await db.get(Booth, booth_id)
-        if not booth:
-            return None
+        return await self.repository.update_config_hash(booth_id, config_hash)
 
-        booth.config_hash = config_hash
-        await db.commit()
-        await db.refresh(booth)
-        return booth
-
-    @staticmethod
-    async def deregister_booth(db: AsyncSession, booth_id: uuid.UUID) -> bool:
+    async def deregister_booth(self, booth_id: UUID) -> bool:
         """注销展位"""
-        booth = await db.get(Booth, booth_id)
-        if not booth:
-            return False
-
-        await db.delete(booth)
-        await db.commit()
-        return True
+        return await self.delete(booth_id)

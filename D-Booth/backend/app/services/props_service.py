@@ -1,13 +1,16 @@
 import os
 import uuid
 from uuid import UUID
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from PIL import Image
 from io import BytesIO
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import or_, select
+
 from app.models.models import Prop, PropCategory
+from app.schemas.prop import PropCreate, PropUpdate
+from app.repositories.prop_repository import PropRepository
+from app.services.base_service import BaseService, BusinessRuleError
 from app.services.storage_service import r2_storage
 from app.core.config import settings
 
@@ -34,9 +37,18 @@ class AppliedProp:
         self.opacity = max(0.0, min(1.0, opacity))  # 0-1透明度
 
 
-class PropsService:
+class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
+    """Service for prop business logic."""
+
     def __init__(self, db: AsyncSession):
-        self.db = db
+        repository = PropRepository(db)
+        super().__init__(repository, db)
+
+    async def validate_delete(self, existing: Prop) -> None:
+        """Validate prop deletion business rules."""
+        # Cannot delete default public props
+        if existing.is_default and existing.is_public:
+            raise BusinessRuleError("Cannot delete default public props")
 
     async def get_props(
         self,

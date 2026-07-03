@@ -1,15 +1,16 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.ai_task_repository import AITaskRepository
-from app.schemas.ai_task import AITaskCreate
+from app.schemas.ai_task import AITaskCreate, AITaskUpdate
 from app.models.models import AITask
 from app.core.logging import logger
+from app.services.base_service import BaseService, BusinessRuleError
 
 
-class AIService:
+class AIService(BaseService[AITask, AITaskCreate, AITaskUpdate]):
     """Service for AI task business logic"""
 
     ALLOWED_WORKFLOWS = {
@@ -48,8 +49,51 @@ class AIService:
     }
 
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.repository = AITaskRepository(db)
+        repository = AITaskRepository(db)
+        super().__init__(repository, db)
+
+    async def validate_create(self, obj_in: AITaskCreate) -> None:
+        """Validate AI task creation business rules."""
+        workflow = obj_in.workflow.strip().lower()
+        provider = obj_in.provider.strip().lower()
+
+        if workflow not in self.ALLOWED_WORKFLOWS:
+            raise BusinessRuleError(f"Unsupported AI workflow: {obj_in.workflow}")
+
+        if provider not in self.ALLOWED_PROVIDERS:
+            raise BusinessRuleError(f"Unsupported AI provider: {obj_in.provider}")
+
+        # Validate prompt
+        self._build_prompt(workflow, obj_in.prompt)
+
+        # Check subscription limits
+        from app.services.subscription_service import SubscriptionService
+        await SubscriptionService(self.db).ensure_can_create_ai_task(obj_in.team_id)
+
+    async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform AI task data before creation."""
+        workflow = obj_dict["workflow"].strip().lower()
+        provider = obj_dict["provider"].strip().lower()
+        prompt = self._build_prompt(workflow, obj_dict["prompt"])
+
+        obj_dict["workflow"] = workflow
+        obj_dict["provider"] = provider
+        obj_dict["prompt"] = prompt
+        obj_dict["status"] = "pending"
+        obj_dict["progress"] = Decimal(0)
+        obj_dict["estimated_cost"] = self._estimate_cost(workflow, provider)
+
+        return obj_dict
+
+    async def after_create(self, created: AITask) -> None:
+        """Schedule async AI generation after task creation."""
+        try:
+            from app.tasks.ai_tasks import generate_ai_image
+            generate_ai_image.delay(str(created.id), created.prompt, created.provider)
+        except Exception as e:
+            # Celery unavailable in dev — task stays pending and can be
+            # processed by a worker later. Do not fail the HTTP request.
+            logger.warning(f"Failed to schedule AI task {created.id}: {e}")
 
     async def create_task(self, task_in: AITaskCreate) -> AITask:
         """Create a new AI task and schedule async processing.
@@ -57,45 +101,11 @@ class AIService:
         Caller (route layer) is responsible for verifying team membership
         before calling this method.
         """
-        workflow = task_in.workflow.strip().lower()
-        provider = task_in.provider.strip().lower()
-        prompt = self._build_prompt(workflow, task_in.prompt)
-        if provider not in self.ALLOWED_PROVIDERS:
-            raise ValueError(f"Unsupported AI provider: {task_in.provider}")
-
-        from app.services.subscription_service import SubscriptionService
-        await SubscriptionService(self.db).ensure_can_create_ai_task(task_in.team_id)
-
-        # Estimate cost based on workflow
-        estimated_cost = self._estimate_cost(workflow, provider)
-
-        task_data = {
-            **task_in.model_dump(),
-            "workflow": workflow,
-            "provider": provider,
-            "prompt": prompt,
-            "status": "pending",
-            "progress": Decimal(0),
-            "estimated_cost": estimated_cost,
-        }
-
-        task = await self.repository.create(task_data)
-
-        # Schedule async AI generation via Celery (import inside function to
-        # avoid circular import with the tasks module).
-        try:
-            from app.tasks.ai_tasks import generate_ai_image
-            generate_ai_image.delay(str(task.id), prompt, provider)
-        except Exception:
-            # Celery unavailable in dev — task stays pending and can be
-            # processed by a worker later. Do not fail the HTTP request.
-            pass
-
-        return task
+        return await self.create(task_in)
 
     async def get_task(self, task_id: UUID) -> Optional[AITask]:
         """Get AI task by ID"""
-        return await self.repository.get(task_id)
+        return await self.get(task_id)
 
     async def get_tasks(
         self,
@@ -166,13 +176,18 @@ class AIService:
         """Mark task as failed"""
         return await self.repository.fail_task(task_id, error_message)
 
+    async def validate_delete(self, existing: AITask) -> None:
+        """Validate AI task deletion business rules."""
+        # No special deletion rules for AI tasks
+        pass
+
     async def cancel_task(self, task_id: UUID) -> Optional[AITask]:
         """Cancel a pending/processing AI task."""
-        task = await self.repository.get(task_id)
+        task = await self.get(task_id)
         if not task:
             return None
         if task.status in ("completed", "failed", "cancelled"):
-            raise ValueError(f"Cannot cancel task in status '{task.status}'")
+            raise BusinessRuleError(f"Cannot cancel task in status '{task.status}'")
         task.status = "cancelled"
         await self.db.commit()
         await self.db.refresh(task)
@@ -180,12 +195,7 @@ class AIService:
 
     async def delete_task(self, task_id: UUID) -> bool:
         """Delete an AI task record."""
-        task = await self.repository.get(task_id)
-        if not task:
-            return False
-        await self.db.delete(task)
-        await self.db.commit()
-        return True
+        return await self.delete(task_id)
 
     @staticmethod
     def _estimate_cost(workflow: str, provider: str) -> Decimal:

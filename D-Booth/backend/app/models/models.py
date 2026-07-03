@@ -94,8 +94,13 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255))
-    is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True, index=True)
+    is_verified = Column(Boolean, default=False, index=True)
+
+    # Indexes
+    __table_args__ = (
+        Index('ix_user_active_verified', 'is_active', 'is_verified'),
+    )
 
     # Relationships
     team_members = relationship("TeamMember", back_populates="user", lazy="selectin")
@@ -110,7 +115,7 @@ class Team(Base, TimestampMixin, SoftDeleteMixin):
     name = Column(String(255), nullable=False)
     slug = Column(String(255), unique=True, index=True)
     description = Column(Text)
-    subscription_id = Column(GUID(), ForeignKey("subscriptions.id", ondelete="SET NULL"))
+    subscription_id = Column(GUID(), ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True)
 
     # Relationships
     members = relationship("TeamMember", back_populates="team", lazy="selectin")
@@ -176,8 +181,8 @@ class Survey(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "surveys"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True)
-    enabled = Column(Boolean, default=True)
+    event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    enabled = Column(Boolean, default=True, index=True)
     title = Column(String(255), default="问卷调查")
     questions = Column(JSON, default=list)
 
@@ -215,8 +220,8 @@ class Disclaimer(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "disclaimers"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True)
-    enabled = Column(Boolean, default=True)
+    event_id = Column(GUID(), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    enabled = Column(Boolean, default=True, index=True)
     title = Column(String(255), default="免责声明")
     text = Column(Text, default="")
     require_signature = Column(Boolean, default=False)
@@ -304,6 +309,7 @@ class Template(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (
         Index('ix_template_team_id', 'team_id'),
         Index('ix_template_is_public', 'is_public'),
+        Index('ix_template_team_public', 'team_id', 'is_public'),
     )
 
     # Relationships
@@ -354,6 +360,7 @@ class Photo(Base, TimestampMixin, SoftDeleteMixin):
         Index('ix_photo_event_id', 'event_id'),
         Index('ix_photo_session_id', 'session_id'),
         Index('ix_photo_event_created', 'event_id', 'created_at'),
+        Index('ix_photo_session_created', 'session_id', 'created_at'),
     )
 
     # Relationships
@@ -369,7 +376,7 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     photo_id = Column(GUID(), ForeignKey("photos.id", ondelete="CASCADE"), nullable=False)
-    printer_name = Column(String(255))
+    printer_name = Column(String(255), index=True)
     copies = Column(Integer, default=1)
     status = Column(SQLEnum(PrintJobStatus), default=PrintJobStatus.PENDING)
     error_message = Column(Text)
@@ -380,6 +387,7 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
         Index('ix_print_job_photo_id', 'photo_id'),
         Index('ix_print_job_status', 'status'),
         Index('ix_print_job_status_created', 'status', 'created_at'),
+        Index('ix_print_job_status_printer', 'status', 'printer_name'),
     )
 
     # Relationships
@@ -482,6 +490,7 @@ class Subscription(Base, TimestampMixin, SoftDeleteMixin):
     # Indexes
     __table_args__ = (
         Index('ix_subscription_status', 'status'),
+        Index('ix_subscription_status_end', 'status', 'current_period_end'),
     )
 
     # Relationships
@@ -507,6 +516,8 @@ class Prop(Base, TimestampMixin, SoftDeleteMixin):
         Index('ix_prop_team_id', 'team_id'),
         Index('ix_prop_category', 'category'),
         Index('ix_prop_is_public', 'is_public'),
+        Index('ix_prop_team_category', 'team_id', 'category'),
+        Index('ix_prop_public_category', 'is_public', 'category'),
     )
 
     # Relationships
@@ -523,10 +534,10 @@ class Booth(Base, TimestampMixin, SoftDeleteMixin):
     device_id = Column(String(255), unique=True, index=True, nullable=False)
     status = Column(SQLEnum(BoothStatus), default=BoothStatus.OFFLINE)
     version = Column(String(50))
-    last_heartbeat = Column(DateTime(timezone=True))
+    last_heartbeat = Column(DateTime(timezone=True), index=True)
     ip_address = Column(String(50))
     os_info = Column(String(255))
-    current_event_id = Column(GUID(), ForeignKey("events.id", ondelete="SET NULL"), nullable=True)
+    current_event_id = Column(GUID(), ForeignKey("events.id", ondelete="SET NULL"), nullable=True, index=True)
     config_hash = Column(String(64))  # SHA256 hash of current configuration
 
     # Indexes
@@ -534,6 +545,8 @@ class Booth(Base, TimestampMixin, SoftDeleteMixin):
         Index('ix_booth_team_id', 'team_id'),
         Index('ix_booth_device_id', 'device_id'),
         Index('ix_booth_status', 'status'),
+        Index('ix_booth_team_status', 'team_id', 'status'),
+        Index('ix_booth_status_heartbeat', 'status', 'last_heartbeat'),
     )
 
     # Relationships

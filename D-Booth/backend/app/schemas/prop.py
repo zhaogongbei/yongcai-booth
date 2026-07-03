@@ -11,7 +11,18 @@ class PropBase(BaseModel):
 
 
 class PropCreate(PropBase):
-    pass
+    team_id: UUID
+    image_url: str
+    thumbnail_url: str
+    is_public: bool = False
+    is_default: bool = False
+
+
+class PropUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[PropCategory] = None
+    tags: Optional[List[str]] = None
+    is_public: Optional[bool] = None
 
 
 class PropResponse(PropBase):
