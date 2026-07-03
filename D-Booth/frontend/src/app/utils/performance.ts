@@ -1,4 +1,5 @@
 import { onCLS, onINP, onLCP, onFCP, onTTFB } from 'web-vitals';
+import { resolveBackendUrl } from '@/lib/api';
 
 type MetricRating = 'good' | 'needs-improvement' | 'poor';
 
@@ -11,7 +12,7 @@ interface MetricReport {
   navigationType: 'navigate' | 'reload' | 'back-forward' | 'prerender';
 }
 
-const VITALS_ENDPOINT = '/api/v1/analytics/vitals';
+const WEB_VITALS_ENDPOINT = import.meta.env.VITE_WEB_VITALS_ENDPOINT?.trim();
 
 function getRating(name: string, value: number): MetricRating {
   switch (name) {
@@ -36,15 +37,17 @@ function reportMetric(metric: MetricReport): void {
     console.log(`[Web Vital] ${metric.name}: ${metric.value} (${metric.rating})`);
   }
 
-  // Send to analytics endpoint
-  if (navigator.onLine && import.meta.env.PROD) {
-    fetch(VITALS_ENDPOINT, {
+  if (navigator.onLine && import.meta.env.PROD && WEB_VITALS_ENDPOINT) {
+    fetch(resolveBackendUrl(WEB_VITALS_ENDPOINT), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: metric.name,
         value: metric.value,
         rating: metric.rating,
+        delta: metric.delta,
+        id: metric.id,
+        navigationType: metric.navigationType,
         timestamp: Date.now(),
       }),
       keepalive: true,
