@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -43,6 +44,7 @@ BLOCKED_PATHS = {
     "COMPREHENSIVE_FINAL_REPORT.md",
     "CLAUDE.md.backup",
     "CONTINUE_FROM_HERE.md",
+    "D-Booth/backend/VERSION",
     "D-Booth/backend/app/services/VERSION",
     "D-Booth/backend/.github/workflows/ci.yml",
     "D-Booth/backend/app/models/types.py",
@@ -186,6 +188,25 @@ def content_offenders() -> list[str]:
         offenders.append(
             f"CHANGELOG.md must contain exactly one Unreleased section, found {unreleased_count}."
         )
+
+    version_path = ROOT / "VERSION"
+    if not version_path.is_file():
+        offenders.append("VERSION is required as the canonical project version.")
+    else:
+        project_version = version_path.read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"\d+\.\d+\.\d+", project_version):
+            offenders.append(f"VERSION must be SemVer MAJOR.MINOR.PATCH, found {project_version}.")
+        else:
+            readme = read_repo_text("README.md")
+            config = read_repo_text("D-Booth/backend/app/core/config.py")
+            version_badge = f"version-{project_version}-blue"
+            config_default = f'VERSION: str = "{project_version}"'
+            if version_badge not in readme:
+                offenders.append(f"README.md version badge must match VERSION: {project_version}.")
+            if config_default not in config:
+                offenders.append(
+                    f"D-Booth/backend/app/core/config.py VERSION default must match VERSION: {project_version}."
+                )
 
     for path, patterns in EXPECTED_TEXT.items():
         content = read_repo_text(path)

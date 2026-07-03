@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 修复
+- 对齐根 `VERSION`、README 徽章和后端默认 API 版本，并移除未使用的后端局部 `VERSION` 文件。
 - 清理部署和开发指南中的旧 pnpm 指令，并删除已过期的 `CLAUDE.md.backup`，避免 AI 与开发者读取冲突工作流。
 - 固定 CI 安全扫描中的 Python 依赖审计运行版本，避免 GitHub runner 默认 Python 漂移。
 - 将前端 React 类型包收敛到 18.x，与 React 18 runtime 保持一致。
