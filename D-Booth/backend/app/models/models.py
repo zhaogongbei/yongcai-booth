@@ -8,7 +8,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-from app.models.types import GUID
+from app.models.custom_types import GUID
 
 
 # Enums

@@ -37,6 +37,10 @@ BLOCKED_FILENAMES = {
     "yarn.lock",
 }
 
+BLOCKED_PATHS = {
+    "D-Booth/backend/app/models/types.py",
+}
+
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_TEXT = {
@@ -107,7 +111,8 @@ def is_blocked(path: str) -> bool:
     filename = parsed.name
 
     return (
-        bool(parts & BLOCKED_DIRS)
+        path in BLOCKED_PATHS
+        or bool(parts & BLOCKED_DIRS)
         or filename in BLOCKED_FILENAMES
         or any(filename.endswith(suffix) for suffix in BLOCKED_SUFFIXES)
     )
