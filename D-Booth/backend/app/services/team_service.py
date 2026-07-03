@@ -51,6 +51,10 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         """Delete a team using the legacy service API."""
         return await self.delete(team_id)
 
+    async def get_team(self, team_id: UUID) -> Optional[Team]:
+        """Get a team using the legacy service API."""
+        return await self.get(team_id)
+
     # Override BaseService hooks
 
     async def validate_create(self, obj_in: TeamCreate) -> None:
@@ -143,12 +147,9 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         if requester_role not in [UserRole.OWNER, UserRole.ADMIN]:
             raise BusinessRuleError("Only owners and admins can remove members")
 
-        # Don't allow removing yourself if you're the last owner
-        if requester_id == user_id:
-            member_role = await self.repository.get_member_role(team_id, user_id)
-            if member_role == UserRole.OWNER:
-                # TODO: Check if there are other owners
-                pass
+        member_role = await self.repository.get_member_role(team_id, user_id)
+        if member_role == UserRole.OWNER and await self.repository.count_owners(team_id) <= 1:
+            raise BusinessRuleError("A team must have at least one owner")
 
         return await self.repository.remove_member(team_id, user_id)
 
@@ -178,6 +179,14 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         requester_role = await self.repository.get_member_role(team_id, requester_id)
         if requester_role != UserRole.OWNER:
             raise BusinessRuleError("Only owners can update member roles")
+
+        member_role = await self.repository.get_member_role(team_id, user_id)
+        if (
+            member_role == UserRole.OWNER
+            and role != UserRole.OWNER
+            and await self.repository.count_owners(team_id) <= 1
+        ):
+            raise BusinessRuleError("A team must have at least one owner")
 
         return await self.repository.update_member_role(team_id, user_id, role)
 
