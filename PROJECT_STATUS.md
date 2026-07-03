@@ -21,6 +21,7 @@
 - Docker 发布上下文必须具备 `D-Booth/backend/Dockerfile` 和 `D-Booth/frontend/Dockerfile`。
 - Docker 发布必须等待后端、前端、Runtime 和安全扫描全部通过，镜像命名空间来自 `DOCKER_USERNAME` secret。
 - GitHub Release 由生产发布 job 使用 `gh release create` 创建，不使用旧 release action。
+- CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
 
 ## 近期完成
 
@@ -32,6 +33,7 @@
 - 已为 CI 增加显式权限，并将生产 release 创建迁移到 GitHub CLI。
 - 已让 Docker 发布等待完整质量门禁，并移除硬编码镜像命名空间。
 - 已升级 `fastapi-csrf-protect` 到 Pydantic v2 兼容版本，消除测试中的第三方 validator 弃用警告。
+- 已将 Trivy 安全扫描 action 固定到版本 tag，避免浮动分支影响 CI 可复现性。
 
 ## 已知债务
 
