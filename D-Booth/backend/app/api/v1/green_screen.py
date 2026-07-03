@@ -3,9 +3,11 @@ Green Screen API Endpoints
 """
 import json
 import io
+from datetime import datetime, timezone
 from typing import Optional, List
-from uuid import UUID
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from pathlib import Path
+from uuid import UUID, uuid4
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Depends
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +35,17 @@ try:
 except ImportError:
     OPENCV_AVAILABLE = False
     logger.warning("OpenCV not available, green screen API will return original images")
+
+
+def _save_local_green_screen_file(file_data: bytes, filename: str, event_id: UUID, folder: str) -> str:
+    safe_name = Path(filename or "upload").name
+    safe_suffix = Path(safe_name).suffix or ".jpg"
+    stored_name = f"{uuid4().hex}{safe_suffix}"
+    relative_folder = Path("uploads") / "green-screen" / str(event_id) / folder
+    relative_folder.mkdir(parents=True, exist_ok=True)
+    target = relative_folder / stored_name
+    target.write_bytes(file_data)
+    return f"/uploads/green-screen/{event_id}/{folder}/{stored_name}"
 
 
 @router.post("/preview", response_class=Response)
@@ -189,8 +202,8 @@ async def update_green_screen_settings(
 
 @router.post("/backgrounds", response_model=GreenScreenBackground)
 async def upload_background(
-    event_id: UUID,
-    name: str = File(...),
+    event_id: UUID = Form(...),
+    name: str = Form(...),
     file: UploadFile = File(...),
     overlay_file: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
@@ -206,37 +219,55 @@ async def upload_background(
             )
 
         # Upload to storage
-        filename = f"{UUID().hex}.jpg"
-        background_url = await r2_storage.upload_file(
-            file_data=file_bytes,
-            filename=filename,
-            content_type=file.content_type or "image/jpeg",
-            folder=f"green-screen/{event_id}/backgrounds"
-        )
+        filename = file.filename or f"{uuid4().hex}.jpg"
+        if r2_storage.is_available():
+            background_url = await r2_storage.upload_file(
+                file_data=file_bytes,
+                filename=filename,
+                content_type=file.content_type or "image/jpeg",
+                folder=f"green-screen/{event_id}/backgrounds"
+            )
+        else:
+            background_url = _save_local_green_screen_file(
+                file_bytes,
+                filename,
+                event_id,
+                "backgrounds",
+            )
 
         # Upload overlay if provided
         overlay_url = None
         if overlay_file:
             overlay_bytes = await overlay_file.read()
             if overlay_bytes:
-                overlay_filename = f"{UUID().hex}.png"
-                overlay_url = await r2_storage.upload_file(
-                    file_data=overlay_bytes,
-                    filename=overlay_filename,
-                    content_type=overlay_file.content_type or "image/png",
-                    folder=f"green-screen/{event_id}/overlays"
-                )
+                overlay_filename = overlay_file.filename or f"{uuid4().hex}.png"
+                if r2_storage.is_available():
+                    overlay_url = await r2_storage.upload_file(
+                        file_data=overlay_bytes,
+                        filename=overlay_filename,
+                        content_type=overlay_file.content_type or "image/png",
+                        folder=f"green-screen/{event_id}/overlays"
+                    )
+                else:
+                    overlay_url = _save_local_green_screen_file(
+                        overlay_bytes,
+                        overlay_filename,
+                        event_id,
+                        "overlays",
+                    )
 
         # TODO: Save to database
         return GreenScreenBackground(
-            id=UUID(),
+            id=uuid4(),
             name=name,
             background_url=background_url,
             overlay_url=overlay_url,
             order=0,
-            created_at="2024-01-01T00:00:00"
+            created_at=datetime.now(timezone.utc)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to upload background: {str(e)}")
         raise HTTPException(

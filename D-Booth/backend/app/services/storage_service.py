@@ -17,7 +17,7 @@ class R2StorageService:
 
     # Allowed folder prefixes to prevent path traversal
     ALLOWED_FOLDERS = {
-        "photos", "templates", "uploads", "avatars", "exports", "props", "processed"
+        "photos", "templates", "uploads", "avatars", "exports", "props", "processed", "green-screen"
     }
 
     def __init__(self):

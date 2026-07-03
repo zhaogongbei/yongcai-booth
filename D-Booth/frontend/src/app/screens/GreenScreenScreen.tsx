@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
 import { SliderControl } from "../components/SliderControl";
+import { useCaptureFlow } from "../stores/useCaptureFlow";
 import type { Screen } from "../types";
 
 // Types for green screen settings
@@ -62,6 +63,7 @@ function debounce<T extends (...args: any[]) => any>(
 }
 
 export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { eventId } = useCaptureFlow();
   const [settings, setSettings] = useState<GreenScreenSettings>(defaultSettings);
   const [compareMode, setCompareMode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -225,6 +227,11 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
 
   // Upload background
   const uploadBackground = useCallback(async () => {
+    if (!eventId) {
+      toast.error("请先从活动进入拍照流程，再上传绿幕背景");
+      return;
+    }
+
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -236,7 +243,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
         const formData = new FormData();
         formData.append("file", file);
         formData.append("name", file.name);
-        formData.append("event_id", "test-event-id"); // TODO: Get actual event ID
+        formData.append("event_id", eventId);
 
         const response = await fetch("/api/v1/green-screen/backgrounds", {
           method: "POST",
@@ -269,7 +276,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       }
     };
     input.click();
-  }, []);
+  }, [eventId]);
 
   // Delete background
   const deleteBackground = useCallback((id: string) => {
