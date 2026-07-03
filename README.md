@@ -1,6 +1,6 @@
 # 咏彩Booth (D-Booth) - 下一代智能拍照亭系统
 
-[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](./VERSION)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](./LICENSE)
 
 > 基于 AI 的全能拍照亭解决方案，集成云端管理、现场运行时、智能美颜、实时打印与社交分享。
@@ -146,13 +146,13 @@ docs: 更新部署文档
 - **MINOR**: 向后兼容的新功能
 - **PATCH**: 向后兼容的问题修复
 
-当前项目版本在根目录 `VERSION` 文件中维护，发布时与 `CHANGELOG.md` 一起更新。
+当前版本在 `VERSION` 文件中维护，每次提交自动递增 PATCH 版本。
 
 ### 代码规范
 
-- **Python**: PEP 8, Black, isort, Ruff fatal checks
-- **TypeScript**: TypeScript strict mode
-- **C#**: .editorconfig, `dotnet build` / `dotnet test`
+- **Python**: PEP 8, Black, isort, mypy
+- **TypeScript**: ESLint, Prettier, strict mode
+- **C#**: .editorconfig, StyleCop
 
 详见 [CLAUDE.md](./CLAUDE.md)。
 
@@ -167,7 +167,6 @@ pytest --cov=app --cov-report=html
 cd frontend
 npm run typecheck
 npm run build
-npm run audit:security
 
 # Runtime 测试
 cd runtime-dotnet

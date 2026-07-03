@@ -274,13 +274,12 @@ const tokenStore = new Map<string, string>();
 
 ```bash
 # Python
-cd D-Booth/backend
-pip install -r requirements-dev.txt
-python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict
+pip install safety
+safety check
 
 # Node.js
-cd D-Booth/frontend
-npm run audit:security
+pnpm audit
+pnpm audit --fix
 
 # .NET
 dotnet list package --vulnerable

@@ -1,13 +1,15 @@
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Optional, List, Dict, Any
 from uuid import UUID
-
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.models import Event, EventStatus, UserRole
 from app.repositories.event_repository import EventRepository
-from app.schemas.event import EventCreate, EventStatistics, EventUpdate
-from app.services.base_service import BaseService, BusinessRuleError, ValidationError
+from app.schemas.event import EventCreate, EventUpdate, EventStatistics
+from app.models.models import Event, EventStatus, UserRole
+from app.services.base_service import (
+    BaseService,
+    BusinessRuleError,
+    ValidationError,
+)
 
 
 class EventService(BaseService[Event, EventCreate, EventUpdate]):
@@ -89,7 +91,6 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
         # Verify team membership (creator must be team member)
         if self._current_user_id:
             from app.repositories.team_repository import TeamRepository
-
             team_repo = TeamRepository(self.db)
             role = await team_repo.get_member_role(obj_in.team_id, self._current_user_id)
             if role is None:
@@ -97,7 +98,6 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
 
         # Check subscription limits
         from app.services.subscription_service import SubscriptionService
-
         await SubscriptionService(self.db).ensure_can_create_event(obj_in.team_id)
 
     async def validate_update(self, existing: Event, obj_in: EventUpdate) -> None:
@@ -141,7 +141,6 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
     async def _ensure_admin_or_owner(self, team_id: UUID, user_id: UUID) -> None:
         """Ensure user is admin or owner of the team."""
         from app.repositories.team_repository import TeamRepository
-
         team_repo = TeamRepository(self.db)
         role = await team_repo.get_member_role(team_id, user_id)
         if role not in (UserRole.OWNER, UserRole.ADMIN):
@@ -153,7 +152,7 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
         team_id: Optional[UUID] = None,
         status: Optional[str] = None,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100
     ) -> List[Event]:
         """
         Get events with optional filters.
@@ -182,7 +181,6 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
 
         if user_id:
             from app.repositories.team_repository import TeamRepository
-
             team_repo = TeamRepository(self.db)
             user_teams = await team_repo.get_user_teams(user_id)
             all_events: List[Event] = []
@@ -193,12 +191,21 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
 
         return await self.repository.get_multi(skip, limit)
 
-    async def get_team_events(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Event]:
+    async def get_team_events(
+        self,
+        team_id: UUID,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Event]:
         """Get all events for a team."""
         return await self.repository.get_by_team(team_id, skip, limit)
 
     async def get_events_by_status(
-        self, team_id: UUID, status: EventStatus, skip: int = 0, limit: int = 100
+        self,
+        team_id: UUID,
+        status: EventStatus,
+        skip: int = 0,
+        limit: int = 100
     ) -> List[Event]:
         """Get events by status for a team."""
         return await self.repository.get_by_status(team_id, status, skip, limit)
@@ -213,10 +220,12 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
         start_from: datetime,
         start_to: datetime,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100
     ) -> List[Event]:
         """Get events within date range for a team."""
-        return await self.repository.get_by_date_range(team_id, start_from, start_to, skip, limit)
+        return await self.repository.get_by_date_range(
+            team_id, start_from, start_to, skip, limit
+        )
 
     # Status transition methods
 
@@ -346,15 +355,14 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
         # Get active sessions
         active_sessions = await session_repo.get_active_sessions(event_id)
 
-        total_prints = await print_repo.count_by_event(event_id)
-        total_shares = await share_repo.count_by_event(event_id)
+        # TODO: Get print and share counts for this event
 
         return EventStatistics(
             event_id=event_id,
             total_sessions=total_sessions,
             total_photos=total_photos,
-            total_prints=total_prints,
-            total_shares=total_shares,
+            total_prints=0,  # TODO
+            total_shares=0,  # TODO
             active_sessions=len(active_sessions),
         )
 
@@ -368,10 +376,7 @@ class EventService(BaseService[Event, EventCreate, EventUpdate]):
         """
         try:
             from app.services.trigger_service import TriggerService, TriggerType
-
-            event_id = (
-                event_or_event_id.id if hasattr(event_or_event_id, "id") else event_or_event_id
-            )
+            event_id = event_or_event_id.id if hasattr(event_or_event_id, "id") else event_or_event_id
             trigger_service = TriggerService(self.db)
             context = {"event_id": str(event_id)}
             if hasattr(event_or_event_id, "team_id"):
