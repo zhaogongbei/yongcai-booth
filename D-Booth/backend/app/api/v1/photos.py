@@ -218,7 +218,7 @@ async def upload_photo(
         nasolabial=beauty_nasolabial, teethWhiten=beauty_teethWhiten,
         lipColor=beauty_lipColor,
     )
-    if all(getattr(bp, f, 0) == 0 for f in bp.model_fields):
+    if all(getattr(bp, f, 0) == 0 for f in BeautyParams.model_fields):
         bp = None  # no beauty → skip processing for speed
 
     try:

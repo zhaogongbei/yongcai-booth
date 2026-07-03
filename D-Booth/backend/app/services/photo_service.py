@@ -172,7 +172,7 @@ class PhotoService:
         # ── Built-in AI beauty processing ──────────────────────
         processed_url = None
         if beauty_params is not None and any(
-            getattr(beauty_params, f, 0) > 0 for f in beauty_params.model_fields
+            getattr(beauty_params, f, 0) > 0 for f in BeautyParams.model_fields
         ):
             try:
                 beauty_bytes = beauty_processor.process_image(

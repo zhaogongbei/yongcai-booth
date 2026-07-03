@@ -306,7 +306,7 @@ class BeautyProcessor:
     # -- internal ----------------------------------------------------------
     @staticmethod
     def _any_face_op(p: BeautyParams) -> bool:
-        return any(getattr(p, f, 0) for f in p.model_fields)
+        return any(getattr(p, f, 0) for f in BeautyParams.model_fields)
 
     @staticmethod
     def _decode_thumb(data: bytes):

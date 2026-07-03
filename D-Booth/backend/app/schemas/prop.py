@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from uuid import UUID
 from app.models.models import PropCategory
@@ -15,15 +15,14 @@ class PropCreate(PropBase):
 
 
 class PropResponse(PropBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     team_id: Optional[UUID]
     image_url: str
     thumbnail_url: str
     is_public: bool
     is_default: bool
-
-    class Config:
-        orm_mode = True
 
 
 class AppliedPropRequest(BaseModel):

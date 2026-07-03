@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
 from typing import List
 
@@ -17,6 +17,8 @@ _KNOWN_PLACEHOLDER_SECRET_KEYS = frozenset({
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
     # Application
     APP_NAME: str = "AI Booth API"
     VERSION: str = "1.0.0"
@@ -131,9 +133,5 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
 
 settings = Settings()
