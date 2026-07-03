@@ -64,6 +64,17 @@ class UserService(BaseService[User, UserCreate, UserUpdate]):
 
     # User-specific methods
 
+    async def create_user(self, user_in: UserCreate) -> User:
+        """Create a user using the legacy service API."""
+        try:
+            return await self.create(user_in)
+        except (BusinessRuleError, ValidationError) as exc:
+            raise ValueError(str(exc)) from exc
+
+    async def get_user(self, user_id: UUID) -> Optional[User]:
+        """Get a user by ID using the legacy service API."""
+        return await self.get(user_id)
+
     @staticmethod
     def _verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
