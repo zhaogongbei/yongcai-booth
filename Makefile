@@ -1,7 +1,7 @@
 # D-Booth Project Makefile
 # Quick commands for development and deployment
 
-.PHONY: help install dev build test lint clean deploy hygiene
+.PHONY: help install dev build test lint clean deploy
 
 help: ## Show this help message
 	@echo "D-Booth Development Commands:"
@@ -13,7 +13,7 @@ install: ## Install all dependencies (backend + frontend + runtime)
 	@echo "Installing Backend dependencies..."
 	cd D-Booth/backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt
 	@echo "Installing Frontend dependencies..."
-	cd D-Booth/frontend && npm ci
+	cd D-Booth/frontend && pnpm install
 	@echo "Installing Runtime dependencies..."
 	cd D-Booth/runtime-dotnet && dotnet restore
 
@@ -21,7 +21,7 @@ install-backend: ## Install backend dependencies only
 	cd D-Booth/backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt
 
 install-frontend: ## Install frontend dependencies only
-	cd D-Booth/frontend && npm ci
+	cd D-Booth/frontend && pnpm install
 
 install-runtime: ## Install runtime dependencies only
 	cd D-Booth/runtime-dotnet && dotnet restore
@@ -35,7 +35,7 @@ dev-backend: ## Start backend development server
 	cd D-Booth/backend && source venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 dev-frontend: ## Start frontend development server
-	cd D-Booth/frontend && npm run dev
+	cd D-Booth/frontend && pnpm dev
 
 dev-runtime: ## Start runtime development server
 	cd D-Booth/runtime-dotnet && dotnet run --project src/Booth.Runtime.ApiHost
@@ -48,7 +48,7 @@ build-backend: ## Build backend
 	cd D-Booth/backend && source venv/bin/activate && python -m build
 
 build-frontend: ## Build frontend for production
-	cd D-Booth/frontend && npm run build
+	cd D-Booth/frontend && pnpm build
 
 build-runtime: ## Build runtime
 	cd D-Booth/runtime-dotnet && dotnet build -c Release
@@ -61,7 +61,7 @@ test-backend: ## Run backend tests
 	cd D-Booth/backend && source venv/bin/activate && pytest --cov=app --cov-report=html
 
 test-frontend: ## Run frontend tests
-	cd D-Booth/frontend && npm run typecheck
+	cd D-Booth/frontend && pnpm test
 
 test-runtime: ## Run runtime tests
 	cd D-Booth/runtime-dotnet && dotnet test
@@ -74,7 +74,7 @@ lint-backend: ## Lint backend code
 	cd D-Booth/backend && source venv/bin/activate && black . && isort . && mypy app/ && ruff check app/
 
 lint-frontend: ## Lint frontend code
-	cd D-Booth/frontend && npm run typecheck
+	cd D-Booth/frontend && pnpm lint && pnpm typecheck
 
 lint-runtime: ## Lint runtime code
 	cd D-Booth/runtime-dotnet && dotnet format
@@ -86,7 +86,7 @@ format-backend: ## Format backend code
 	cd D-Booth/backend && source venv/bin/activate && black . && isort .
 
 format-frontend: ## Format frontend code
-	@echo "Frontend formatter is not configured yet."
+	cd D-Booth/frontend && pnpm format
 
 format-runtime: ## Format runtime code
 	cd D-Booth/runtime-dotnet && dotnet format
@@ -124,7 +124,7 @@ deploy-backend: ## Deploy backend to production
 
 deploy-frontend: ## Deploy frontend to production
 	@echo "Deploying frontend..."
-	cd D-Booth/frontend && npm run build && ./deploy.sh
+	cd D-Booth/frontend && pnpm build && ./deploy.sh
 
 # Maintenance
 clean: ## Clean build artifacts and caches
@@ -137,9 +137,6 @@ clean: ## Clean build artifacts and caches
 	find . -type d -name "bin" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "obj" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-
-hygiene: ## Check tracked generated artifacts and local-only files
-	python tools/check_repository_hygiene.py
 
 logs: ## View application logs
 	tail -f D-Booth/backend/logs/*.log
@@ -195,7 +192,7 @@ health: ## Check all services health
 # Documentation
 docs: ## Generate documentation
 	cd D-Booth/backend && source venv/bin/activate && pdoc --html --output-dir docs app/
-	@echo "Frontend documentation generator is not configured yet."
+	cd D-Booth/frontend && pnpm run docs
 
 docs-serve: ## Serve documentation locally
 	cd docs && python -m http.server 8080

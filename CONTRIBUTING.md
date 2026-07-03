@@ -22,7 +22,7 @@
 
 - Git 2.40+
 - Python 3.11+
-- Node.js 20+ / npm 10+
+- Node.js 20+ (推荐使用 pnpm)
 - .NET 8.0 SDK
 - Docker Desktop
 - VS Code / JetBrains IDE
@@ -62,7 +62,7 @@ alembic upgrade head
 
 # 3. 设置 Frontend
 cd ../frontend
-npm ci
+pnpm install
 
 # 4. 设置 Runtime
 cd ../runtime-dotnet
@@ -72,7 +72,7 @@ dotnet build
 # 5. 启动本地服务
 docker-compose up -d postgres redis  # 基础设施
 uvicorn app.main:app --reload        # Backend
-npm run dev                           # Frontend
+pnpm dev                              # Frontend
 dotnet run --project src/Booth.Runtime.ApiHost  # Runtime
 ```
 
@@ -236,8 +236,9 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
 
 ```bash
 # 运行检查
-npm run typecheck
-npm run build
+pnpm typecheck
+pnpm lint
+pnpm format
 ```
 
 ### C# (Runtime)
