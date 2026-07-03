@@ -13,6 +13,17 @@ export type { ApiState, UseApiOptions } from './useApi';
 export { useAsync, useFetch } from './useAsync';
 export type { AsyncState, UseAsyncOptions } from './useAsync';
 
+export {
+  HttpFetchError,
+  useHttpDelete,
+  useHttpFetch,
+  useHttpGet,
+  useHttpPatch,
+  useHttpPost,
+  useHttpPut,
+} from './useHttpFetch';
+export type { HttpFetchState, HttpMethod, UseHttpFetchOptions } from './useHttpFetch';
+
 export { useDebounce, useDebouncedCallback, useThrottledCallback } from './useDebounce';
 
 export { useForm } from './useForm';

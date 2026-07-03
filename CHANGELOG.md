@@ -21,6 +21,7 @@
 - 修复 `useApi` debounce 递归调用与取消时 Promise 悬空的问题。
 
 ### 优化
+- 整合前端 URL 请求 hook 为 `useHttpFetch`，避免与现有 `useFetch` 形成重名 API，并补齐 hooks 导出与文档。
 - 新增后端 `BaseService` 单元测试覆盖 CRUD、hook 调用和 repository 异常转换行为。
 - 恢复 CI、文档和变更记录中被版本提交带回的旧门禁说明，保持仓库卫生检查可通过。
 - 移除不会被仓库触发的嵌套后端旧 workflow，并让仓库卫生检查阻止该过期 CI 配置回归。

@@ -51,6 +51,20 @@ const { data, loading, error, refetch } = useFetch(fetchUsers, []);
 - Loading/error/success states
 - Manual `refetch()` helper
 
+#### `useHttpFetch`
+URL-based HTTP fetch hook for components that need request status, query params, timeout, retry, cancellation, and non-GET helpers.
+
+```tsx
+const { data, loading, error, status, refetch } = useHttpFetch<User>('/api/users/123');
+```
+
+**Features:**
+- HTTP status and status text tracking
+- Query parameter serialization
+- Request timeout and cancellation
+- Retry support with configurable delay
+- Method helpers: `useHttpGet`, `useHttpPost`, `useHttpPut`, `useHttpPatch`, `useHttpDelete`
+
 ### Authentication
 
 #### `useAuth`
