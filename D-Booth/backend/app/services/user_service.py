@@ -1,13 +1,15 @@
-from typing import Any, Dict, Optional
+from typing import Optional, Dict, Any
 from uuid import UUID
-
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.password import PasswordValidator
-from app.models.models import User
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
-from app.services.base_service import BaseService, BusinessRuleError, ValidationError
+from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.models.models import User
+from app.core.password import PasswordValidator
+from app.services.base_service import (
+    BaseService,
+    BusinessRuleError,
+    ValidationError,
+)
 
 
 class UserService(BaseService[User, UserCreate, UserUpdate]):
@@ -125,6 +127,7 @@ class UserService(BaseService[User, UserCreate, UserUpdate]):
         """
         return await self.repository.deactivate(user_id)
 
+
     async def verify_email(self, user_id: UUID) -> bool:
         """
         Mark user email as verified.
@@ -138,7 +141,10 @@ class UserService(BaseService[User, UserCreate, UserUpdate]):
         return await self.repository.verify_email(user_id)
 
     async def change_password(
-        self, user_id: UUID, current_password: str, new_password: str
+        self,
+        user_id: UUID,
+        current_password: str,
+        new_password: str
     ) -> bool:
         """
         Change user password after verifying current password.

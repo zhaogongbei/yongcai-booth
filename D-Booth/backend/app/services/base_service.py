@@ -10,20 +10,20 @@ This module implements a generic service layer pattern with:
 """
 
 import logging
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Generic, TypeVar, Optional, List, Dict, Any
 from uuid import UUID
+from abc import ABC, abstractmethod
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.repositories.base import (
     BaseRepository,
-    DuplicateRecordError,
-    RecordNotFoundError,
     RepositoryError,
+    RecordNotFoundError,
+    DuplicateRecordError,
+    ValidationError as RepoValidationError,
 )
-from app.repositories.base import ValidationError as RepoValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -34,31 +34,26 @@ UpdateSchemaType = TypeVar("UpdateSchemaType")
 
 class ServiceError(Exception):
     """Base exception for service layer errors."""
-
     pass
 
 
 class BusinessRuleError(ServiceError):
     """Raised when a business rule validation fails."""
-
     pass
 
 
 class ResourceNotFoundError(ServiceError):
     """Raised when a requested resource does not exist."""
-
     pass
 
 
 class DuplicateResourceError(ServiceError):
     """Raised when attempting to create a duplicate resource."""
-
     pass
 
 
 class ValidationError(ServiceError):
     """Raised when input validation fails."""
-
     pass
 
 
@@ -146,7 +141,11 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
             raise ResourceNotFoundError(f"{self._model_name} not found")
         return obj
 
-    async def get_multi(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
+    async def get_multi(
+        self,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[ModelType]:
         """
         Get multiple resources with pagination.
 
@@ -199,7 +198,7 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
             await self.validate_create(obj_in)
 
             # Convert Pydantic model to dict
-            obj_dict = obj_in.model_dump() if hasattr(obj_in, "model_dump") else obj_in.dict()
+            obj_dict = obj_in.model_dump() if hasattr(obj_in, 'model_dump') else obj_in.dict()
 
             # Perform any necessary transformations
             obj_dict = await self.before_create(obj_dict)
@@ -214,14 +213,20 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
             return created_obj
 
         except DuplicateRecordError as e:
-            raise DuplicateResourceError(f"{self._model_name} already exists") from e
+            raise DuplicateResourceError(
+                f"{self._model_name} already exists"
+            ) from e
         except RepoValidationError as e:
             raise ValidationError(str(e)) from e
         except RepositoryError as e:
             logger.error(f"Failed to create {self._model_name}: {e}")
             raise ServiceError(f"Failed to create {self._model_name}") from e
 
-    async def update(self, id: UUID, obj_in: UpdateSchemaType) -> Optional[ModelType]:
+    async def update(
+        self,
+        id: UUID,
+        obj_in: UpdateSchemaType
+    ) -> Optional[ModelType]:
         """
         Update an existing resource.
 
@@ -256,7 +261,7 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
             # Convert Pydantic model to dict, excluding unset fields
             obj_dict = (
                 obj_in.model_dump(exclude_unset=True)
-                if hasattr(obj_in, "model_dump")
+                if hasattr(obj_in, 'model_dump')
                 else obj_in.dict(exclude_unset=True)
             )
 
@@ -274,7 +279,9 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
             return updated_obj
 
         except DuplicateRecordError as e:
-            raise DuplicateResourceError(f"Update creates duplicate {self._model_name}") from e
+            raise DuplicateResourceError(
+                f"Update creates duplicate {self._model_name}"
+            ) from e
         except RepoValidationError as e:
             raise ValidationError(str(e)) from e
         except RepositoryError as e:
@@ -383,7 +390,11 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
         """
         pass
 
-    async def validate_update(self, existing: ModelType, obj_in: UpdateSchemaType) -> None:
+    async def validate_update(
+        self,
+        existing: ModelType,
+        obj_in: UpdateSchemaType
+    ) -> None:
         """
         Validate business rules before update.
 
@@ -441,7 +452,11 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType], ABC):
         """
         return obj_dict
 
-    async def before_update(self, existing: ModelType, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
+    async def before_update(
+        self,
+        existing: ModelType,
+        obj_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Transform data before update.
 
