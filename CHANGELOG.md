@@ -17,7 +17,7 @@
 - 修复性能日志阈值边界，查询耗时达到阈值时记录慢查询 warning。
 - 恢复 CI/CD 安全门禁、Docker 镜像命名空间和发布流程，避免旧版占位部署与弱安全审计回归。
 - 修复 Makefile、README、协作文档和部署文档中的旧工作流命令，保持 npm、pip-audit 与仓库卫生规则一致。
-- 同步 README badge 与后端配置默认版本到根 `VERSION`。
+- 同步 README badge、后端配置默认版本和前端 package 元数据到根 `VERSION`。
 - 修复活动详情统计中打印和分享数量固定为 0 的数据回归。
 - 修复团队最后 owner 可被移除或降级导致团队无 owner 的数据完整性回归。
 - 修复 `X-Team-Id` 团队解析调用缺失兼容方法导致 Props API 返回 500 的回归。
