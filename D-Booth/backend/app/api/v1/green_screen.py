@@ -124,13 +124,12 @@ async def process_photos(
     Returns list of processed photo URLs
     """
     try:
-        # TODO: Implement batch processing
-        # This will be integrated with photo processing pipeline
-        return {
-            "status": "processing",
-            "photo_count": len(photo_ids),
-            "message": "Batch processing scheduled",
-        }
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Batch green screen processing is not implemented",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Batch green screen processing failed: {str(e)}")
         raise HTTPException(
@@ -281,8 +280,12 @@ async def delete_background(
 ):
     """Delete a background image"""
     try:
-        # TODO: Implement actual deletion from storage and database
-        return {"status": "success", "message": "Background deleted"}
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Green screen background deletion is not implemented",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to delete background: {str(e)}")
         raise HTTPException(

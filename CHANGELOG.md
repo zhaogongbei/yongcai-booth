@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### 修复
+- 修复 Green Screen 未实现的批处理和背景删除接口返回假成功的问题，改为明确返回 501。
 - 修复活动统计服务中打印和分享数量固定为 0 的问题，改为使用已有 repository 计数。
 - 移除 CI 中仅 echo 的 staging/production 假部署步骤，避免无部署实现时显示部署成功。
 - 再次恢复外部回写带来的旧 CI、pnpm、Safety 和全量 mypy 门禁说明回归。

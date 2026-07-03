@@ -55,3 +55,48 @@ async def test_upload_background_rejects_empty_file(client: AsyncClient):
 
     assert response.status_code == 400
     assert response.json()["error"]["message"] == "Background file is empty"
+
+
+@pytest.mark.anyio
+async def test_delete_background_reports_not_implemented(client: AsyncClient):
+    response = await client.delete(
+        f"/api/v1/green-screen/backgrounds/{uuid4()}",
+        params={"event_id": str(uuid4())},
+    )
+
+    assert response.status_code == 501
+    assert response.json()["error"]["message"] == (
+        "Green screen background deletion is not implemented"
+    )
+
+
+@pytest.mark.anyio
+async def test_process_photos_reports_not_implemented(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/green-screen/process",
+        params={
+            "event_id": str(uuid4()),
+        },
+        json={
+            "request": {
+                "settings": {
+                    "enabled": True,
+                    "mode": "auto",
+                    "color_to_remove": "#00FF00",
+                    "sensitivity": 50,
+                    "smoothness": 30,
+                    "use_flash": False,
+                    "background_mode": "rotate",
+                    "output_size": "template",
+                    "current_background_index": 0,
+                },
+                "apply_to_all": False,
+            },
+            "photo_ids": [str(uuid4())],
+        },
+    )
+
+    assert response.status_code == 501
+    assert response.json()["error"]["message"] == (
+        "Batch green screen processing is not implemented"
+    )
