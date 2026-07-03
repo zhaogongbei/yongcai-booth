@@ -1110,6 +1110,22 @@ export async function getBoothHealth(): Promise<BoothHealthResponse> {
 
 // ─── Booths ────────────────────────────────────────────────────────────────────
 
+export interface BoothResponse {
+  id: string;
+  team_id: string;
+  name: string;
+  device_id: string;
+  status: "online" | "offline" | "busy" | "error";
+  version?: string | null;
+  last_heartbeat?: string | null;
+  ip_address?: string | null;
+  os_info?: string | null;
+  current_event_id?: string | null;
+  config_hash?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export async function registerBooth(params: {
   teamId: string;
   name: string;
@@ -1119,8 +1135,8 @@ export async function registerBooth(params: {
   ipAddress?: string;
   osInfo?: string;
   currentEventId?: string;
-}): Promise<Record<string, unknown>> {
-  return request(`/booths/register`, {
+}): Promise<BoothResponse> {
+  return request<BoothResponse>(`/booths/register`, {
     method: "POST",
     token: params.token,
     body: {
@@ -1142,16 +1158,16 @@ export async function boothHeartbeat(boothId: string, token: string): Promise<Re
   });
 }
 
-export async function getTeamBooths(teamId: string, token: string): Promise<Record<string, unknown>[]> {
-  return request(`/booths`, { token, query: { team_id: teamId } });
+export async function getTeamBooths(teamId: string, token: string): Promise<BoothResponse[]> {
+  return request<BoothResponse[]>(`/booths`, { token, query: { team_id: teamId } });
 }
 
-export async function getBooth(boothId: string, token: string): Promise<Record<string, unknown>> {
-  return request(`/booths/${boothId}`, { token });
+export async function getBooth(boothId: string, token: string): Promise<BoothResponse> {
+  return request<BoothResponse>(`/booths/${boothId}`, { token });
 }
 
-export async function updateBooth(boothId: string, token: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return request(`/booths/${boothId}`, {
+export async function updateBooth(boothId: string, token: string, data: Record<string, unknown>): Promise<BoothResponse> {
+  return request<BoothResponse>(`/booths/${boothId}`, {
     method: "PUT",
     token,
     body: data,

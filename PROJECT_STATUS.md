@@ -30,6 +30,7 @@
 - CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
 - CI 安全扫描中的 Python 依赖审计必须使用项目声明的 `PYTHON_VERSION`，不能依赖 runner 默认 Python。
 - Green Screen 设置和背景资产由后端数据库持久化；前端页面已接入读取、保存、背景上传、删除、预览和测试照片分析接口，并通过统一 API 地址解析后端上传资产。
+- Booth 管理页必须通过真实 `team_id` 调用后端 `/booths`，不得提供后端 schema 不支持的假锁定成功操作。
 
 ## 近期完成
 
@@ -41,6 +42,7 @@
 - 已修复 Green Screen 设置和背景上传/删除未真实持久化的问题，并补齐 ORM、迁移和 API 回归测试。
 - 已重新接入前端 Green Screen 页面读取、保存、背景上传和删除接口，避免用户侧仍表现为配置丢失。
 - 已修复前端 Green Screen 预览、测试照片分析和背景缩略图仍依赖同源相对路径的问题。
+- 已修复前端 Booth 管理页缺少 `team_id` 导致列表稳定加载失败、以及锁定操作假成功的问题。
 - 已新增前端生产 Docker 镜像配置。
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。

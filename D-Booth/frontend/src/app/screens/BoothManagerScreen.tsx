@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Monitor, RefreshCw, Lock, CheckCircle } from "lucide-react";
+import { Monitor, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
 import { NeonBadge } from "../components/NeonBadge";
-import { toast } from "sonner";
-import { tokenStorage } from "../../lib/api";
+import { getMyTeams, getTeamBooths, tokenStorage, type BoothResponse } from "../../lib/api";
+import { useSettings } from "../stores/useSettings";
 import type { Screen } from "../types";
 
 interface BoothDevice {
@@ -23,23 +23,25 @@ interface BoothDevice {
   storage_total: number;
 }
 
-async function fetchBooths(token: string): Promise<BoothDevice[]> {
-  const resp = await fetch("/api/v1/booths", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!resp.ok) throw new Error("Failed to fetch booths");
-  return resp.json();
-}
-
-async function toggleBoothLock(boothId: string, lock: boolean, token: string): Promise<void> {
-  await fetch(`/api/v1/booths/${boothId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ locked: lock }),
-  });
+function toBoothDevice(booth: BoothResponse): BoothDevice {
+  return {
+    id: booth.id,
+    name: booth.name,
+    device_id: booth.device_id,
+    status: booth.status,
+    ip_address: booth.ip_address ?? "",
+    current_event_name: booth.current_event_id ? "已关联活动" : null,
+    last_heartbeat: booth.last_heartbeat ?? "",
+    photos_today: 0,
+    prints_today: 0,
+    shares_today: 0,
+    storage_used: 0,
+    storage_total: 0,
+  };
 }
 
 export function BoothManagerScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { currentEvent } = useSettings();
   const [booths, setBooths] = useState<BoothDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,33 +55,33 @@ export function BoothManagerScreen({ navigate }: { navigate: (s: Screen) => void
     }
     try {
       setLoading(true);
-      const data = await fetchBooths(token);
-      setBooths(data);
+      let teamId = currentEvent?.teamId;
+      if (!teamId) {
+        const teams = await getMyTeams(token);
+        teamId = teams[0]?.id;
+      }
+
+      if (!teamId) {
+        setBooths([]);
+        setError(null);
+        return;
+      }
+
+      const data = await getTeamBooths(teamId, token);
+      setBooths(data.map(toBoothDevice));
       setError(null);
     } catch {
       setError("获取展位列表失败");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentEvent?.teamId]);
 
   useEffect(() => {
     loadBooths();
     const interval = setInterval(loadBooths, 30000);
     return () => clearInterval(interval);
   }, [loadBooths]);
-
-  const handleLockBooth = async (boothId: string) => {
-    const token = tokenStorage.access;
-    if (!token) return;
-    try {
-      await toggleBoothLock(boothId, true, token);
-      toast.success("展位已锁定");
-      loadBooths();
-    } catch {
-      toast.error("锁定失败");
-    }
-  };
 
   const activeCount = booths.filter((b) => b.status === "online" || b.status === "busy").length;
   const totalPhotos = booths.reduce((s, b) => s + b.photos_today, 0);
@@ -184,12 +186,6 @@ export function BoothManagerScreen({ navigate }: { navigate: (s: Screen) => void
                       <div className="text-sm font-bold text-white">{booth.shares_today}</div>
                       <div className="text-[10px] text-white/30">分享</div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <GlowBtn size="sm" variant="ghost" onClick={() => handleLockBooth(booth.id)}>
-                      <Lock size={13} /> 锁定
-                    </GlowBtn>
                   </div>
                 </div>
               </GlassCard>
