@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -94,3 +94,15 @@ class TeamRepository(BaseRepository[Team]):
             )
         )
         return result.scalar_one_or_none()
+
+    async def count_owners(self, team_id: UUID) -> int:
+        """Count owner members in a team."""
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(TeamMember)
+            .where(
+                TeamMember.team_id == team_id,
+                TeamMember.role == UserRole.OWNER,
+            )
+        )
+        return result.scalar_one()

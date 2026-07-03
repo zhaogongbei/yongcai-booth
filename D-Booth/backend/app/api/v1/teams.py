@@ -15,9 +15,16 @@ from app.schemas.team import (
     TeamUpdate,
     TeamWithMembers,
 )
+from app.services.base_service import BusinessRuleError
 from app.services.team_service import TeamService
 
 router = APIRouter()
+
+
+def _team_business_rule_status(exc: BusinessRuleError) -> int:
+    if str(exc).startswith("Only "):
+        return status.HTTP_403_FORBIDDEN
+    return status.HTTP_400_BAD_REQUEST
 
 
 @router.get("", response_model=List[TeamResponse])
@@ -138,6 +145,8 @@ async def add_team_member(
     try:
         member = await team_service.add_member(team_id, member_in.user_id, member_in.role)
         return member
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=_team_business_rule_status(e), detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -154,6 +163,8 @@ async def remove_team_member(
 
     try:
         await team_service.remove_member(team_id, user_id, current_user.id)
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=_team_business_rule_status(e), detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
@@ -176,5 +187,7 @@ async def update_team_member_role(
         if not member:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
         return member
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=_team_business_rule_status(e), detail=str(e))
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
