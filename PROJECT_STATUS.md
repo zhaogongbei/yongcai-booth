@@ -19,6 +19,7 @@
 - 后端全量 mypy 不是 CI 门禁；当前 CI 使用 Ruff 致命错误检查，类型债务按模块逐步收敛。
 - 后端模型 UUID 类型位于 `app.models.custom_types`；不要重新创建 `app.models.types`。
 - Docker 发布上下文必须具备 `D-Booth/backend/Dockerfile` 和 `D-Booth/frontend/Dockerfile`。
+- GitHub Release 由生产发布 job 使用 `gh release create` 创建，不使用旧 release action。
 
 ## 近期完成
 
@@ -27,6 +28,7 @@
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。
 - 已新增 URL 型前端请求 hook `useHttpFetch`，同时保留现有 async-function 型 `useFetch`。
+- 已为 CI 增加显式权限，并将生产 release 创建迁移到 GitHub CLI。
 
 ## 已知债务
 

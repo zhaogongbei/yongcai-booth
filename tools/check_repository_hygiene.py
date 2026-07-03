@@ -65,11 +65,14 @@ EXPECTED_TEXT = {
         "python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict",
         "npm run audit:security",
         "ruff check app/ --select E9,F63,F7,F82",
+        "permissions:",
+        "gh release create",
     ],
 }
 
 BLOCKED_TEXT = {
     ".github/workflows/ci.yml": [
+        "actions/create-release@v1",
         "continue-on-error: true",
         "safety check",
         "mypy app/",

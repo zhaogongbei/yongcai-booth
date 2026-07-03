@@ -21,6 +21,7 @@
 - 修复 `useApi` debounce 递归调用与取消时 Promise 悬空的问题。
 
 ### 优化
+- 将生产 release 创建从旧 release action 迁移到 GitHub CLI，并为 CI workflow 增加显式最小权限声明。
 - 移除根目录生成型执行报告和错位版本文件，新增 `PROJECT_STATUS.md` 作为简洁项目记忆，并让仓库卫生检查阻止过程产物回归。
 - 整合前端 URL 请求 hook 为 `useHttpFetch`，避免与现有 `useFetch` 形成重名 API，并补齐 hooks 导出与文档。
 - 新增后端 `BaseService` 单元测试覆盖 CRUD、hook 调用和 repository 异常转换行为。
@@ -30,7 +31,7 @@
 - Redis 缓存连接失败后短路降级，避免本地开发和测试在 Redis 不可用时反复阻塞。
 - 前端安全审计统一为 `npm run audit:security`，固定使用 npm 官方审计 API，避免本地镜像 registry 不支持 audit 时门禁不可复现。
 - 前端 hooks README 补齐已导出的 `useFetch` helper，并同步当前 hooks 使用方式。
-- Python 依赖安全扫描从未固定的 `safety check` 切换为随开发依赖固定版本的 `pip-audit`。
+- Python 依赖安全扫描从未固定的旧 Safety 命令切换为随开发依赖固定版本的 `pip-audit`。
 - 优化 `useAuth` 初始化和 unauthorized 事件处理，减少未认证闪烁并确保会话失效时清理 token。
 - 新增 `useToggle` / `useMultiToggle` 前端 hooks，并同步导出与 hooks 文档。
 - 固定后端 CI lint 所需的 `isort` 依赖，并让 Python/Node 依赖审计在发现问题时阻断 CI。

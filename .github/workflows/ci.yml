@@ -11,6 +11,9 @@ env:
   NODE_VERSION: '20'
   DOTNET_VERSION: '8.0'
 
+permissions:
+  contents: read
+
 jobs:
   # Repository hygiene
   repository-hygiene:
@@ -160,6 +163,9 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Checkout code
@@ -255,6 +261,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [docker-build]
+    permissions:
+      contents: write
     environment:
       name: production
       url: https://app.dbooth.ai
@@ -268,12 +276,11 @@ jobs:
           echo "Deploying to production environment..."
           # Add your deployment script here
 
-      - name: Create Release
-        uses: actions/create-release@v1
+      - name: Create GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.run_number }}
-          release_name: Release v${{ github.run_number }}
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ github.run_number }}" \
+            --target "${{ github.sha }}" \
+            --title "Release v${{ github.run_number }}" \
+            --generate-notes
