@@ -114,6 +114,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const missingTemplatePhotoCount = activePrintTemplate
     ? Math.max(0, templatePhotoRequirement - orderedPrintPhotos.length)
     : 0;
+  const hasUnsavedPrintTemplate = Boolean(activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id));
   const printJobPhotos = activePrintTemplate
     ? orderedPrintPhotos.slice(0, templatePhotoRequirement)
     : (printPhoto ? [printPhoto] : []);
@@ -122,8 +123,8 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (!hasPrintablePhoto) return "请先完成拍照";
     if (!authToken) return "请从真实活动进入拍照后再打印";
     if (!activePrintTemplate) return "请先选择打印模板";
-    if (activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id)) {
-      return "当前模板尚未保存，无法真实打印";
+    if (hasUnsavedPrintTemplate) {
+      return "当前模板尚未保存，请重新选择或保存模板后打印";
     }
     if (missingTemplatePhotoCount > 0) {
       return `当前模板需要 ${templatePhotoRequirement} 张照片，还差 ${missingTemplatePhotoCount} 张`;
@@ -133,7 +134,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
     if (!selectedPrinter) return "请先选择打印机";
     return null;
-  }, [activePrintTemplate, authToken, hasPrintablePhoto, missingTemplatePhotoCount, pendingUploadPhoto, selectedPrinter, templatePhotoRequirement]);
+  }, [activePrintTemplate, authToken, hasPrintablePhoto, hasUnsavedPrintTemplate, missingTemplatePhotoCount, pendingUploadPhoto, selectedPrinter, templatePhotoRequirement]);
   const printButtonLabel = useMemo(() => {
     if (!printUnavailableReason) {
       return isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片";
@@ -141,12 +142,12 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (!hasPrintablePhoto) return "请先拍照";
     if (!authToken) return "无法打印";
     if (!activePrintTemplate) return "选择模板";
-    if (activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id)) return "模板未保存";
+    if (hasUnsavedPrintTemplate) return "重新选择模板";
     if (missingTemplatePhotoCount > 0) return "继续拍照";
     if (pendingUploadPhoto?.uploadError) return "上传失败";
     if (pendingUploadPhoto) return "等待上传";
     return "请选择打印机";
-  }, [activePrintTemplate, authToken, hasPrintablePhoto, missingTemplatePhotoCount, pendingUploadPhoto, printStatus, printUnavailableReason]);
+  }, [activePrintTemplate, authToken, hasPrintablePhoto, hasUnsavedPrintTemplate, missingTemplatePhotoCount, pendingUploadPhoto, printStatus, printUnavailableReason]);
   const paperSizeLabel = useMemo(
     () => formatTemplatePaperSize(activePrintTemplate?.layout ?? null),
     [activePrintTemplate?.layout],
@@ -264,12 +265,16 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       openTemplateSelectionForPrint();
       return;
     }
+    if (hasUnsavedPrintTemplate) {
+      openTemplateSelectionForPrint();
+      return;
+    }
     if (missingTemplatePhotoCount > 0) {
       navigate("camera");
       return;
     }
     void handlePrint();
-  }, [activePrintTemplate, handlePrint, hasPrintablePhoto, missingTemplatePhotoCount, navigate, openTemplateSelectionForPrint]);
+  }, [activePrintTemplate, handlePrint, hasPrintablePhoto, hasUnsavedPrintTemplate, missingTemplatePhotoCount, navigate, openTemplateSelectionForPrint]);
 
   const templatePreviewSize = useMemo(() => {
     if (!activePrintTemplate) return null;
