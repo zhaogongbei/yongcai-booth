@@ -130,13 +130,32 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         beauty_params: Optional[BeautyParams] = None,
     ) -> Photo:
         """Upload photo file, optionally apply built-in AI beauty, and create record."""
+        return await self.upload_photo_bytes(
+            file_data=await file.read(),
+            filename=file.filename or "upload",
+            content_type=file.content_type or "",
+            event_id=event_id,
+            session_id=session_id,
+            beauty_params=beauty_params,
+        )
 
-        declared_content_type = (file.content_type or "").lower()
+    async def upload_photo_bytes(
+        self,
+        file_data: bytes,
+        filename: str,
+        content_type: str,
+        event_id: UUID,
+        session_id: Optional[UUID] = None,
+        beauty_params: Optional[BeautyParams] = None,
+    ) -> Photo:
+        """Store validated image bytes and create a photo record."""
+
+        declared_content_type = (content_type or "").lower()
         if declared_content_type and declared_content_type not in self.ALLOWED_TYPES | {
             "application/octet-stream"
         }:
             raise ValueError(
-                f"File type {file.content_type} not allowed. Allowed types: {self.ALLOWED_TYPES}"
+                f"File type {content_type} not allowed. Allowed types: {self.ALLOWED_TYPES}"
             )
 
         if session_id:
@@ -146,8 +165,6 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             if session.event_id != event_id:
                 raise ValueError("Photo session does not belong to this event")
 
-        # Read file
-        file_data = await file.read()
         if not file_data:
             raise ValueError("Uploaded file is empty")
 
@@ -178,7 +195,7 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         # Preserve the submitted name only as metadata. Storage names are server-generated
         # to avoid overwrites and extension/content mismatches.
         safe_original_filename = (
-            re.sub(r"[^\w\-.]", "_", file.filename or "upload") if file.filename else "upload"
+            re.sub(r"[^\w\-.]", "_", filename or "upload") if filename else "upload"
         )
         safe_filename = f"{uuid4().hex}{self.CONTENT_TYPE_EXTENSIONS[detected_content_type]}"
 

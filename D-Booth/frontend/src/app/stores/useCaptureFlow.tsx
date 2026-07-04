@@ -1,5 +1,5 @@
 import { useState, createContext, useContext, useCallback } from "react";
-import { uploadPhoto, type PhotoResponse } from "../lib/api";
+import { resolveBackendUrl, uploadPhoto, type PhotoResponse } from "../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
 
@@ -37,7 +37,7 @@ export interface ActivePrintTemplate {
 
 interface CaptureFlowContextType {
   photos: CapturedPhoto[];
-  addPhoto: (photo: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType }) => Promise<void>;
+  addPhoto: (photo: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType; serverPhotoId?: string; uploaded?: boolean }) => Promise<void>;
   clearPhotos: () => void;
   selectedPhotoId: string | null;
   setSelectedPhotoId: (id: string | null) => void;
@@ -74,10 +74,18 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
     if (ctx.authToken !== undefined) setAuthToken(ctx.authToken);
   }, []);
 
-  const addPhoto = useCallback(async ({ blob, url, filter, mediaType = "photo" }: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType }) => {
+  const addPhoto = useCallback(async ({ blob, url, filter, mediaType = "photo", serverPhotoId, uploaded }: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType; serverPhotoId?: string; uploaded?: boolean }) => {
     const id = `photo_${Date.now()}`;
-    const localUrl = blob ? URL.createObjectURL(blob) : (url ?? "");
-    const photo: CapturedPhoto = { id, url: localUrl, timestamp: Date.now(), filter, mediaType, uploaded: false };
+    const localUrl = blob ? URL.createObjectURL(blob) : (url ? resolveBackendUrl(url) : "");
+    const photo: CapturedPhoto = {
+      id,
+      url: localUrl,
+      timestamp: Date.now(),
+      filter,
+      mediaType,
+      serverPhotoId,
+      uploaded: uploaded ?? Boolean(serverPhotoId),
+    };
     setPhotos(prev => [...prev, photo]);
     setSelectedPhotoId(id);
 
@@ -86,7 +94,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
       try {
         const saved: PhotoResponse = await uploadPhoto({ eventId, sessionId: sessionId ?? undefined, file: blob, token: authToken });
         setPhotos(prev => prev.map(p => p.id === id
-          ? { ...p, serverPhotoId: saved.id, url: saved.original_url || localUrl, uploaded: true }
+          ? { ...p, serverPhotoId: saved.id, url: saved.original_url ? resolveBackendUrl(saved.original_url) : localUrl, uploaded: true }
           : p));
         // Revoke blob URL after upload (no longer needed)
         if (localUrl.startsWith("blob:")) {

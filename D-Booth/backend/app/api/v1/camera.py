@@ -1,9 +1,10 @@
 from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.core.logging import logger
 from app.models.models import User
 from app.schemas.camera import (
@@ -122,6 +123,8 @@ async def update_camera_settings(
 
 @router.post("/capture")
 async def capture_photo(
+    event_id: Optional[UUID] = Query(None),
+    session_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -132,9 +135,9 @@ async def capture_photo(
     """
     import uuid
 
-    from fastapi.responses import Response
-
+    from app.services.event_service import EventService
     from app.services.photo_service import PhotoService
+    from app.services.subscription_service import SubscriptionService
 
     controller = _get_controller()
     status = controller.get_status()
@@ -170,20 +173,39 @@ async def capture_photo(
         filepath = upload_dir / filename
         filepath.write_bytes(image_data)
 
+        photo = None
+        if event_id:
+            event_service = EventService(db)
+            event = await event_service.get_event(event_id)
+            if not event:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+            await check_team_member(event.team_id, current_user, db)
+            await SubscriptionService(db).ensure_can_upload_photo(event.team_id, event.id)
+            photo = await PhotoService(db).upload_photo_bytes(
+                file_data=image_data,
+                filename=filename,
+                content_type="image/jpeg",
+                event_id=event_id,
+                session_id=session_id,
+            )
+
         return {
             "status": "ok",
             "message": "拍摄成功",
             "capture_method": "dslr",
             "local_path": str(filepath),
             "file_size": len(image_data),
+            "photo": photo,
             "settings": await controller.get_settings(),
         }
 
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"DSLR capture failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="拍摄失败"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="拍摄失败")
 
 
 # ─── 能力 ──────────────────────────────────────────────────────────────────────

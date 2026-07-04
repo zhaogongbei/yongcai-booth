@@ -15,7 +15,7 @@ import { attendantPlayer } from "../services/attendantPlayer";
 import { GifRecorder } from "../services/gifRecorder";
 import { VideoRecorder } from "../services/videoRecorder";
 import { useResponsive } from "../hooks/useResponsive";
-import { request } from "../../lib/api";
+import { request, type PhotoResponse } from "../../lib/api";
 
 const FILTERS = CAMERA_FILTERS;
 
@@ -72,7 +72,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     focus_mode: "AF-C",
   });
 
-  const { addPhoto, photos, eventId, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
+  const { addPhoto, photos, eventId, currentSessionId, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRecorderRef = useRef<VideoRecorder | null>(null);
@@ -240,18 +240,36 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
         capture_method: string;
         local_path?: string;
         file_size?: number;
-      }>("/camera/capture", { method: "POST" });
+        photo?: PhotoResponse | null;
+      }>("/camera/capture", {
+        method: "POST",
+        token: authToken ?? undefined,
+        query: {
+          event_id: eventId,
+          session_id: currentSessionId,
+        },
+      });
 
-      if (result.capture_method === "dslr" && result.local_path) {
-        toast.error("DSLR 已拍摄，但尚未接入当前打印照片流");
-        return false;
+      if (result.capture_method === "dslr") {
+        if (!result.photo) {
+          toast.error("请从真实活动进入拍照后再使用 DSLR 拍摄");
+          return false;
+        }
+        await addPhoto({
+          url: result.photo.original_url,
+          filter: FILTERS[selectedFilter],
+          serverPhotoId: result.photo.id,
+          uploaded: true,
+        });
+        toast.success("DSLR拍摄成功");
+        return true;
       }
       return false;
     } catch (error) {
       console.warn("DSLR capture failed, falling back to webcam:", error);
       return false;
     }
-  }, []);
+  }, [addPhoto, authToken, currentSessionId, eventId, selectedFilter]);
 
   const captureFrame = useCallback(async (): Promise<boolean> => {
     // 优先尝试DSLR拍摄
