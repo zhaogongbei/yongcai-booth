@@ -54,8 +54,8 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   );
 
   const loadSavedTemplates = useCallback(async () => {
-    const token = tokenStorage.access;
-    if (!token) {
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    if (!hasStoredAuthSession) {
       setSavedTemplates([]);
       setSavedTemplatesError(null);
       return;
@@ -65,7 +65,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     try {
       let teamId = currentEvent?.teamId;
       if (!teamId) {
-        const teams = await getMyTeams(token);
+        const teams = await getMyTeams();
         teamId = teams[0]?.id;
       }
       if (!teamId) {
@@ -74,7 +74,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
         return;
       }
 
-      const data = await getTemplates(teamId, token);
+      const data = await getTemplates(teamId);
       setSavedTemplates(data);
       setSavedTemplatesError(null);
     } catch {

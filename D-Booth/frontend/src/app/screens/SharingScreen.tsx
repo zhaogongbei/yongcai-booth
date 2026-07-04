@@ -3,6 +3,7 @@ import { QrCode, Bluetooth, Globe, Mail, Cloud, Plus, Camera, Copy, MessageCircl
 import { motion } from "motion/react";
 import QRCodeLib from "qrcode";
 import { GlassCard } from "../components/GlassCard";
+import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { GlowBtn } from "../components/GlowBtn";
 import { SparkArea } from "../components/SparkArea";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
@@ -389,14 +390,14 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
               <select
                 value={countryCode}
                 onChange={e => setCountryCode(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-white text-sm outline-none focus:border-violet-500"
+                className={getGlassSelectClassName("rounded-xl px-3 py-3 text-sm")}
               >
-                <option value="+86">+86 中国</option>
-                <option value="+1">+1 美国</option>
-                <option value="+44">+44 英国</option>
-                <option value="+81">+81 日本</option>
-                <option value="+82">+82 韩国</option>
-                <option value="+852">+852 香港</option>
+                <option value="+86" className={GLASS_SELECT_OPTION_CLASS_NAME}>+86 中国</option>
+                <option value="+1" className={GLASS_SELECT_OPTION_CLASS_NAME}>+1 美国</option>
+                <option value="+44" className={GLASS_SELECT_OPTION_CLASS_NAME}>+44 英国</option>
+                <option value="+81" className={GLASS_SELECT_OPTION_CLASS_NAME}>+81 日本</option>
+                <option value="+82" className={GLASS_SELECT_OPTION_CLASS_NAME}>+82 韩国</option>
+                <option value="+852" className={GLASS_SELECT_OPTION_CLASS_NAME}>+852 香港</option>
               </select>
               <input
                 type="tel"

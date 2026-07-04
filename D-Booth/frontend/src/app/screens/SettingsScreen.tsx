@@ -2,6 +2,7 @@ import { Camera, Printer, Cloud, Globe, Palette, Sun, Star, Sparkles, Lock, Chev
 import type { ElementType } from "react";
 import { useState, useCallback } from "react";
 import { GlassCard } from "../components/GlassCard";
+import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { useSettings } from "../stores/useSettings";
 import { showToast } from "../stores/useToast";
 import { attendantPlayer } from "../services/attendantPlayer";
@@ -270,11 +271,15 @@ export function SettingsScreen() {
                     {"settingKey" in item && item.settingKey === "language" && (
                       <div className="mt-1">
                         <select
-                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none"
+                          className={getGlassSelectClassName("w-full rounded-lg px-2 py-1 text-xs")}
                           value={ui.language}
                           onChange={e => updateSettings({ ui: { ...ui, language: e.target.value } })}
                         >
-                          {LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          {LANGUAGE_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     )}
@@ -314,7 +319,7 @@ export function SettingsScreen() {
               <div className="text-sm text-white mb-1">位置</div>
               <div className="text-xs text-white/40 mb-1.5">选择水印在照片上的位置</div>
               <select
-                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none w-full"
+                className={getGlassSelectClassName("w-full rounded-lg px-2 py-1 text-xs")}
                 value={wm.position}
                 onChange={e => updateSettings({
                   watermark: {
@@ -324,7 +329,11 @@ export function SettingsScreen() {
                   }
                 })}
               >
-                {POSITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {POSITION_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -388,13 +397,17 @@ export function SettingsScreen() {
               <div className="text-sm text-white mb-1">锐化级别</div>
               <div className="text-xs text-white/40 mb-1.5">针对打印输出进行图像锐化处理</div>
               <select
-                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none w-full"
+                className={getGlassSelectClassName("w-full rounded-lg px-2 py-1 text-xs")}
                 value={prt.sharpenProfile}
                 onChange={e => updateSettings({
                   print: { ...prt, sharpenProfile: e.target.value as typeof prt.sharpenProfile }
                 })}
               >
-                {SHARPEN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {SHARPEN_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="text-xs text-white/30 space-y-1 mt-3 pt-3 border-t border-white/5">
@@ -434,12 +447,16 @@ export function SettingsScreen() {
               <div>
                 <div className="text-sm text-white mb-1">语言</div>
                 <select
-                  className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none w-full"
+                  className={getGlassSelectClassName("w-full rounded-lg px-2 py-1 text-xs")}
                   value={vaLocal.language}
                   onChange={e => handleVaLanguageChange(e.target.value as "zh-CN" | "en-US")}
                   disabled={!va.enabled}
                 >
-                  {VOICE_LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {VOICE_LANGUAGE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -447,12 +464,16 @@ export function SettingsScreen() {
               <div>
                 <div className="text-sm text-white mb-1">语音</div>
                 <select
-                  className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none w-full"
+                  className={getGlassSelectClassName("w-full rounded-lg px-2 py-1 text-xs")}
                   value={vaLocal.voice}
                   onChange={e => handleVaVoiceChange(e.target.value as "female" | "male")}
                   disabled={!va.enabled}
                 >
-                  {VOICE_GENDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {VOICE_GENDER_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 

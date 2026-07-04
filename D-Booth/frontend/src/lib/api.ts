@@ -314,7 +314,9 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
         if (res.status === 401 && !noAuth && !skipRefresh && tokenStorage.refresh) {
           const refreshed = await refreshTokens();
           if (refreshed) {
-            return request<T>(path, { ...opts, skipRefresh: true });
+            // Drop any explicit stale access token so the retried request can use
+            // the freshly refreshed token from tokenStorage.
+            return request<T>(path, { ...opts, token: undefined, skipRefresh: true });
           }
         }
 
@@ -829,18 +831,18 @@ export interface TemplateResponse {
   updated_at: string;
 }
 
-export async function getTemplates(teamId: string, token: string): Promise<TemplateResponse[]> {
+export async function getTemplates(teamId: string, token?: string): Promise<TemplateResponse[]> {
   return request<TemplateResponse[]>("/templates", {
     token,
     query: { team_id: teamId },
   });
 }
 
-export async function getTemplate(templateId: string, token: string): Promise<TemplateResponse> {
+export async function getTemplate(templateId: string, token?: string): Promise<TemplateResponse> {
   return request<TemplateResponse>(`/templates/${templateId}`, { token });
 }
 
-export async function createTemplate(payload: TemplateCreatePayload, token: string): Promise<TemplateResponse> {
+export async function createTemplate(payload: TemplateCreatePayload, token?: string): Promise<TemplateResponse> {
   return request<TemplateResponse>("/templates", {
     method: "POST",
     token,
@@ -851,7 +853,7 @@ export async function createTemplate(payload: TemplateCreatePayload, token: stri
 export async function updateTemplate(
   templateId: string,
   payload: TemplateUpdatePayload,
-  token: string
+  token?: string
 ): Promise<TemplateResponse> {
   return request<TemplateResponse>(`/templates/${templateId}`, {
     method: "PUT",
@@ -860,7 +862,7 @@ export async function updateTemplate(
   });
 }
 
-export async function validateTemplate(templateData: Record<string, unknown>, token: string): Promise<{ valid: boolean; message: string }> {
+export async function validateTemplate(templateData: Record<string, unknown>, token?: string): Promise<{ valid: boolean; message: string }> {
   return request<{ valid: boolean; message: string }>("/templates/validate", {
     method: "POST",
     token,
@@ -876,7 +878,7 @@ export interface TeamResponse {
   [key: string]: unknown;
 }
 
-export async function getMyTeams(token: string): Promise<TeamResponse[]> {
+export async function getMyTeams(token?: string): Promise<TeamResponse[]> {
   return request<TeamResponse[]>("/teams", { token }).catch(() => []);
 }
 

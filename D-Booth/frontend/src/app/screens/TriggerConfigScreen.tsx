@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
+import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { GlowBtn } from "../components/GlowBtn";
 import type { Screen } from "../types";
 
@@ -57,21 +58,21 @@ export function TriggerConfigScreen({ navigate }: { navigate: (s: Screen) => voi
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-white/40">事件类型</label>
-              <select className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/80 outline-none"
+              <select className={getGlassSelectClassName("w-full rounded-lg px-3 py-2 text-xs")}
                 value={form.event_type}
                 onChange={(e) => setForm((f) => ({ ...f, event_type: e.target.value }))}>
                 {TRIGGER_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t} className={GLASS_SELECT_OPTION_CLASS_NAME}>{t}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs text-white/40">动作类型</label>
-              <select className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/80 outline-none"
+              <select className={getGlassSelectClassName("w-full rounded-lg px-3 py-2 text-xs")}
                 value={form.action_type}
                 onChange={(e) => setForm((f) => ({ ...f, action_type: e.target.value }))}>
                 {ACTION_TYPES.map((a) => (
-                  <option key={a} value={a}>{a === "http_callback" ? "HTTP回调" : "执行程序"}</option>
+                  <option key={a} value={a} className={GLASS_SELECT_OPTION_CLASS_NAME}>{a === "http_callback" ? "HTTP回调" : "执行程序"}</option>
                 ))}
               </select>
             </div>

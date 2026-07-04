@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ArrowLeft, ChevronDown, Eye, Download, Move, Copy, Layers, AlignCenter, Type, Palette, Lock, Trash2, Undo2, Redo2, Plus, LayoutTemplate, ChevronUp, GripVertical, Image as ImageIcon, ScanQrCode, Square, Type as TypeIcon, Calendar, Save } from "lucide-react";
+import { ArrowLeft, ChevronDown, Eye, Download, Move, Copy, Layers, AlignCenter, Type, Palette, Lock, Trash2, Undo2, Redo2, Plus, LayoutTemplate, ChevronUp, GripVertical, Image as ImageIcon, ScanQrCode, Square, Type as TypeIcon, Calendar, Save, Upload } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
@@ -124,6 +124,91 @@ function createLayoutFromPrintPreset(layoutId: string, preset: PrintLayoutPreset
   };
 }
 
+function parseLegacyArgbColor(value: string | null): string {
+  if (!value?.startsWith("#")) return "#ffffff";
+  const normalized = value.length === 9 ? `#${value.slice(3)}` : value;
+  return /^#[0-9a-fA-F]{6}$/.test(normalized) ? normalized : "#ffffff";
+}
+
+function readNumberAttr(element: Element, attr: string, fallback: number): number {
+  const value = Number(element.getAttribute(attr));
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function parseLegacyTemplateXml(xmlText: string): TemplateLayout {
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  if (doc.querySelector("parsererror")) {
+    throw new Error("模板 XML 格式无效");
+  }
+
+  const template = doc.querySelector("Template");
+  if (!template) {
+    throw new Error("未找到 Template 根节点");
+  }
+
+  const canvasWidth = readNumberAttr(template, "Width", 1200);
+  const canvasHeight = readNumberAttr(template, "Height", 1800);
+  const elements: TemplateElement[] = [];
+
+  doc.querySelectorAll("Photo").forEach((node, index) => {
+    elements.push({
+      id: generateId(),
+      type: "photo",
+      x: readNumberAttr(node, "Left", 0),
+      y: readNumberAttr(node, "Top", 0),
+      width: readNumberAttr(node, "Width", 300),
+      height: readNumberAttr(node, "Height", 200),
+      rotation: readNumberAttr(node, "Rotation", 0),
+      opacity: 1,
+      zIndex: readNumberAttr(node, "ZIndex", index),
+      locked: false,
+      visible: true,
+      props: {
+        photoNumber: readNumberAttr(node, "PhotoNumber", index + 1),
+        cropMode: node.getAttribute("KeepAspect") === "True" ? "fit" : "stretch",
+        borderRadius: 0,
+      } as PhotoElementProps,
+    });
+  });
+
+  doc.querySelectorAll("Image").forEach((node, index) => {
+    const imagePath = node.getAttribute("ImagePath") || "";
+    elements.push({
+      id: generateId(),
+      type: "image",
+      x: readNumberAttr(node, "Left", 0),
+      y: readNumberAttr(node, "Top", 0),
+      width: readNumberAttr(node, "Width", 300),
+      height: readNumberAttr(node, "Height", 200),
+      rotation: readNumberAttr(node, "Rotation", 0),
+      opacity: 1,
+      zIndex: readNumberAttr(node, "ZIndex", elements.length + index),
+      locked: false,
+      visible: true,
+      props: {
+        src: imagePath,
+        alt: node.getAttribute("Name") || imagePath || "Imported image",
+      } as ImageElementProps,
+    });
+  });
+
+  return {
+    id: generateId(),
+    name: template.getAttribute("Name") || "导入模板",
+    paperSize: {
+      width: Number((canvasWidth * 25.4 / 300).toFixed(1)),
+      height: Number((canvasHeight * 25.4 / 300).toFixed(1)),
+    },
+    resolution: 300,
+    orientation: canvasWidth > canvasHeight ? "landscape" : "portrait",
+    background: {
+      type: "color",
+      value: parseLegacyArgbColor(template.getAttribute("BackgroundColor")),
+    },
+    elements,
+  };
+}
+
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
   const { currentEvent } = useSettings();
@@ -146,6 +231,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const resizeDirRef = useRef<string>('');
   const dragStartRef = useRef({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const zoomLabel = ZOOM_OPTIONS.find(z => z.value === zoom)?.label ?? "100%";
 
@@ -242,9 +328,9 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     name: templateName.trim() || "未命名模板",
   }), [layout, templateName]);
 
-  const resolveTeamId = useCallback(async (token: string) => {
+  const resolveTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
-    const teams = await getMyTeams(token);
+    const teams = await getMyTeams();
     return teams[0]?.id ?? null;
   }, [currentEvent?.teamId]);
 
@@ -385,15 +471,15 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   const saveTemplate = useCallback(async () => {
-    const token = tokenStorage.access;
-    if (!token) {
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    if (!hasStoredAuthSession) {
       showToast.error("请先登录后再保存模板");
       return;
     }
 
     setIsSaving(true);
     try {
-      const teamId = await resolveTeamId(token);
+      const teamId = await resolveTeamId();
       if (!teamId) {
         showToast.error("未找到可保存模板的团队");
         return;
@@ -401,7 +487,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
       const snapshot = getLayoutSnapshot();
       const layers = snapshot as unknown as Record<string, unknown>;
-      const validation = await validateTemplate(layers, token);
+      const validation = await validateTemplate(layers);
       if (!validation.valid) {
         showToast.error(validation.message || "模板结构校验失败");
         return;
@@ -418,8 +504,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       };
 
       const saved = savedTemplateId
-        ? await updateTemplate(savedTemplateId, payload, token)
-        : await createTemplate({ ...payload, team_id: teamId }, token);
+        ? await updateTemplate(savedTemplateId, payload)
+        : await createTemplate({ ...payload, team_id: teamId });
 
       setSavedTemplateId(saved.id);
       setTemplateName(saved.name);
@@ -454,6 +540,24 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     setSavedTemplateId(null);
     setSelectedIds([]);
     showToast.success(`已应用版式: ${preset.name}`);
+  };
+
+  const importLegacyTemplate = async (file: File) => {
+    try {
+      const text = await file.text();
+      const importedLayout = parseLegacyTemplateXml(text);
+      undoRedo.reset(importedLayout);
+      setTemplateName(importedLayout.name);
+      setSavedTemplateId(null);
+      setSelectedIds([]);
+      showToast.success("旧版模板已导入");
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "模板导入失败");
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+    }
   };
 
   // ─── 添加新元素 ───
@@ -828,6 +932,26 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             >
               <LayoutTemplate size={13} />
               预设布局 ({TEMPLATE_PRESETS.length}种)
+            </button>
+          </div>
+          <div>
+            <div className="text-[10px] text-white/30 uppercase mb-2">导入</div>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xml,text/xml,application/xml"
+              className="hidden"
+              onChange={event => {
+                const file = event.target.files?.[0];
+                if (file) void importLegacyTemplate(file);
+              }}
+            />
+            <button
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/15 text-xs text-white/60 hover:text-white/90 transition-colors"
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload size={13} />
+              旧版 template.xml
             </button>
           </div>
           <div>

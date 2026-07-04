@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Camera, Users, Printer, Download, ChevronDown, Music, SkipBack, Pause, Play, SkipForward, Volume2, VolumeX, CloudSun } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
+import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { Screen } from "../types";
 import { useSettings } from "../stores/useSettings";
 import { attendantPlayer } from "../services/attendantPlayer";
@@ -335,21 +336,21 @@ export function AttractScreen({ navigate }: { navigate: (screen: Screen) => void
           <div className="flex items-center justify-between">
             <span className="text-xs text-white/60">轮播间隔</span>
             <select
-              className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none"
+              className={getGlassSelectClassName("rounded-lg px-2 py-1 text-xs")}
               value={carouselInterval}
               onChange={e => setA({ carouselInterval: e.target.value })}
             >
-              {INTERVAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {INTERVAL_OPTIONS.map(option => <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>{option.label}</option>)}
             </select>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-white/60">过渡效果</span>
             <select
-              className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none"
+              className={getGlassSelectClassName("rounded-lg px-2 py-1 text-xs")}
               value={transition}
               onChange={e => setA({ transition: e.target.value })}
             >
-              {TRANSITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {TRANSITION_OPTIONS.map(option => <option key={option.value} value={option.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>{option.label}</option>)}
             </select>
           </div>
         </div>

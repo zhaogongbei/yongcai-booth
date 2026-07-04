@@ -4,6 +4,7 @@ import { Plus, Trash2, GripVertical, Save, ChevronDown, ChevronUp, ToggleLeft } 
 import { toast } from "sonner";
 import { request } from "@/lib/api";
 import { Button } from "@/app/components/ui/button";
+import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "@/app/components/glassSelect";
 import { useSettings } from "@/app/stores/useSettings";
 
 interface SurveyQuestion {
@@ -235,10 +236,10 @@ export function SurveyConfigScreen({ navigate }: { navigate?: (screen: any) => v
                         <select
                           value={question.type}
                           onChange={(e) => updateQuestion(index, "type", e.target.value)}
-                          className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-violet-500 transition-colors"
+                          className={getGlassSelectClassName("rounded-lg px-3 py-2 text-sm")}
                         >
                           {questionTypes.map((type) => (
-                            <option key={type.value} value={type.value}>
+                            <option key={type.value} value={type.value} className={GLASS_SELECT_OPTION_CLASS_NAME}>
                               {type.label}
                             </option>
                           ))}

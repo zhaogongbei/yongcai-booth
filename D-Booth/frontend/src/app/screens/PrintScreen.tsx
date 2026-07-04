@@ -3,6 +3,7 @@ import { ArrowLeft, Printer, Check, Share2, RefreshCw, FileText, Settings2 } fro
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
+import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { GlowBtn } from "../components/GlowBtn";
 import { TopBar } from "../components/TopBar";
 import { StatusPill } from "../components/StatusPill";
@@ -207,11 +208,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/40">纸张大小：</span>
-            <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 outline-none"
+            <select className={getGlassSelectClassName("rounded-lg px-2 py-1 text-xs")}
               value={paperSizeSelect}
               onChange={e => setPaperSizeSelect(e.target.value)}>
-              <option>2x6 英寸</option>
-              <option>4x6 英寸</option>
+              <option className={GLASS_SELECT_OPTION_CLASS_NAME}>2x6 英寸</option>
+              <option className={GLASS_SELECT_OPTION_CLASS_NAME}>4x6 英寸</option>
             </select>
           </div>
         </div>
