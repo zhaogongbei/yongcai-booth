@@ -650,6 +650,35 @@ export async function getEvents(token: string, teamId?: string): Promise<EventRe
     .catch(() => request<EventResponse[]>("/events", { token }));
 }
 
+export interface EventCreateParams {
+  teamId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  description?: string;
+  eventType?: string;
+  venueName?: string;
+  venueAddress?: string;
+  token: string;
+}
+
+export async function createEvent(params: EventCreateParams): Promise<EventResponse> {
+  return request<EventResponse>("/events", {
+    method: "POST",
+    token: params.token,
+    body: {
+      team_id: params.teamId,
+      name: params.name,
+      description: params.description,
+      event_type: params.eventType,
+      start_date: params.startDate,
+      end_date: params.endDate,
+      venue_name: params.venueName,
+      venue_address: params.venueAddress,
+    },
+  });
+}
+
 // ─── Shares ───────────────────────────────────────────────────────────────────
 
 export interface ShareCreateParams {

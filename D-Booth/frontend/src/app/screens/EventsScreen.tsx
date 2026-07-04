@@ -6,7 +6,7 @@ import { GlowBtn } from "../components/GlowBtn";
 import { SimpleBarChart } from "../components/SimpleBarChart";
 import { showToast } from "../stores/useToast";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
-import { createPhotoSession, getEvents, tokenStorage, type EventResponse } from "../../lib/api";
+import { createEvent, createPhotoSession, getEvents, getMyTeams, tokenStorage, type EventResponse } from "../../lib/api";
 import type { Screen } from "../types";
 
 interface EventsScreenProps {
@@ -36,14 +36,34 @@ function toRow(ev: EventResponse) {
   };
 }
 
+function toEventDateInputValue(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildEventDateRange(dateValue: string) {
+  const start = new Date(`${dateValue}T09:00:00`);
+  const end = new Date(start);
+  end.setHours(start.getHours() + 4);
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+  };
+}
+
 export function EventsScreen({ navigate }: EventsScreenProps) {
   const { setCaptureContext } = useCaptureFlow();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("全部");
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [events, setEvents] = useState(DEMO_EVENTS);
   const [loading, setLoading] = useState(false);
   const [usingMock, setUsingMock] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newEventName, setNewEventName] = useState("");
+  const [newEventDate, setNewEventDate] = useState(toEventDateInputValue());
+  const [newEventVenue, setNewEventVenue] = useState("");
 
   const loadEvents = useCallback(async () => {
     const token = tokenStorage.access;
@@ -68,7 +88,66 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
 
-  const filtered = events.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filtered = events.filter(e => {
+    if (!e.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (selectedStatus !== "全部" && e.status !== selectedStatus) return false;
+    return true;
+  });
+
+  const resetCreateForm = () => {
+    setNewEventName("");
+    setNewEventDate(toEventDateInputValue());
+    setNewEventVenue("");
+  };
+
+  const submitNewEvent = async () => {
+    const token = tokenStorage.access;
+    const name = newEventName.trim();
+    if (!token) {
+      showToast.error("请先登录后再新建活动");
+      return;
+    }
+    if (!name) {
+      showToast.error("请输入活动名称");
+      return;
+    }
+    if (!newEventDate) {
+      showToast.error("请选择活动日期");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const teams = await getMyTeams(token);
+      const teamId = teams[0]?.id;
+      if (!teamId) {
+        showToast.error("未找到可创建活动的团队");
+        return;
+      }
+
+      const dateRange = buildEventDateRange(newEventDate);
+      const event = await createEvent({
+        teamId,
+        name,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        eventType: "booth",
+        venueName: newEventVenue.trim() || undefined,
+        token,
+      });
+
+      setEvents(prev => [toRow(event), ...prev.filter(item => item.id !== event.id)]);
+      setUsingMock(false);
+      resetCreateForm();
+      setShowCreateForm(false);
+      showToast.success("活动已创建");
+      await loadEvents();
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "活动创建失败");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   // 进入某活动的拍照流程：注入 eventId + token，跳转相机屏
   const enterCapture = async (eventId: string, eventName: string) => {
@@ -112,9 +191,50 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />刷新
           </GlowBtn>
           <GlowBtn size="sm" variant="ghost" onClick={() => setShowFilters(f => !f)}><Filter size={14} />筛选</GlowBtn>
-          <GlowBtn size="sm" variant="primary" onClick={() => showToast.info("新建活动功能开发中")}><Plus size={14} />新建活动</GlowBtn>
+          <GlowBtn size="sm" variant="primary" onClick={() => setShowCreateForm(f => !f)}><Plus size={14} />新建活动</GlowBtn>
         </div>
       </div>
+
+      {showCreateForm && (
+        <GlassCard className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-white/80">新建活动</span>
+            <button className="text-xs text-white/40 hover:text-white/70" onClick={() => setShowCreateForm(false)}>关闭</button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.5fr_160px_1fr_auto] md:items-end">
+            <label className="space-y-1">
+              <span className="text-xs text-white/40">活动名称</span>
+              <input
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-violet-500/50"
+                placeholder="例如：品牌快闪拍照"
+                value={newEventName}
+                onChange={e => setNewEventName(e.target.value)}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-white/40">活动日期</span>
+              <input
+                type="date"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+                value={newEventDate}
+                onChange={e => setNewEventDate(e.target.value)}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-white/40">场地</span>
+              <input
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-violet-500/50"
+                placeholder="可选"
+                value={newEventVenue}
+                onChange={e => setNewEventVenue(e.target.value)}
+              />
+            </label>
+            <GlowBtn size="sm" variant="primary" onClick={submitNewEvent} disabled={creating}>
+              <Plus size={14} />{creating ? "创建中" : "创建"}
+            </GlowBtn>
+          </div>
+        </GlassCard>
+      )}
 
       {/* Filter panel */}
       {showFilters && (
@@ -122,7 +242,11 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
           <div className="flex items-center gap-4">
             <span className="text-xs text-white/40">按状态筛选：</span>
             {["全部", "进行中", "已完成", "即将开始"].map(f => (
-              <button key={f} className="px-3 py-1 rounded-lg text-xs bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-colors">
+              <button
+                key={f}
+                className={`px-3 py-1 rounded-lg text-xs transition-colors ${selectedStatus === f ? "bg-violet-500/20 text-violet-300 border border-violet-500/30" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}
+                onClick={() => setSelectedStatus(f)}
+              >
                 {f}
               </button>
             ))}
