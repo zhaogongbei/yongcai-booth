@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import check_team_member, get_current_active_user
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.models import Disclaimer, DisclaimerAcceptance, Event, User
+from app.models.models import Disclaimer, DisclaimerAcceptance, Event, PhotoSession, User
 from app.schemas.disclaimer import (
     DisclaimerAcceptanceCreate,
     DisclaimerAcceptanceResponse,
@@ -30,6 +30,20 @@ async def _ensure_event_access(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     await check_team_member(team_id, current_user, db)
+
+
+async def _ensure_session_belongs_to_event(
+    db: AsyncSession,
+    event_id: UUID,
+    session_id: UUID,
+) -> None:
+    result = await db.execute(
+        select(PhotoSession.id)
+        .where(PhotoSession.id == session_id)
+        .where(PhotoSession.event_id == event_id)
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
 
 @router.get("/event/{event_id}", response_model=DisclaimerResponse)
@@ -102,6 +116,10 @@ async def accept_disclaimer(
         disclaimer_id = disclaimer_result.scalar_one_or_none()
         if not disclaimer_id:
             raise HTTPException(status_code=404, detail="免责声明不存在")
+
+        await _ensure_session_belongs_to_event(
+            db, acceptance_data.event_id, acceptance_data.session_id
+        )
 
         # 检查是否已经接受过
         existing = await db.execute(

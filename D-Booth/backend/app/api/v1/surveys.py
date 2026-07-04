@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import check_team_member, get_current_active_user
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.models import Event, Survey, SurveyResponse, User
+from app.models.models import Event, PhotoSession, Survey, SurveyResponse, User
 from app.schemas.survey import (
     SurveyAnswerResponse,
     SurveyAnswerSubmit,
@@ -32,6 +32,37 @@ async def _ensure_event_access(
     team_id = result.scalar_one_or_none()
     if team_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    await check_team_member(team_id, current_user, db)
+
+
+async def _ensure_session_belongs_to_event(
+    db: AsyncSession,
+    event_id: UUID,
+    session_id: UUID,
+) -> None:
+    result = await db.execute(
+        select(PhotoSession.id)
+        .where(PhotoSession.id == session_id)
+        .where(PhotoSession.event_id == event_id)
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+
+async def _ensure_session_access(
+    db: AsyncSession,
+    session_id: UUID,
+    current_user: User,
+) -> None:
+    result = await db.execute(
+        select(Event.team_id)
+        .join(PhotoSession, PhotoSession.event_id == Event.id)
+        .where(PhotoSession.id == session_id)
+    )
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
     await check_team_member(team_id, current_user, db)
 
@@ -98,6 +129,10 @@ async def submit_survey_response(
         if not survey_id:
             raise HTTPException(status_code=404, detail="该事件没有调查配置")
 
+        await _ensure_session_belongs_to_event(
+            db, answer_data.event_id, answer_data.session_id
+        )
+
         existing = await db.execute(
             select(SurveyResponse.id)
             .where(SurveyResponse.event_id == answer_data.event_id)
@@ -128,13 +163,34 @@ async def submit_survey_response(
 
 
 @router.get("/responses/session/{session_id}", response_model=List[SurveyAnswerResponse])
-async def get_session_survey_responses(session_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_session_survey_responses(
+    session_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """获取某次会话的回答"""
+    await _ensure_session_access(db, session_id, current_user)
     result = await db.execute(
-        select(SurveyResponse).where(SurveyResponse.session_id == session_id)
+        select(
+            SurveyResponse.id,
+            SurveyResponse.event_id,
+            SurveyResponse.session_id,
+            SurveyResponse.answers,
+            SurveyResponse.created_at,
+            SurveyResponse.updated_at,
+        ).where(SurveyResponse.session_id == session_id)
     )
-    responses = result.scalars().all()
-    return [SurveyAnswerResponse.from_orm(resp) for resp in responses]
+    return [
+        SurveyAnswerResponse(
+            id=row.id,
+            event_id=row.event_id,
+            session_id=row.session_id,
+            answers=row.answers,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+        for row in result
+    ]
 
 
 @router.get("/responses/export/{event_id}")
