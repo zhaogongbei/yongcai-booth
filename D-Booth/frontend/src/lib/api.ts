@@ -862,6 +862,21 @@ export async function updateTemplate(
   });
 }
 
+export async function deleteTemplate(templateId: string, token?: string): Promise<void> {
+  await request<void>(`/templates/${templateId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function duplicateTemplate(templateId: string, newName?: string, token?: string): Promise<TemplateResponse> {
+  return request<TemplateResponse>(`/templates/${templateId}/duplicate`, {
+    method: "POST",
+    token,
+    body: { new_name: newName },
+  });
+}
+
 export async function validateTemplate(templateData: Record<string, unknown>, token?: string): Promise<{ valid: boolean; message: string }> {
   return request<{ valid: boolean; message: string }>("/templates/validate", {
     method: "POST",

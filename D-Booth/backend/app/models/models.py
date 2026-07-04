@@ -567,7 +567,10 @@ class Subscription(Base, TimestampMixin, SoftDeleteMixin):
     )
 
     # Relationships
-    team = relationship("Team", back_populates="subscription", uselist=False)
+    # lazy="joined" so accessing subscription.team in async routes does not
+    # trigger a lazy-load (MissingGreenlet in async context). Mirrors the
+    # matching Team.subscription relationship below.
+    team = relationship("Team", back_populates="subscription", uselist=False, lazy="joined")
 
 
 # Prop Model
