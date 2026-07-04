@@ -8,7 +8,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
 from app.models.models import Photo, PrintJob, PrintJobStatus
 from app.repositories.print_job_repository import PrintJobRepository
@@ -239,7 +239,11 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         result = await self.db.execute(
             select(PrintJob)
             .where(PrintJob.id == job_id)
-            .options(selectinload(PrintJob.photo), selectinload(PrintJob.template))
+            .options(
+                selectinload(PrintJob.photo).options(noload("*")),
+                selectinload(PrintJob.template).options(noload("*")),
+            )
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -252,6 +256,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
             result = await self.db.execute(
                 select(Photo)
                 .where(Photo.session_id == job.photo.session_id)
+                .options(noload("*"))
                 .order_by(Photo.created_at)
             )
             session_photos = [photo for photo in result.scalars().all() if photo.id != job.photo_id]

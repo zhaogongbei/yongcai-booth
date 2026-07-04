@@ -387,7 +387,6 @@ class Template(Base, TimestampMixin, SoftDeleteMixin):
 
     # Relationships
     team = relationship("Team", back_populates="templates", lazy="selectin")
-    print_jobs = relationship("PrintJob", back_populates="template", lazy="selectin")
 
 
 # PhotoSession Model
@@ -468,7 +467,7 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
 
     # Relationships
     photo = relationship("Photo", back_populates="print_jobs", lazy="selectin")
-    template = relationship("Template", back_populates="print_jobs", lazy="selectin")
+    template = relationship("Template", lazy="selectin")
 
 
 # Share Model

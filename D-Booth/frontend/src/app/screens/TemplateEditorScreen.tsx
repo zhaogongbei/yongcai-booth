@@ -210,6 +210,21 @@ function parseLegacyTemplateXml(xmlText: string): TemplateLayout {
   };
 }
 
+function readImageFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fileReader = new FileReader();
+    fileReader.onload = () => {
+      if (typeof fileReader.result === "string") {
+        resolve(fileReader.result);
+        return;
+      }
+      reject(new Error("图片读取失败"));
+    };
+    fileReader.onerror = () => reject(new Error("图片读取失败"));
+    fileReader.readAsDataURL(file);
+  });
+}
+
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
   const { currentEvent } = useSettings();
@@ -234,6 +249,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const dragStartRef = useRef({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const backgroundImageInputRef = useRef<HTMLInputElement>(null);
+  const elementImageInputRef = useRef<HTMLInputElement>(null);
 
   const zoomLabel = ZOOM_OPTIONS.find(z => z.value === zoom)?.label ?? "100%";
 
@@ -571,6 +588,47 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     }
   };
 
+  const importBackgroundImage = async (file: File) => {
+    try {
+      const backgroundImageDataUrl = await readImageFileAsDataUrl(file);
+      updateLayout(draftLayout => {
+        draftLayout.background = {
+          type: 'image',
+          value: backgroundImageDataUrl,
+        };
+      });
+      showToast.success("底图已导入，请继续拖放照片框定位拍照区域");
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "底图导入失败");
+    } finally {
+      if (backgroundImageInputRef.current) {
+        backgroundImageInputRef.current.value = "";
+      }
+    }
+  };
+
+  const importSelectedImageElement = async (file: File) => {
+    if (!selectedElement || selectedElement.type !== 'image') return;
+
+    try {
+      const imageDataUrl = await readImageFileAsDataUrl(file);
+      updateElement(selectedElement.id, {
+        props: {
+          ...(selectedElement.props as ImageElementProps),
+          src: imageDataUrl,
+          alt: file.name || "Uploaded image",
+        } as ImageElementProps,
+      });
+      showToast.success("装饰图片已更新");
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "装饰图片导入失败");
+    } finally {
+      if (elementImageInputRef.current) {
+        elementImageInputRef.current.value = "";
+      }
+    }
+  };
+
   // ─── 添加新元素 ───
   const addElement = (type: TemplateElement['type']) => {
     const draft = JSON.parse(JSON.stringify(layout));
@@ -791,10 +849,18 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         const ip = el.props as ImageElementProps;
         content = (
           <div style={{ ...innerStyle, background: '#f5f5f5', fontSize: 10 * zoom, color: '#999' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div>&#128444;</div>
-              <div style={{ fontSize: 8 * zoom }}>Image</div>
-            </div>
+            {ip.src ? (
+              <img
+                src={ip.src}
+                alt={ip.alt || 'Image'}
+                style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div>&#128444;</div>
+                <div style={{ fontSize: 8 * zoom }}>Image</div>
+              </div>
+            )}
           </div>
         );
         break;
@@ -900,6 +966,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             <div className="space-y-1">
               {[
                 { type: 'photo' as const, icon: ImageIcon, label: '照片框' },
+                { type: 'image' as const, icon: Upload, label: '装饰图片' },
                 { type: 'text' as const, icon: TypeIcon, label: '文本' },
                 { type: 'shape' as const, icon: Square, label: '形状' },
                 { type: 'qr_code' as const, icon: ScanQrCode, label: '二维码' },
@@ -967,7 +1034,33 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           </div>
           <div>
             <div className="text-[10px] text-white/30 uppercase mb-2">背景</div>
+            <input
+              ref={backgroundImageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={event => {
+                const file = event.target.files?.[0];
+                if (file) void importBackgroundImage(file);
+              }}
+            />
             <div className="space-y-1">
+              <button
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-xs text-emerald-300 hover:text-emerald-200 transition-colors border border-emerald-500/20"
+                onClick={() => backgroundImageInputRef.current?.click()}
+              >
+                <Upload size={13} />
+                上传底图
+              </button>
+              {layout.background.type === 'image' && (
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white/80 transition-colors"
+                  onClick={() => updateLayout(draftLayout => { draftLayout.background = { type: 'color', value: '#ffffff' }; })}
+                >
+                  <Trash2 size={13} />
+                  移除底图
+                </button>
+              )}
               {[
                 { color: '#ffffff', label: '白色' },
                 { color: '#f5f5f5', label: '浅灰' },
@@ -1124,6 +1217,15 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               overflow: 'hidden',
             }}
           >
+            {layout.background.type === 'image' && (
+              <img
+                src={layout.background.value}
+                alt="模板底图"
+                className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                style={{ objectFit: 'fill' }}
+                draggable={false}
+              />
+            )}
             {/* 出血线 (内缩3%) */}
             {!isPreview && (
               <div
@@ -1361,6 +1463,34 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
                       onChange={v => updateProp('strokeWidth', Number(v))} />
                     <PropertyRow label="圆角" value={(selectedElement.props as ShapeElementProps).borderRadius}
                       onChange={v => updateProp('borderRadius', Number(v))} />
+                  </div>
+                </>
+              )}
+
+              {/* 图片属性 */}
+              {selectedElement.type === 'image' && (
+                <>
+                  <div className="border-t border-white/5 pt-2">
+                    <div className="text-[10px] text-white/40 mb-2">图片属性</div>
+                    <input
+                      ref={elementImageInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={event => {
+                        const file = event.target.files?.[0];
+                        if (file) void importSelectedImageElement(file);
+                      }}
+                    />
+                    <button
+                      className="w-full flex items-center justify-center gap-2 px-2 py-1.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-[10px] text-emerald-300 transition-colors mb-2"
+                      onClick={() => elementImageInputRef.current?.click()}
+                    >
+                      <Upload size={12} />
+                      上传图片
+                    </button>
+                    <PropertyRow label="说明" value={(selectedElement.props as ImageElementProps).alt || ''} string
+                      onChange={v => updateProp('alt', v)} />
                   </div>
                 </>
               )}

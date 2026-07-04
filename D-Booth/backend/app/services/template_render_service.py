@@ -2,8 +2,12 @@ import io
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import qrcode
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+try:
+    import qrcode
+except ImportError:  # pragma: no cover - optional renderer dependency
+    qrcode = None
 
 
 class TemplateRenderService:
@@ -122,17 +126,23 @@ class TemplateRenderService:
                     else:
                         draw.rectangle(box, fill=fill, outline=outline, width=stroke_width)
                 elif layer_type == "qr_code":
-                    qr = qrcode.QRCode(
-                        version=1,
-                        error_correction=qrcode.constants.ERROR_CORRECT_L,
-                        box_size=10,
-                        border=0,
-                    )
-                    qr.add_data(props.get("url", ""))
-                    qr.make(fit=True)
-                    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-                    qr_img = qr_img.resize((max(1, width), max(1, height)), Image.Resampling.NEAREST)
-                    image.paste(qr_img, (x, y))
+                    if qrcode:
+                        qr = qrcode.QRCode(
+                            version=1,
+                            error_correction=qrcode.constants.ERROR_CORRECT_L,
+                            box_size=10,
+                            border=0,
+                        )
+                        qr.add_data(props.get("url", ""))
+                        qr.make(fit=True)
+                        qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+                        qr_img = qr_img.resize(
+                            (max(1, width), max(1, height)), Image.Resampling.NEAREST
+                        )
+                        image.paste(qr_img, (x, y))
+                    else:
+                        draw.rectangle([x, y, x + width, y + height], fill="#ffffff", outline="#111827")
+                        draw.text((x + width / 2, y + height / 2), "QR", fill="#111827", anchor="mm")
                 elif layer_type in {"date", "datetime"}:
                     date_layer = {
                         **layer,
@@ -284,6 +294,8 @@ class TemplateRenderService:
             elif layer_type == "qrcode":
                 # 渲染二维码图层
                 try:
+                    if not qrcode:
+                        continue
                     content = layer.get("content", "")
                     x = int(layer.get("x", 0) * dpi / 25.4)
                     y = int(layer.get("y", 0) * dpi / 25.4)

@@ -177,17 +177,27 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     }
   };
 
-  const getSavedTemplateBackground = (template: TemplateResponse) => {
+  const getSavedTemplateBackgroundStyle = (template: TemplateResponse) => {
     const background = template.layers?.background;
     if (
       background &&
       typeof background === "object" &&
+      "type" in background &&
       "value" in background &&
       typeof background.value === "string"
     ) {
-      return background.value;
+      if (background.type === "image") {
+        return {
+          backgroundColor: "#ffffff",
+          backgroundImage: `url(${background.value})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        };
+      }
+
+      return { background: background.value };
     }
-    return "#ffffff";
+    return { background: "#ffffff" };
   };
 
   return (
@@ -300,7 +310,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                 <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
                   onClick={() => openTemplateEditor(t.id)}>
                   <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-emerald-500/40 transition-all bg-white"
-                    style={{ background: getSavedTemplateBackground(t) }}>
+                    style={getSavedTemplateBackgroundStyle(t)}>
                     <div className="absolute inset-3 border border-black/10" />
                     <div className="absolute left-[18%] top-[15%] w-[64%] h-[28%] rounded bg-black/10 border border-black/10" />
                     <div className="absolute left-[18%] top-[50%] w-[64%] h-[8%] rounded bg-black/15" />

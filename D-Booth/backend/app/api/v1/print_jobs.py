@@ -2,27 +2,27 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from app.api.deps import check_team_member, get_current_active_user, get_db
-from app.core.database import async_session
-from app.models.models import Event, Photo, PrintJobStatus, User
+from app.core.database import get_session_maker
+from app.models.models import Event, Photo, PrintJobStatus, Template, User
 from app.schemas.print_job import PrintJobCreate, PrintJobResponse, PrintJobUpdate
-from app.services.event_service import EventService
-from app.services.photo_service import PhotoService
 from app.services.print_service import PrintService
-from app.services.template_service import TemplateService
 
 router = APIRouter()
 
 
 async def _get_photo_event(photo_id: UUID, db: AsyncSession) -> tuple[Photo, Event]:
-    photo_service = PhotoService(db)
-    photo = await photo_service.get_photo(photo_id)
+    photo_result = await db.execute(select(Photo).where(Photo.id == photo_id).options(noload("*")))
+    photo = photo_result.scalar_one_or_none()
     if not photo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
-    event_service = EventService(db)
-    event = await event_service.get_event(photo.event_id)
+
+    event_result = await db.execute(select(Event).where(Event.id == photo.event_id).options(noload("*")))
+    event = event_result.scalar_one_or_none()
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Event not found for photo"
@@ -45,8 +45,10 @@ async def _verify_template_matches_photo_team(
         return
 
     _, event = await _get_photo_event(photo_id, db)
-    template_service = TemplateService(db)
-    template = await template_service.get_template(template_id)
+    template_result = await db.execute(
+        select(Template).where(Template.id == template_id).options(noload("*"))
+    )
+    template = template_result.scalar_one_or_none()
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
@@ -59,7 +61,7 @@ async def _verify_template_matches_photo_team(
 
 
 async def _execute_print_job_background(job_id: UUID) -> None:
-    async with async_session() as db:
+    async with get_session_maker()() as db:
         print_service = PrintService(db)
         await print_service.execute_print_job(job_id)
 

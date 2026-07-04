@@ -2,10 +2,17 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import DataError, IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from app.models.models import Event, Photo, PrintJob, PrintJobStatus, TeamMember
-from app.repositories.base import BaseRepository
+from app.repositories.base import (
+    BaseRepository,
+    DatabaseOperationError,
+    DuplicateRecordError,
+    ValidationError,
+)
 
 
 class PrintJobRepository(BaseRepository[PrintJob]):
@@ -13,6 +20,26 @@ class PrintJobRepository(BaseRepository[PrintJob]):
 
     def __init__(self, db: AsyncSession):
         super().__init__(PrintJob, db)
+
+    async def create(self, obj_in: dict) -> PrintJob:
+        """Create a print job without eager-loading the full photo/template graph."""
+        try:
+            job = PrintJob(**obj_in)
+            self.db.add(job)
+            await self.db.commit()
+            result = await self.db.execute(
+                select(PrintJob).where(PrintJob.id == job.id).options(noload("*"))
+            )
+            return result.scalar_one()
+        except IntegrityError as e:
+            await self.db.rollback()
+            raise DuplicateRecordError("Record violates unique constraint") from e
+        except (DataError, TypeError) as e:
+            await self.db.rollback()
+            raise ValidationError("Invalid data for PrintJob") from e
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            raise DatabaseOperationError("Failed to create PrintJob") from e
 
     async def get_visible_to_user(
         self, user_id: UUID, status: Optional[str] = None, skip: int = 0, limit: int = 100
@@ -80,7 +107,7 @@ class PrintJobRepository(BaseRepository[PrintJob]):
         """Update print job status"""
         from datetime import datetime, timezone
 
-        stmt = select(PrintJob).where(PrintJob.id == job_id)
+        stmt = select(PrintJob).where(PrintJob.id == job_id).options(noload("*"))
         result = await self.db.execute(stmt)
         job = result.scalar_one_or_none()
 
@@ -91,8 +118,10 @@ class PrintJobRepository(BaseRepository[PrintJob]):
             if status == PrintJobStatus.COMPLETED:
                 job.printed_at = datetime.now(timezone.utc)
             await self.db.commit()
-            await self.db.refresh(job)
-            return job
+            result = await self.db.execute(
+                select(PrintJob).where(PrintJob.id == job_id).options(noload("*"))
+            )
+            return result.scalar_one_or_none()
         return None
 
     async def count_by_status(self, status: PrintJobStatus) -> int:
