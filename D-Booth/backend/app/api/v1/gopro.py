@@ -113,7 +113,12 @@ async def take_gopro_photo(current_user: User = Depends(get_current_active_user)
         )
 
     media_url = _save_gopro_media(photo_bytes, "jpg")
-    return {"success": True, "temp_url": media_url, "size": len(photo_bytes)}
+    return {
+        "success": True,
+        "media_url": media_url,
+        "temp_url": media_url,
+        "size": len(photo_bytes),
+    }
 
 
 @router.post("/record/start", response_model=dict)
@@ -145,7 +150,12 @@ async def stop_recording(current_user: User = Depends(get_current_active_user)):
         )
 
     media_url = _save_gopro_media(video_bytes, "mp4")
-    return {"success": True, "temp_url": media_url, "size": len(video_bytes)}
+    return {
+        "success": True,
+        "media_url": media_url,
+        "temp_url": media_url,
+        "size": len(video_bytes),
+    }
 
 
 @router.post("/disconnect", response_model=dict)

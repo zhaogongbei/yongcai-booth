@@ -32,9 +32,10 @@ async def test_gopro_photo_returns_readable_media_url(
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert body["temp_url"].startswith("/api/v1/media/gopro/gopro_")
+    assert body["media_url"].startswith("/api/v1/media/gopro/gopro_")
+    assert body["temp_url"] == body["media_url"]
 
-    media_response = await authenticated_client.get(body["temp_url"])
+    media_response = await authenticated_client.get(body["media_url"])
     assert media_response.status_code == 200
     assert media_response.content == b"fake-jpeg"
 
@@ -53,8 +54,9 @@ async def test_gopro_video_returns_readable_media_url(
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert body["temp_url"].startswith("/api/v1/media/gopro/gopro_")
+    assert body["media_url"].startswith("/api/v1/media/gopro/gopro_")
+    assert body["temp_url"] == body["media_url"]
 
-    media_response = await authenticated_client.get(body["temp_url"])
+    media_response = await authenticated_client.get(body["media_url"])
     assert media_response.status_code == 200
     assert media_response.content == b"fake-mp4"
