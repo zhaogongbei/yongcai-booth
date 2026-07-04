@@ -277,7 +277,6 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
-  const [isCanvasViewportHovered, setIsCanvasViewportHovered] = useState(false);
   const [interactionLayout, setInteractionLayout] = useState<TemplateLayout | null>(null);
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
@@ -412,14 +411,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   const handleCanvasWheelZoom = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     const currentCanvasViewport = canvasRef.current;
-    const eventTarget = event.target;
-    const isWheelInsideCanvasViewport = Boolean(
-      currentCanvasViewport &&
-      eventTarget instanceof Node &&
-      currentCanvasViewport.contains(eventTarget)
-    );
 
-    if (!isCanvasViewportHovered || !isWheelInsideCanvasViewport || event.deltaY === 0) {
+    if (!currentCanvasViewport || event.currentTarget !== currentCanvasViewport || event.deltaY === 0) {
       return;
     }
 
@@ -427,7 +420,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     event.stopPropagation();
     setZoom(currentZoom => getNextZoomValue(currentZoom, event.deltaY < 0 ? 'in' : 'out'));
     setZoomOpen(false);
-  }, [isCanvasViewportHovered]);
+  }, []);
 
   // ─── 选中与图层操作 ───
   const selectElement = (id: string, multi: boolean) => {
@@ -1633,8 +1626,6 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           ref={canvasRef}
           className="flex-1 flex items-center justify-center p-6 overflow-auto"
           onWheel={handleCanvasWheelZoom}
-          onMouseEnter={() => setIsCanvasViewportHovered(true)}
-          onMouseLeave={() => setIsCanvasViewportHovered(false)}
           style={{
             background: `
               linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
@@ -1649,7 +1640,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         >
           {/* 画布 */}
           <div
-            className="relative shadow-2xl"
+            className="relative shrink-0 shadow-2xl"
             style={{
               width: displayWidth,
               height: displayHeight,
