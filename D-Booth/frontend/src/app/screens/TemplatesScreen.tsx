@@ -35,6 +35,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const { currentEvent } = useSettings();
   const {
     activePrintTemplate,
+    authToken,
     setActivePrintTemplate,
     templateSelectionReturnScreen,
     setTemplateSelectionReturnScreen,
@@ -94,7 +95,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   );
 
   const loadSavedTemplates = useCallback(async () => {
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
     if (!hasStoredAuthSession) {
       setSavedTemplates([]);
       setSavedTemplatesError(null);
@@ -105,7 +106,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     try {
       let teamId = currentEvent?.teamId;
       if (!teamId) {
-        const teams = await getMyTeams();
+        const teams = await getMyTeams(authToken ?? undefined);
         teamId = teams[0]?.id;
       }
       if (!teamId) {
@@ -114,7 +115,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
         return;
       }
 
-      const data = await getTemplates(teamId);
+      const data = await getTemplates(teamId, authToken ?? undefined);
       setSavedTemplates(data);
       setSavedTemplatesError(null);
     } catch {
@@ -122,7 +123,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     } finally {
       setSavedTemplatesLoading(false);
     }
-  }, [currentEvent?.teamId]);
+  }, [authToken, currentEvent?.teamId]);
 
   useEffect(() => {
     loadSavedTemplates();
@@ -162,9 +163,9 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
 
   const resolveTemplateTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
-    const teams = await getMyTeams();
+    const teams = await getMyTeams(authToken ?? undefined);
     return teams[0]?.id;
-  }, [currentEvent?.teamId]);
+  }, [authToken, currentEvent?.teamId]);
 
   const selectQuickLayoutForPrint = async (layoutId: string) => {
     const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === layoutId);
@@ -179,7 +180,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     let templateId = temporaryId;
     let templateName = preset.name;
 
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
     if (hasStoredAuthSession) {
       try {
         const teamId = await resolveTemplateTeamId();
@@ -196,7 +197,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           canvas_height: preset.canvasHeight,
           layers: layout as unknown as Record<string, unknown>,
           is_public: false,
-        });
+        }, authToken ?? undefined);
         templateId = saved.id;
         templateName = saved.name;
         setSavedTemplates(prev => [saved, ...prev.filter(item => item.id !== saved.id)]);

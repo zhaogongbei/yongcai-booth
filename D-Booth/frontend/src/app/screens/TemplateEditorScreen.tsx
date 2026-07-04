@@ -11,7 +11,7 @@ import { useUndoRedo } from "../hooks/useUndoRedo";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
-import { createTemplate, getMyTeams, getTemplate, tokenStorage, updateTemplate, validateTemplate } from "../../lib/api";
+import { createTemplate, getMyTeams, getTemplate, updateTemplate, validateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
 
 const ZOOM_OPTIONS = [
@@ -301,12 +301,6 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
     sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
 
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
-    if (templateId && !hasStoredAuthSession) {
-      showToast.error("请先登录后再打开模板");
-      return;
-    }
-
     if (!templateId) {
       const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === quickLayoutId);
       if (!preset) {
@@ -586,12 +580,6 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   const saveTemplate = useCallback(async () => {
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
-    if (!hasStoredAuthSession) {
-      showToast.error("请先登录后再保存模板");
-      return;
-    }
-
     setIsSaving(true);
     try {
       const teamId = await resolveTeamId();
@@ -637,7 +625,12 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
       navigate("templates");
     } catch (err) {
-      showToast.error(err instanceof Error ? err.message : "模板保存失败");
+      const errorMessage = err instanceof Error ? err.message : "模板保存失败";
+      if (/401|unauthorized|未授权|not authenticated|login/i.test(errorMessage)) {
+        showToast.error("请先登录后再保存模板");
+      } else {
+        showToast.error(errorMessage);
+      }
     } finally {
       setIsSaving(false);
     }
