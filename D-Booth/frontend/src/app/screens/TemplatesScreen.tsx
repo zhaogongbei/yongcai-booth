@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
 import { GlowBtn } from "../components/GlowBtn";
+import { TemplateThumbnailPreview } from "../components/TemplateThumbnailPreview";
 import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
@@ -321,29 +322,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     }
   };
 
-  const getSavedTemplateBackgroundStyle = (template: TemplateResponse) => {
-    const background = template.layers?.background;
-    if (
-      background &&
-      typeof background === "object" &&
-      "type" in background &&
-      "value" in background &&
-      typeof background.value === "string"
-    ) {
-      if (background.type === "image") {
-        return {
-          backgroundColor: "#ffffff",
-          backgroundImage: `url(${background.value})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        };
-      }
-
-      return { background: background.value };
-    }
-    return { background: "#ffffff" };
-  };
-
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Main content */}
@@ -436,6 +414,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
             <div className="grid grid-cols-6 gap-4">
               {filteredSavedTemplates.map(t => {
                 const isRecentlySavedTemplate = recentlySavedTemplateId === t.id;
+                const savedLayout = isTemplateLayout(t.layers) ? t.layers : null;
 
                 return (
                   <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
@@ -446,17 +425,13 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                       }
                       openTemplateEditor(t.id);
                     }}>
-                    <div className={`relative rounded-xl overflow-hidden aspect-[2/5] border transition-all bg-white ${isRecentlySavedTemplate ? "border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 group-hover:border-emerald-500/40"}`}
-                      style={getSavedTemplateBackgroundStyle(t)}>
+                    <div className={`relative rounded-xl overflow-hidden aspect-[2/5] border transition-all bg-white ${isRecentlySavedTemplate ? "border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 group-hover:border-emerald-500/40"}`}>
+                      <TemplateThumbnailPreview layout={savedLayout} />
                       {isRecentlySavedTemplate && (
                         <div className="absolute top-2 left-2 z-10">
                           <NeonBadge color="green">刚保存</NeonBadge>
                         </div>
                       )}
-                      <div className="absolute inset-3 border border-black/10" />
-                      <div className="absolute left-[18%] top-[15%] w-[64%] h-[28%] rounded bg-black/10 border border-black/10" />
-                      <div className="absolute left-[18%] top-[50%] w-[64%] h-[8%] rounded bg-black/15" />
-                      <div className="absolute left-[24%] top-[64%] w-[52%] h-[6%] rounded bg-black/10" />
                       <div className="absolute top-2 right-2">
                         <NeonBadge color={activePrintTemplate?.id === t.id ? "purple" : "green"}>
                           {activePrintTemplate?.id === t.id ? "使用中" : "已保存"}
