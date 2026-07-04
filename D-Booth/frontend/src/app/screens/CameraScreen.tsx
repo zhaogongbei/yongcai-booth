@@ -78,6 +78,11 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const videoRecorderRef = useRef<VideoRecorder | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const openTemplateSelectionForCamera = useCallback(() => {
+    setTemplateSelectionReturnScreen("camera");
+    navigate("templates");
+  }, [navigate, setTemplateSelectionReturnScreen]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -658,7 +663,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
               <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-3 z-20"
+                className="absolute bottom-20 left-1/2 z-20 flex max-w-[760px] -translate-x-1/2 flex-wrap justify-center gap-3"
                 onAnimationStart={() => {
                   attendantPlayer.playForTiming("after_capture");
                 }}
@@ -666,8 +671,11 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <GlowBtn onClick={() => navigate("beauty")} variant="primary" size="lg">
                   <Sparkles size={16} /> 美颜编辑
                 </GlowBtn>
+                <GlowBtn onClick={openTemplateSelectionForCamera} variant="ghost" size="lg">
+                  <LayoutTemplate size={16} /> {activePrintTemplate ? "更换模板" : "选择模板"}
+                </GlowBtn>
                 <GlowBtn onClick={() => navigate("print")} variant="accent" size="lg">
-                  <Printer size={16} /> 直接打印
+                  <Printer size={16} /> 打印预览
                 </GlowBtn>
                 <GlowBtn onClick={() => setCaptured(false)} variant="ghost" size="lg">
                   <RotateCcw size={16} /> 重拍
@@ -682,13 +690,16 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
               <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-3 z-20"
+                className="absolute bottom-20 left-1/2 z-20 flex max-w-[760px] -translate-x-1/2 flex-wrap justify-center gap-3"
               >
                 <GlowBtn onClick={() => navigate("beauty")} variant="primary" size="lg">
                   <Sparkles size={16} /> 美颜编辑
                 </GlowBtn>
+                <GlowBtn onClick={openTemplateSelectionForCamera} variant="ghost" size="lg">
+                  <LayoutTemplate size={16} /> {activePrintTemplate ? "更换模板" : "选择模板"}
+                </GlowBtn>
                 <GlowBtn onClick={() => navigate("print")} variant="accent" size="lg">
-                  <Printer size={16} /> 直接打印
+                  <Printer size={16} /> 打印预览
                 </GlowBtn>
                 <GlowBtn onClick={() => {
                   setCaptured(false);
@@ -735,10 +746,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <div className="flex items-center gap-4">
             <button
               className="flex flex-col items-center gap-1"
-              onClick={() => {
-                setTemplateSelectionReturnScreen("camera");
-                navigate("templates");
-              }}
+              onClick={openTemplateSelectionForCamera}
             >
               <div className={`relative w-11 h-11 rounded-xl flex items-center justify-center ${activePrintTemplate ? "bg-emerald-500/20 ring-1 ring-emerald-400/40" : "bg-white/10"}`}>
                 <Image size={18} className="text-white/70" />

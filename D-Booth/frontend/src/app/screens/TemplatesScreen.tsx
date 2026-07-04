@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
@@ -192,10 +192,18 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   };
 
   const isTemplateSelectionMode = templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera";
-  const selectTemplateButtonLabel = templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用";
+  const selectTemplateButtonLabel = templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用并返回拍照";
   const quickLayoutActionLabel = isTemplateSelectionMode
     ? (templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用并返回拍照")
     : "用此版式创建";
+  const selectionModeTitle = templateSelectionReturnScreen === "print" ? "正在为打印预览选择模板" : "正在为拍照流程选择模板";
+  const selectionModeReturnLabel = templateSelectionReturnScreen === "print" ? "返回打印预览" : "返回拍照";
+
+  const returnToSelectionSource = () => {
+    const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
+    setTemplateSelectionReturnScreen(null);
+    navigate(returnScreen);
+  };
 
   const duplicateSavedTemplate = async (template: TemplateResponse) => {
     setOperatingTemplateId(template.id);
@@ -255,6 +263,31 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     <div className="flex-1 flex overflow-hidden">
       {/* Main content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {isTemplateSelectionMode && (
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <LayoutTemplate size={16} className="text-emerald-300" />
+                  {selectionModeTitle}
+                </div>
+                <div className="mt-1 text-xs text-white/45">
+                  选择任一版式后会自动带回{templateSelectionReturnScreen === "print" ? "打印预览页" : "相机页"}。
+                  当前模板：{activePrintTemplate?.name ?? "未选择"}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/65 hover:bg-white/10 hover:text-white"
+                onClick={returnToSelectionSource}
+              >
+                <ArrowLeft size={13} />
+                {selectionModeReturnLabel}
+              </button>
+            </div>
+          </GlassCard>
+        )}
+
         {/* Search */}
         <div className="flex items-center gap-3">
           <div className="flex-1 relative">

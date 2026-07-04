@@ -280,19 +280,33 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 />
               </div>
             ) : hasPrintablePhoto ? (
-              <div className="bg-white rounded-xl p-4 shadow-[0_0_60px_rgba(139,92,246,0.2)]" style={{ width: 260, height: 620 }}>
-                {printPreviewImages.map((src, i) => (
-                  <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: printPhoto ? 560 : 175 }}>
-                    <img src={src}
-                      alt={`print ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+              <div className="flex flex-col items-center gap-4">
+                <div className="max-w-[360px] rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-center">
+                  <div className="flex items-center justify-center gap-2 text-sm font-semibold text-amber-100">
+                    <LayoutTemplate size={16} />
+                    未选择打印模板
                   </div>
-                ))}
-                {!selectedPhoto && (
-                  <div className="text-center mt-2">
-                    <div className="text-xs font-bold text-pink-500">LOVE FOREVER</div>
-                    <div className="text-[10px] text-gray-400">Thank You</div>
+                  <div className="mt-2 text-xs leading-5 text-amber-100/70">
+                    先选择模板可直接看到最终出纸效果，避免现场打印后才发现版式不合适。
                   </div>
-                )}
+                  <GlowBtn className="mt-4 w-full justify-center" size="sm" variant="primary" onClick={openTemplateSelectionForPrint}>
+                    <LayoutTemplate size={14} />选择模板生成预览
+                  </GlowBtn>
+                </div>
+                <div className="bg-white rounded-xl p-4 shadow-[0_0_60px_rgba(139,92,246,0.2)]" style={{ width: 260, height: 620 }}>
+                  {printPreviewImages.map((src, i) => (
+                    <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: printPhoto ? 560 : 175 }}>
+                      <img src={src}
+                        alt={`print ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  ))}
+                  {!selectedPhoto && (
+                    <div className="text-center mt-2">
+                      <div className="text-xs font-bold text-pink-500">LOVE FOREVER</div>
+                      <div className="text-[10px] text-gray-400">Thank You</div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <GlassCard className="w-[320px] p-6 text-center">
@@ -306,10 +320,23 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 </GlowBtn>
               </GlassCard>
             )}
-            {activePrintTemplate && (
-              <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-300">
-                <LayoutTemplate size={13} />
-                {activePrintTemplate.name}
+            {hasPrintablePhoto && (
+              <div className={`mx-auto mt-4 flex max-w-[420px] items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs ${
+                activePrintTemplate
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                  : "border-white/10 bg-white/5 text-white/55"
+              }`}>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <LayoutTemplate size={13} className="flex-shrink-0" />
+                  <span className="truncate">{activePrintTemplate?.name ?? "当前为未套模板预览"}</span>
+                </div>
+                <button
+                  type="button"
+                  className={activePrintTemplate ? "flex-shrink-0 text-emerald-100 hover:text-white" : "flex-shrink-0 text-violet-300 hover:text-violet-200"}
+                  onClick={openTemplateSelectionForPrint}
+                >
+                  {activePrintTemplate ? "更换模板" : "选择模板"}
+                </button>
               </div>
             )}
             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-white/30">100%</div>
