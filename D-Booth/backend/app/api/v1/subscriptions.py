@@ -229,6 +229,12 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe webhook secret is not configured",
+        )
+
     if not sig_header:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Missing stripe-signature header"
