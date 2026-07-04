@@ -28,7 +28,12 @@ function isTemplateLayout(value: unknown): value is TemplateLayout {
 
 export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { currentEvent } = useSettings();
-  const { activePrintTemplate, setActivePrintTemplate } = useCaptureFlow();
+  const {
+    activePrintTemplate,
+    setActivePrintTemplate,
+    templateSelectionReturnScreen,
+    setTemplateSelectionReturnScreen,
+  } = useCaptureFlow();
   const [activeCategory, setActiveCategory] = useState("全部");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -143,8 +148,12 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
       },
     });
     showToast.success(`已使用模板：${template.name}`);
-    navigate("camera");
+    const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
+    setTemplateSelectionReturnScreen(null);
+    navigate(returnScreen);
   };
+
+  const selectTemplateButtonLabel = templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用";
 
   const duplicateSavedTemplate = async (template: TemplateResponse) => {
     setOperatingTemplateId(template.id);
@@ -331,7 +340,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                             selectTemplateForPrint(t);
                           }}
                         >
-                          <Check size={12} />使用
+                          <Check size={12} />{selectTemplateButtonLabel}
                         </GlowBtn>
                         <GlowBtn size="sm" variant="ghost" className="justify-center px-2">编辑</GlowBtn>
                       </div>

@@ -72,7 +72,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     focus_mode: "AF-C",
   });
 
-  const { addPhoto, photos, eventId, activePrintTemplate } = useCaptureFlow();
+  const { addPhoto, photos, eventId, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRecorderRef = useRef<VideoRecorder | null>(null);
@@ -733,7 +733,13 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
         {/* Bottom controls */}
         <div className="bg-black/90 px-8 py-4 flex items-center justify-between border-t border-white/5">
           <div className="flex items-center gap-4">
-            <button className="flex flex-col items-center gap-1" onClick={() => navigate("templates")}>
+            <button
+              className="flex flex-col items-center gap-1"
+              onClick={() => {
+                setTemplateSelectionReturnScreen("camera");
+                navigate("templates");
+              }}
+            >
               <div className={`relative w-11 h-11 rounded-xl flex items-center justify-center ${activePrintTemplate ? "bg-emerald-500/20 ring-1 ring-emerald-400/40" : "bg-white/10"}`}>
                 <Image size={18} className="text-white/70" />
                 {activePrintTemplate && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-300" />}

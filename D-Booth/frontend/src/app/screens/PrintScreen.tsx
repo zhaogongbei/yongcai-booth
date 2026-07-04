@@ -81,7 +81,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
   }, [boothPrinters, selectedPrinter]);
 
-  const { selectedPhoto, photos, authToken, activePrintTemplate } = useCaptureFlow();
+  const { selectedPhoto, photos, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const pollTimerRef = useRef<number | null>(null);
 
   // 校准参数
@@ -121,6 +121,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       toast.error("取消打印队列任务失败");
     }
   }, [boothHealth, selectedPrinter]);
+
+  const openTemplateSelectionForPrint = useCallback(() => {
+    setTemplateSelectionReturnScreen("print");
+    navigate("templates");
+  }, [navigate, setTemplateSelectionReturnScreen]);
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -332,15 +337,22 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
             <span className="text-xs text-white/40">当前模板</span>
             <button
               className="text-xs text-violet-400 hover:text-violet-300"
-              onClick={() => navigate("templates")}
+              onClick={openTemplateSelectionForPrint}
             >
-              更换
+              {activePrintTemplate ? "更换" : "选择"}
             </button>
           </div>
           <div className="flex items-center gap-2 text-xs text-white/80">
             <LayoutTemplate size={14} className={activePrintTemplate ? "text-emerald-300" : "text-white/30"} />
             <span className="min-w-0 flex-1 truncate">{activePrintTemplate?.name ?? "未选择，使用默认预览"}</span>
           </div>
+          <button
+            type="button"
+            onClick={openTemplateSelectionForPrint}
+            className="mt-3 w-full rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-200 hover:bg-violet-500/15"
+          >
+            {activePrintTemplate ? "从模板库重新选择" : "去模板库选择出纸版式"}
+          </button>
         </GlassCard>
         <GlassCard className="p-3">
           <div className="mb-2 flex items-center justify-between">

@@ -1,5 +1,6 @@
 import { useState, createContext, useContext, useCallback } from "react";
 import { uploadPhoto, type PhotoResponse } from "../lib/api";
+import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
 
 /**
@@ -43,6 +44,8 @@ interface CaptureFlowContextType {
   selectedPhoto: CapturedPhoto | undefined;
   activePrintTemplate: ActivePrintTemplate | null;
   setActivePrintTemplate: (template: ActivePrintTemplate | null) => void;
+  templateSelectionReturnScreen: Screen | null;
+  setTemplateSelectionReturnScreen: (screen: Screen | null) => void;
 
   // Event/session context for backend persistence
   eventId: string | null;
@@ -58,6 +61,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [activePrintTemplate, setActivePrintTemplate] = useState<ActivePrintTemplate | null>(null);
+  const [templateSelectionReturnScreen, setTemplateSelectionReturnScreen] = useState<Screen | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -114,6 +118,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
     <CaptureFlowContext.Provider value={{
       photos, addPhoto, clearPhotos, selectedPhotoId, setSelectedPhotoId, selectedPhoto,
       activePrintTemplate, setActivePrintTemplate,
+      templateSelectionReturnScreen, setTemplateSelectionReturnScreen,
       eventId, sessionId, currentSessionId: sessionId, authToken, setCaptureContext,
     }}>
       {children}
