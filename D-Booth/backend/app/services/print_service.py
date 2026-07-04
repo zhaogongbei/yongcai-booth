@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 import tempfile
 from typing import Any, Dict, List, Optional
@@ -7,14 +8,16 @@ from uuid import UUID
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models.models import PrintJob, PrintJobStatus
+from app.models.models import Photo, PrintJob, PrintJobStatus
 from app.repositories.print_job_repository import PrintJobRepository
 from app.schemas.print_job import BatchPrintRequest, PrintJobCreate, PrintJobUpdate
 from app.schemas.printer import PrinterStatus
 from app.services.base_service import BaseService, BusinessRuleError, ValidationError
 from app.services.printer_driver_service import PrinterDriverService
 from app.services.sharpen_service import SharpenService
+from app.services.template_render_service import TemplateRenderService
 from app.services.watermark_service import WatermarkService
 
 
@@ -53,15 +56,33 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
     # ── Business Logic Methods ────────────────────────────────
 
     @staticmethod
-    async def process_image_for_print(
-        image_url: str, sharpen_profile: str = "medium", watermark_settings: Optional[dict] = None
-    ) -> bytes:
-        """Process image for printing: apply sharpening and watermark if configured."""
-        # Download original image
+    async def _load_image_bytes(image_url: str) -> bytes:
+        if image_url.startswith("data:") and "," in image_url:
+            return base64.b64decode(image_url.split(",", 1)[1])
+
+        if image_url.startswith("/api/v1/media/"):
+            media_path = image_url.removeprefix("/api/v1/media/")
+            local_path = os.path.join("uploads", media_path)
+            with open(local_path, "rb") as f:
+                return f.read()
+
+        if image_url.startswith("/uploads/"):
+            local_path = image_url.lstrip("/")
+            with open(local_path, "rb") as f:
+                return f.read()
+
         async with httpx.AsyncClient() as client:
             response = await client.get(image_url)
             response.raise_for_status()
-            image_bytes = response.content
+            return response.content
+
+    @classmethod
+    async def process_image_for_print(
+        cls,
+        image_url: str, sharpen_profile: str = "medium", watermark_settings: Optional[dict] = None
+    ) -> bytes:
+        """Process image for printing: apply sharpening and watermark if configured."""
+        image_bytes = await cls._load_image_bytes(image_url)
 
         # Apply sharpening
         if sharpen_profile and sharpen_profile != "none":
@@ -214,20 +235,63 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         """Get print job statistics"""
         return await self.repository.get_statistics()
 
+    async def _get_job_for_execution(self, job_id: UUID) -> Optional[PrintJob]:
+        result = await self.db.execute(
+            select(PrintJob)
+            .where(PrintJob.id == job_id)
+            .options(selectinload(PrintJob.photo), selectinload(PrintJob.template))
+        )
+        return result.scalar_one_or_none()
+
+    async def _get_template_photo_bytes(self, job: PrintJob) -> List[bytes]:
+        if not job.photo:
+            return []
+
+        ordered_photos: List[Photo] = [job.photo]
+        if job.photo.session_id:
+            result = await self.db.execute(
+                select(Photo)
+                .where(Photo.session_id == job.photo.session_id)
+                .order_by(Photo.created_at)
+            )
+            session_photos = [photo for photo in result.scalars().all() if photo.id != job.photo_id]
+            ordered_photos.extend(session_photos)
+
+        photo_bytes: List[bytes] = []
+        for photo in ordered_photos:
+            url = photo.processed_url or photo.original_url
+            photo_bytes.append(await self._load_image_bytes(url))
+        return photo_bytes
+
+    async def _render_job_image(self, job: PrintJob) -> bytes:
+        if job.template and isinstance(job.template.layers, dict):
+            photos = await self._get_template_photo_bytes(job)
+            if photos:
+                return TemplateRenderService.render_template_to_image(
+                    job.template.layers,
+                    photos,
+                    dpi=int(job.template.layers.get("resolution") or 300),
+                )
+
+        return await self.process_image_for_print(
+            image_url=job.photo.processed_url or job.photo.original_url,
+            sharpen_profile="medium",
+            watermark_settings=None,
+        )
+
     async def execute_print_job(self, job_id: UUID) -> bool:
         """执行真实打印任务"""
         try:
             # 更新状态为打印中
-            job = await self.start_printing(job_id)
-            if not job:
+            if not await self.start_printing(job_id):
+                return False
+            job = await self._get_job_for_execution(job_id)
+            if not job or not job.photo:
+                await self.fail_job(job_id, "Print job photo not found")
                 return False
 
             # 处理图像
-            image_bytes = await self.process_image_for_print(
-                image_url=job.photo_url,
-                sharpen_profile=job.sharpen_profile,
-                watermark_settings=job.watermark_settings,
-            )
+            image_bytes = await self._render_job_image(job)
 
             # 保存为临时文件
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:

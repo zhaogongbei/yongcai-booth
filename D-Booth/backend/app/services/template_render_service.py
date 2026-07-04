@@ -8,6 +8,153 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 class TemplateRenderService:
     @staticmethod
+    def _open_photo(photo_bytes: bytes) -> Image.Image:
+        photo = Image.open(io.BytesIO(photo_bytes))
+        return ImageOps.exif_transpose(photo).convert("RGB")
+
+    @staticmethod
+    def _fit_photo(photo: Image.Image, width: int, height: int, crop_mode: str) -> Image.Image:
+        width = max(1, width)
+        height = max(1, height)
+        if crop_mode == "stretch":
+            return photo.resize((width, height), Image.Resampling.LANCZOS)
+
+        photo_aspect = photo.width / photo.height
+        target_aspect = width / height
+
+        if crop_mode == "fit":
+            fitted = Image.new("RGB", (width, height), "#f3f4f6")
+            if photo_aspect > target_aspect:
+                new_width = width
+                new_height = int(new_width / photo_aspect)
+            else:
+                new_height = height
+                new_width = int(new_height * photo_aspect)
+            resized = photo.resize((max(1, new_width), max(1, new_height)), Image.Resampling.LANCZOS)
+            fitted.paste(resized, ((width - resized.width) // 2, (height - resized.height) // 2))
+            return fitted
+
+        if photo_aspect > target_aspect:
+            new_height = height
+            new_width = int(new_height * photo_aspect)
+        else:
+            new_width = width
+            new_height = int(new_width / photo_aspect)
+
+        resized = photo.resize((max(1, new_width), max(1, new_height)), Image.Resampling.LANCZOS)
+        left = max(0, (resized.width - width) // 2)
+        top = max(0, (resized.height - height) // 2)
+        return resized.crop((left, top, left + width, top + height))
+
+    @staticmethod
+    def _draw_frontend_text(draw: ImageDraw.ImageDraw, layer: Dict[str, Any]) -> None:
+        props = layer.get("props") or {}
+        text = props.get("content", "")
+        text = text.replace("{date}", datetime.now().strftime("%Y-%m-%d"))
+        text = text.replace("{time}", datetime.now().strftime("%H:%M:%S"))
+        text = text.replace("{datetime}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+        font_size = int(props.get("fontSize") or 24)
+        try:
+            font = ImageFont.truetype(props.get("fontFamily") or "arial.ttf", font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
+        x = int(layer.get("x", 0))
+        y = int(layer.get("y", 0))
+        width = int(layer.get("width", 100))
+        height = int(layer.get("height", 40))
+        color = props.get("color", "#000000")
+        align = props.get("textAlign", "center")
+
+        bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=4)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        if align == "left":
+            text_x = x
+        elif align == "right":
+            text_x = x + width - text_width
+        else:
+            text_x = x + (width - text_width) / 2
+        text_y = y + (height - text_height) / 2
+        draw.multiline_text((text_x, text_y), text, font=font, fill=color, align=align, spacing=4)
+
+    @staticmethod
+    def _render_frontend_layout(template: Dict[str, Any], photos: List[bytes], dpi: int) -> bytes:
+        paper_size = template.get("paperSize") or {}
+        resolution = int(template.get("resolution") or dpi)
+        canvas_width = int(float(paper_size.get("width", 101.6)) * resolution / 25.4)
+        canvas_height = int(float(paper_size.get("height", 152.4)) * resolution / 25.4)
+
+        background = template.get("background") or {}
+        background_value = background.get("value") if background.get("type") == "color" else "#FFFFFF"
+        image = Image.new("RGB", (max(1, canvas_width), max(1, canvas_height)), background_value)
+        draw = ImageDraw.Draw(image)
+
+        elements = sorted(template.get("elements") or [], key=lambda item: item.get("zIndex", 0))
+        for layer in elements:
+            if not layer.get("visible", True):
+                continue
+
+            layer_type = layer.get("type")
+            x = int(layer.get("x", 0))
+            y = int(layer.get("y", 0))
+            width = int(layer.get("width", 100))
+            height = int(layer.get("height", 100))
+            props = layer.get("props") or {}
+
+            try:
+                if layer_type == "photo" and photos:
+                    photo_number = max(1, int(props.get("photoNumber") or 1))
+                    photo_bytes = photos[photo_number - 1] if len(photos) >= photo_number else photos[0]
+                    photo = TemplateRenderService._open_photo(photo_bytes)
+                    fitted = TemplateRenderService._fit_photo(photo, width, height, props.get("cropMode", "fill"))
+                    image.paste(fitted, (x, y))
+                elif layer_type == "text":
+                    TemplateRenderService._draw_frontend_text(draw, layer)
+                elif layer_type == "shape":
+                    fill = props.get("fillColor", "#ffffff")
+                    outline = props.get("strokeColor", "#000000")
+                    stroke_width = int(props.get("strokeWidth") or 0)
+                    box = [x, y, x + width, y + height]
+                    if props.get("shapeType") == "ellipse":
+                        draw.ellipse(box, fill=fill, outline=outline, width=stroke_width)
+                    else:
+                        draw.rectangle(box, fill=fill, outline=outline, width=stroke_width)
+                elif layer_type == "qr_code":
+                    qr = qrcode.QRCode(
+                        version=1,
+                        error_correction=qrcode.constants.ERROR_CORRECT_L,
+                        box_size=10,
+                        border=0,
+                    )
+                    qr.add_data(props.get("url", ""))
+                    qr.make(fit=True)
+                    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+                    qr_img = qr_img.resize((max(1, width), max(1, height)), Image.Resampling.NEAREST)
+                    image.paste(qr_img, (x, y))
+                elif layer_type in {"date", "datetime"}:
+                    date_layer = {
+                        **layer,
+                        "props": {
+                            "content": datetime.now().strftime("%Y-%m-%d"),
+                            "fontSize": min(width, height, 48),
+                            "color": "#111827",
+                            "textAlign": "center",
+                        },
+                    }
+                    TemplateRenderService._draw_frontend_text(draw, date_layer)
+                elif layer_type == "image":
+                    draw.rectangle([x, y, x + width, y + height], fill="#f3f4f6", outline="#d1d5db")
+                    draw.text((x + width / 2, y + height / 2), "素材需替换", fill="#6b7280", anchor="mm")
+            except Exception as e:
+                print(f"Error rendering frontend template layer: {e}")
+
+        output = io.BytesIO()
+        image.save(output, format="JPEG", quality=95, dpi=(resolution, resolution))
+        return output.getvalue()
+
+    @staticmethod
     def render_template_to_image(
         template: Dict[str, Any], photos: List[bytes], dpi: int = 300
     ) -> bytes:
@@ -18,6 +165,9 @@ class TemplateRenderService:
         :param dpi: 输出DPI
         :return: JPEG图像字节
         """
+        if "paperSize" in template and isinstance(template.get("elements"), list):
+            return TemplateRenderService._render_frontend_layout(template, photos, dpi)
+
         # 获取模板配置
         paper_width = template.get("paper_width", 4 * dpi)  # 默认4x6英寸
         paper_height = template.get("paper_height", 6 * dpi)

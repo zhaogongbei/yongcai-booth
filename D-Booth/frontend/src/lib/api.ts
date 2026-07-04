@@ -575,6 +575,7 @@ export async function uploadPhoto(params: PhotoUploadParams): Promise<PhotoRespo
 
 export interface PrintJobCreateParams {
   photoId: string;
+  templateId?: string;
   printerName?: string;
   copies?: number;
   token: string;
@@ -583,6 +584,7 @@ export interface PrintJobCreateParams {
 export interface PrintJobResponse {
   id: string;
   photo_id: string;
+  template_id?: string | null;
   status: "pending" | "queued" | "printing" | "completed" | "failed" | "cancelled";
   printer_name?: string;
   copies: number;
@@ -598,6 +600,7 @@ export async function createPrintJob(params: PrintJobCreateParams): Promise<Prin
     token: params.token,
     body: {
       photo_id: params.photoId,
+      template_id: params.templateId,
       printer_name: params.printerName,
       copies: params.copies || 1,
     },

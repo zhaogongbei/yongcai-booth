@@ -387,6 +387,7 @@ class Template(Base, TimestampMixin, SoftDeleteMixin):
 
     # Relationships
     team = relationship("Team", back_populates="templates", lazy="selectin")
+    print_jobs = relationship("PrintJob", back_populates="template", lazy="selectin")
 
 
 # PhotoSession Model
@@ -449,6 +450,7 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     photo_id = Column(GUID(), ForeignKey("photos.id", ondelete="CASCADE"), nullable=False)
+    template_id = Column(GUID(), ForeignKey("templates.id", ondelete="SET NULL"), nullable=True)
     printer_name = Column(String(255), index=True)
     copies = Column(Integer, default=1)
     status = Column(SQLEnum(PrintJobStatus), default=PrintJobStatus.PENDING)
@@ -458,6 +460,7 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
     # Indexes
     __table_args__ = (
         Index("ix_print_job_photo_id", "photo_id"),
+        Index("ix_print_job_template_id", "template_id"),
         Index("ix_print_job_status", "status"),
         Index("ix_print_job_status_created", "status", "created_at"),
         Index("ix_print_job_status_printer", "status", "printer_name"),
@@ -465,6 +468,7 @@ class PrintJob(Base, TimestampMixin, SoftDeleteMixin):
 
     # Relationships
     photo = relationship("Photo", back_populates="print_jobs", lazy="selectin")
+    template = relationship("Template", back_populates="print_jobs", lazy="selectin")
 
 
 # Share Model

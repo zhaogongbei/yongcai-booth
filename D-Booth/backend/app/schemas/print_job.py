@@ -11,6 +11,7 @@ from app.models.models import PrintJobStatus
 class PrintJobBase(BaseModel):
     printer_name: Optional[str] = Field(None, max_length=255)
     copies: int = Field(1, ge=1, le=10)
+    template_id: Optional[UUID] = None
 
 
 # Print Job Create Schema

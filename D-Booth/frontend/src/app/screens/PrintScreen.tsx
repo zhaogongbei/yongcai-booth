@@ -156,6 +156,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     try {
       const job = await createPrintJob({
         photoId,
+        templateId: activePrintTemplate?.id,
         printerName: calibratedPrinterName,
         copies: qty,
         token: authToken,
@@ -190,7 +191,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       sendPrintEvent("FAIL");
       toast.error(err instanceof Error ? err.message : "提交打印任务失败");
     }
-  }, [authToken, qty, selectedPhoto, selectedPrinter, sendPrintEvent, stopPolling]);
+  }, [activePrintTemplate?.id, authToken, qty, selectedPhoto, selectedPrinter, sendPrintEvent, stopPolling]);
 
   // 使用当前选中照片优先，其余照片按拍摄顺序补齐多照片框。
   const printPreviewImages = useMemo(() => {

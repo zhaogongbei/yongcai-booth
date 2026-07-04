@@ -12,6 +12,7 @@ celery_app = Celery(
         "app.tasks.ai_tasks",
         "app.tasks.email_tasks",
         "app.tasks.beauty_tasks",
+        "app.tasks.print_tasks",
     ],
 )
 
@@ -33,6 +34,7 @@ celery_app.conf.update(
         "app.tasks.ai_tasks.*": {"queue": "ai"},
         "app.tasks.email_tasks.*": {"queue": "email"},
         "app.tasks.beauty_tasks.*": {"queue": "beauty"},
+        "app.tasks.print_tasks.*": {"queue": "print"},
     },
 )
 
