@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.models.models import User
 from app.schemas.template import TemplateCreate, TemplateResponse, TemplateUpdate
+from app.services.base_service import ValidationError
 from app.services.template_service import TemplateService
 
 router = APIRouter()
@@ -63,7 +64,7 @@ async def create_template(
     try:
         template = await template_service.create_template(template_in)
         return template
-    except ValueError as e:
+    except (ValidationError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -101,9 +102,12 @@ async def update_template(
 
     await check_team_member(existing.team_id, current_user, db)
 
-    template = await template_service.update_template(template_id, template_in)
-    if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    try:
+        template = await template_service.update_template(template_id, template_in)
+        if not template:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return template
 

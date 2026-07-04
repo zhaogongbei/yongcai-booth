@@ -12,7 +12,7 @@ import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY } from "
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
-import { createTemplate, getMyTeams, getTemplate, updateTemplate, validateTemplate } from "../../lib/api";
+import { createTemplate, getMyTeams, getTemplate, updateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
 
 const ZOOM_OPTIONS = [
@@ -588,9 +588,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
       const snapshot = getLayoutSnapshot();
       const layers = snapshot as unknown as Record<string, unknown>;
-      const validation = await validateTemplate(layers, authToken ?? undefined);
-      if (!validation.valid) {
-        showToast.error(validation.message || "模板结构校验失败");
+      if (!isTemplateLayout(snapshot)) {
+        showToast.error("模板结构校验失败");
         return;
       }
 

@@ -8,7 +8,7 @@ import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY } from "../constants/templateNavigation";
-import { createTemplateLayoutFromPrintPreset, FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
+import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
 import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
@@ -34,6 +34,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const {
     activePrintTemplate,
     authToken,
+    photos,
     teamId: captureTeamId,
     setActivePrintTemplate,
     templateSelectionReturnScreen,
@@ -51,7 +52,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [savedTemplatesLoading, setSavedTemplatesLoading] = useState(false);
   const [savedTemplatesError, setSavedTemplatesError] = useState<string | null>(null);
   const [operatingTemplateId, setOperatingTemplateId] = useState<string | null>(null);
-  const [operatingLayoutId, setOperatingLayoutId] = useState<string | null>(null);
   const [recentlySavedTemplateId, setRecentlySavedTemplateId] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
@@ -64,34 +64,45 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     { label: "自定义模板", count: 256, icon: Grid3X3, color: "from-gray-600 to-slate-800", filter: "自定义" },
   ];
   const templates = [
-    { name: "花漾时光", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-couple-booth.webp', layoutId: "two-double-horizontal" },
-    { name: "浪漫白花", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-guests-fun.webp', layoutId: "four-double-vertical" },
-    { name: "粉色心情", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/birthday-party-fun.webp', layoutId: "one-large-three-small-horizontal" },
-    { name: "夏日派对", ratio: "2×6", type: "推荐", category: "节日", img: '/images/scenes/festival-outdoor-booth.webp', layoutId: "four-single-horizontal" },
-    { name: "企业活动", ratio: "4×6", type: "推荐", category: "企业", img: '/images/scenes/corporate-event-group.webp', layoutId: "one-single-horizontal" },
-    { name: "生日快乐", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/kids-birthday-booth.webp', layoutId: "one-single-vertical" },
+    { name: "花漾时光", ratio: "2×6", type: "推荐", category: "婚礼", style: "清新", scene: "户外", accentColor: "#ec4899", img: "/images/scenes/wedding-couple-booth.webp", layoutId: "two-double-horizontal" },
+    { name: "浪漫白花", ratio: "2×6", type: "推荐", category: "婚礼", style: "日系", scene: "室内", accentColor: "#fff", img: "/images/scenes/wedding-guests-fun.webp", layoutId: "four-double-vertical" },
+    { name: "粉色心情", ratio: "2×6", type: "推荐", category: "生日", style: "清新", scene: "工作室", accentColor: "#ec4899", img: "/images/scenes/birthday-party-fun.webp", layoutId: "one-large-three-small-horizontal" },
+    { name: "夏日派对", ratio: "2×6", type: "推荐", category: "节日", style: "欧美", scene: "户外", accentColor: "#f59e0b", img: "/images/scenes/festival-outdoor-booth.webp", layoutId: "four-single-horizontal" },
+    { name: "企业活动", ratio: "4×6", type: "推荐", category: "企业", style: "欧美", scene: "室内", accentColor: "#3b82f6", img: "/images/scenes/corporate-event-group.webp", layoutId: "one-single-horizontal" },
+    { name: "生日快乐", ratio: "2×6", type: "推荐", category: "生日", style: "清新", scene: "工作室", accentColor: "#22c55e", img: "/images/scenes/kids-birthday-booth.webp", layoutId: "one-single-vertical" },
   ];
 
   const hotTemplates = [
-    { img: '/images/products/photo-prints-showcase.webp', label: '高显', layoutId: 'one-single-vertical' },
-    { img: '/images/products/polaroid-style-prints.webp', label: '前途', layoutId: 'one-double-vertical' },
-    { img: '/images/scenes/conference-networking.webp', label: '复古怀旧', layoutId: 'two-double-horizontal' },
-    { img: '/images/backgrounds/attract-screen-corporate.webp', label: '清新淡雅', layoutId: 'four-single-horizontal' },
-    { img: '/images/backgrounds/attract-screen-elegant.webp', label: '新系图斯', layoutId: 'four-double-vertical' },
-    { img: '/images/backgrounds/attract-screen-01.webp', label: '日系小清新', layoutId: 'one-large-three-small-horizontal' },
-    { img: '/images/products/camera-equipment.webp', label: '多系', layoutId: 'three-double-vertical' },
-    { img: '/images/scenes/brand-popup-mall.webp', label: '韩系', layoutId: 'one-single-horizontal' },
+    { img: "/images/products/photo-prints-showcase.webp", label: "高显", ratio: "4×6", style: "欧美", scene: "工作室", accentColor: "#f59e0b", layoutId: "one-single-vertical" },
+    { img: "/images/products/polaroid-style-prints.webp", label: "前途", ratio: "2×6", style: "复古", scene: "室内", accentColor: "#8b5cf6", layoutId: "one-double-vertical" },
+    { img: "/images/scenes/conference-networking.webp", label: "复古怀旧", ratio: "2×6", style: "复古", scene: "室内", accentColor: "#f97316", layoutId: "two-double-horizontal" },
+    { img: "/images/backgrounds/attract-screen-corporate.webp", label: "清新淡雅", ratio: "2×6", style: "清新", scene: "户外", accentColor: "#22c55e", layoutId: "four-single-horizontal" },
+    { img: "/images/backgrounds/attract-screen-elegant.webp", label: "新系图斯", ratio: "2×6", style: "欧美", scene: "室内", accentColor: "#3b82f6", layoutId: "four-double-vertical" },
+    { img: "/images/backgrounds/attract-screen-01.webp", label: "日系小清新", ratio: "2×6", style: "日系", scene: "工作室", accentColor: "#ec4899", layoutId: "one-large-three-small-horizontal" },
+    { img: "/images/products/camera-equipment.webp", label: "多系", ratio: "4×6", style: "国潮", scene: "工作室", accentColor: "#ef4444", layoutId: "three-double-vertical" },
+    { img: "/images/scenes/brand-popup-mall.webp", label: "韩系", ratio: "4×6", style: "清新", scene: "室内", accentColor: "#06b6d4", layoutId: "one-single-horizontal" },
   ];
 
-  const filteredTemplates = templates.filter(t => {
-    if (searchTerm && !t.name.includes(searchTerm)) return false;
-    if (selectedCategory && t.category !== selectedCategory) return false;
+  const filteredTemplates = templates.filter(template => {
+    const searchableText = `${template.name}${template.style}${template.scene}${template.category}${template.ratio}`;
+    if (searchTerm && !searchableText.includes(searchTerm)) return false;
+    if (selectedCategory && template.category !== selectedCategory) return false;
+    if (selectedRatio !== "全部" && template.ratio !== selectedRatio) return false;
+    if (selectedStyle !== "全部" && template.style !== selectedStyle) return false;
+    if (selectedScene !== "全部" && template.scene !== selectedScene) return false;
+    if (selectedColor && template.accentColor !== selectedColor) return false;
     return true;
   });
 
-  const quickCreateLayouts = QUICK_PRINT_LAYOUTS.filter(layout =>
-    FEATURED_QUICK_PRINT_LAYOUT_IDS.includes(layout.id as (typeof FEATURED_QUICK_PRINT_LAYOUT_IDS)[number])
-  );
+  const filteredHotTemplates = hotTemplates.filter(template => {
+    const searchableText = `${template.label}${template.style}${template.scene}${template.ratio}`;
+    if (searchTerm && !searchableText.includes(searchTerm)) return false;
+    if (selectedRatio !== "全部" && template.ratio !== selectedRatio) return false;
+    if (selectedStyle !== "全部" && template.style !== selectedStyle) return false;
+    if (selectedScene !== "全部" && template.scene !== selectedScene) return false;
+    if (selectedColor && template.accentColor !== selectedColor) return false;
+    return true;
+  });
 
   const loadSavedTemplates = useCallback(async () => {
     const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
@@ -177,7 +188,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
       return;
     }
 
-    setOperatingLayoutId(layoutId);
     const temporaryId = `quick-${preset.id}`;
     const layout = createTemplateLayoutFromPrintPreset(temporaryId, preset);
     let templateId = temporaryId;
@@ -207,8 +217,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
       } catch (err) {
         showToast.error(err instanceof Error ? err.message : "快速版式保存失败");
         return;
-      } finally {
-        setOperatingLayoutId(null);
       }
     }
 
@@ -221,9 +229,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
         name: templateName,
       },
     });
-    if (!hasStoredAuthSession) {
-      setOperatingLayoutId(null);
-    }
     showToast.success(`已使用版式：${templateName}`);
     const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
     setTemplateSelectionReturnScreen(null);
@@ -266,11 +271,23 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     : "用此版式创建";
   const selectionModeTitle = templateSelectionReturnScreen === "print" ? "正在为打印预览选择模板" : "正在为拍照流程选择模板";
   const selectionModeReturnLabel = templateSelectionReturnScreen === "print" ? "返回打印预览" : "返回拍照";
+  const selectionModeDescription = templateSelectionReturnScreen === "print"
+    ? "选择后会回到打印预览页，若版式需要更多照片，预览页会提示继续补拍。"
+    : "选择后会回到相机页，并按版式照片槽位继续拍摄。";
 
   const returnToSelectionSource = () => {
     const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
     setTemplateSelectionReturnScreen(null);
     navigate(returnScreen);
+  };
+
+  const clearVisualFilters = () => {
+    setSelectedCategory(null);
+    setActiveCategory("全部");
+    setSelectedColor(null);
+    setSelectedRatio("全部");
+    setSelectedStyle("全部");
+    setSelectedScene("全部");
   };
 
   const duplicateSavedTemplate = async (template: TemplateResponse) => {
@@ -340,8 +357,8 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                   {selectionModeTitle}
                 </div>
                 <div className="mt-1 text-xs text-white/45">
-                  选择任一版式后会自动带回{templateSelectionReturnScreen === "print" ? "打印预览页" : "相机页"}。
-                  当前模板：{activePrintTemplate?.name ?? "未选择"}
+                  {selectionModeDescription}
+                  当前模板：{activePrintTemplate?.name ?? "未选择"} · 已拍照片：{photos.length}
                 </div>
               </div>
               <button
@@ -371,51 +388,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <GlowBtn size="sm" variant="primary" onClick={() => openTemplateEditor()}>
             <Plus size={14} />新建
           </GlowBtn>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-white">快速创建</span>
-              <NeonBadge color="green">常用打印版式</NeonBadge>
-            </div>
-          </div>
-          <div className="grid grid-cols-5 gap-3">
-            {quickCreateLayouts.map(layout => (
-              <motion.button
-                key={layout.id}
-                type="button"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/15 p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-60"
-                onClick={() => openOrSelectLayout(layout.id)}
-                disabled={operatingLayoutId === layout.id}
-              >
-                <div className="flex items-center gap-2 text-xs font-medium text-emerald-300">
-                  <LayoutTemplate size={14} />
-                  <span className="truncate">{layout.name}</span>
-                </div>
-                <div className="mt-1 text-[10px] text-white/45">{layout.description}</div>
-                <div className="mt-2 text-[10px] text-emerald-200/80">
-                  {operatingLayoutId === layout.id ? "正在保存版式..." : quickLayoutActionLabel}
-                </div>
-                <div className="mt-3 relative h-16 rounded-lg bg-white/90 overflow-hidden">
-                  {layout.frames.map((frame, index) => (
-                    <div
-                      key={`${layout.id}-${index}`}
-                      className="absolute rounded-sm bg-emerald-950/20 border border-emerald-950/20"
-                      style={{
-                        left: `${frame.x / layout.canvasWidth * 100}%`,
-                        top: `${frame.y / layout.canvasHeight * 100}%`,
-                        width: `${frame.width / layout.canvasWidth * 100}%`,
-                        height: `${frame.height / layout.canvasHeight * 100}%`,
-                      }}
-                    />
-                  ))}
-                </div>
-              </motion.button>
-            ))}
-          </div>
         </div>
 
         {/* Category tabs */}
@@ -561,7 +533,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
               <span className="text-sm font-semibold text-white">推荐版式</span>
               <span className="text-lg">🔥</span>
             </div>
-            <button className="text-xs text-violet-400 hover:text-violet-300" onClick={() => setSelectedCategory(null)}>查看全部</button>
+            <button className="text-xs text-violet-400 hover:text-violet-300" onClick={clearVisualFilters}>查看全部</button>
           </div>
           <div className="grid grid-cols-6 gap-4">
             {filteredTemplates.map(t => (
@@ -593,7 +565,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
             <NeonBadge color="pink">HOT</NeonBadge>
           </div>
           <div className="grid grid-cols-8 gap-3">
-            {hotTemplates.map((item, i) => (
+            {filteredHotTemplates.map((item, i) => (
               <motion.div key={i} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
                 onClick={() => openOrSelectLayout(item.layoutId)}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-pink-500/40 transition-all">
@@ -653,11 +625,8 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           </div>
         ))}
         <GlowBtn size="sm" variant="primary" className="w-full justify-center"
-          onClick={() => {
-            setSelectedCategory(null);
-            setActiveCategory("全部");
-          }}>
-          应用筛选
+          onClick={clearVisualFilters}>
+          清空筛选
         </GlowBtn>
       </GlassCard>
     </div>
