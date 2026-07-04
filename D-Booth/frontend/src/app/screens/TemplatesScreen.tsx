@@ -7,13 +7,11 @@ import { GlowBtn } from "../components/GlowBtn";
 import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
+import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY } from "../constants/templateNavigation";
 import { createTemplateLayoutFromPrintPreset, FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
 import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
-
-const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
-const JUST_SAVED_TEMPLATE_SESSION_KEY = "aibooth.templates.justSavedTemplateId";
 
 function isTemplateLayout(value: unknown): value is TemplateLayout {
   const layout = value as Partial<TemplateLayout>;
@@ -468,8 +466,14 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                 const isRecentlySavedTemplate = recentlySavedTemplateId === t.id;
 
                 return (
-                  <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                    onClick={() => openTemplateEditor(t.id)}>
+              <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+                    onClick={() => {
+                      if (isTemplateSelectionMode) {
+                        selectTemplateForPrint(t);
+                        return;
+                      }
+                      openTemplateEditor(t.id);
+                    }}>
                     <div className={`relative rounded-xl overflow-hidden aspect-[2/5] border transition-all bg-white ${isRecentlySavedTemplate ? "border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 group-hover:border-emerald-500/40"}`}
                       style={getSavedTemplateBackgroundStyle(t)}>
                       {isRecentlySavedTemplate && (
@@ -499,7 +503,17 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                           >
                             <Check size={12} />{selectTemplateButtonLabel}
                           </GlowBtn>
-                          <GlowBtn size="sm" variant="ghost" className="justify-center px-2">编辑</GlowBtn>
+                          <GlowBtn
+                            size="sm"
+                            variant="ghost"
+                            className="justify-center px-2"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openTemplateEditor(t.id);
+                            }}
+                          >
+                            编辑
+                          </GlowBtn>
                         </div>
                       </div>
                     </div>

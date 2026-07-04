@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type React from "react";
-import { ArrowLeft, Camera, Printer, Check, Share2, RefreshCw, FileText, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Camera, Printer, Check, Share2, RefreshCw, FileText, LayoutTemplate, Pencil } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
@@ -20,6 +20,7 @@ import {
   type PrintRuntimeState,
 } from "../services/printStateMachine";
 import { MAX_PRINT_QTY } from "../constants";
+import { SELECTED_TEMPLATE_SESSION_KEY } from "../constants/templateNavigation";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
 import { getRequiredTemplatePhotoCount, getTemplatePhotoSlots } from "../utils/templateLayout";
@@ -157,6 +158,16 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     setTemplateSelectionReturnScreen("print");
     navigate("templates");
   }, [navigate, setTemplateSelectionReturnScreen]);
+
+  const openActiveTemplateEditorForPrint = useCallback(() => {
+    if (!activePrintTemplate || !isBackendTemplateId(activePrintTemplate.id)) {
+      openTemplateSelectionForPrint();
+      return;
+    }
+    sessionStorage.setItem(SELECTED_TEMPLATE_SESSION_KEY, activePrintTemplate.id);
+    setTemplateSelectionReturnScreen("print");
+    navigate("template-editor");
+  }, [activePrintTemplate, navigate, openTemplateSelectionForPrint, setTemplateSelectionReturnScreen]);
 
   // 手动刷新打印机列表
   const handleRefreshPrinters = useCallback(async () => {
@@ -304,6 +315,13 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
               <ArrowLeft size={14} />返回
             </button>
             <span className="text-sm font-semibold text-white">打印预览</span>
+            <div className="hidden items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/45 md:flex">
+              <span className={hasPrintablePhoto ? "text-emerald-300" : ""}>拍照</span>
+              <span>/</span>
+              <span className={activePrintTemplate ? "text-emerald-300" : "text-amber-200"}>模板</span>
+              <span>/</span>
+              <span className={!printUnavailableReason ? "text-emerald-300" : "text-white/45"}>预览打印</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/40">出纸尺寸：</span>
@@ -461,12 +479,23 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <GlassCard className="p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs text-white/40">当前模板</span>
-            <button
-              className="text-xs text-violet-400 hover:text-violet-300"
-              onClick={openTemplateSelectionForPrint}
-            >
-              {activePrintTemplate ? "更换" : "选择"}
-            </button>
+            <div className="flex items-center gap-2">
+              {activePrintTemplate && !hasUnsavedPrintTemplate && (
+                <button
+                  className="flex items-center gap-1 text-xs text-white/45 hover:text-white/75"
+                  onClick={openActiveTemplateEditorForPrint}
+                >
+                  <Pencil size={11} />
+                  编辑
+                </button>
+              )}
+              <button
+                className="text-xs text-violet-400 hover:text-violet-300"
+                onClick={openTemplateSelectionForPrint}
+              >
+                {activePrintTemplate ? "更换" : "选择"}
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-white/80">
             <LayoutTemplate size={14} className={activePrintTemplate ? "text-emerald-300" : "text-white/30"} />

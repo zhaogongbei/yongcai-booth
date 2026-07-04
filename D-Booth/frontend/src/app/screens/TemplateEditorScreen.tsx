@@ -8,6 +8,7 @@ import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { useUndoRedo } from "../hooks/useUndoRedo";
+import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY } from "../constants/templateNavigation";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
@@ -139,9 +140,6 @@ function createDefaultElement(type: TemplateElement['type']): TemplateElement {
 
 // 绘图缩放比例（将300DPI物理像素映射到屏幕上可显示的尺寸）
 const DISPLAY_SCALE = 0.45;
-const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
-const JUST_SAVED_TEMPLATE_SESSION_KEY = "aibooth.templates.justSavedTemplateId";
-
 function isTemplateLayout(value: unknown): value is TemplateLayout {
   if (!value || typeof value !== "object") return false;
   const layout = value as Partial<TemplateLayout>;

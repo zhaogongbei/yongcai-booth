@@ -92,16 +92,22 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     () => getRequiredTemplatePhotoCount(activePrintTemplate?.layout),
     [activePrintTemplate?.layout],
   );
+  const templatePhotoRequirement = activePrintTemplate
+    ? Math.max(requiredTemplatePhotoCount, 1)
+    : 0;
   const templatePhotoSlots = useMemo(
     () => getTemplatePhotoSlots(activePrintTemplate?.layout),
     [activePrintTemplate?.layout],
   );
   const capturedTemplatePhotoCount = activePrintTemplate
-    ? Math.min(photos.length, Math.max(requiredTemplatePhotoCount, 1))
+    ? Math.min(photos.length, templatePhotoRequirement)
     : photos.length;
   const missingTemplatePhotoCount = activePrintTemplate
-    ? Math.max(0, requiredTemplatePhotoCount - photos.length)
+    ? Math.max(0, templatePhotoRequirement - photos.length)
     : 0;
+  const nextTemplatePhotoNumber = activePrintTemplate && missingTemplatePhotoCount > 0
+    ? Math.min(photos.length + 1, templatePhotoRequirement)
+    : null;
 
   const openPrintPreview = useCallback(() => {
     if (!activePrintTemplate) {
@@ -652,8 +658,11 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <div className="flex items-center justify-center gap-1.5">
                   <LayoutTemplate size={11} />
                   <span className="truncate">
-                    {activePrintTemplate.name} · 已拍 {capturedTemplatePhotoCount}/{Math.max(requiredTemplatePhotoCount, 1)}
+                    {activePrintTemplate.name} · 已拍 {capturedTemplatePhotoCount}/{templatePhotoRequirement}
                   </span>
+                </div>
+                <div className="mt-1 text-center text-[10px] text-emerald-100/80">
+                  {nextTemplatePhotoNumber ? `下一张拍照片 ${nextTemplatePhotoNumber}` : "模板照片已补齐，可进入打印预览"}
                 </div>
                 {templatePhotoSlots.length > 1 && (
                   <div className="mt-1 flex justify-center gap-1">
