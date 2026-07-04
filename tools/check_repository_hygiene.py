@@ -48,6 +48,7 @@ BLOCKED_PATHS = {
     "D-Booth/backend/VERSION",
     "D-Booth/backend/app/services/VERSION",
     "D-Booth/frontend/VERSION",
+    "D-Booth/runtime-dotnet/VERSION",
     "D-Booth/backend/.github/workflows/ci.yml",
     "D-Booth/backend/app/models/types.py",
     "FINAL_EXECUTION_REPORT.md",

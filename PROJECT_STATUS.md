@@ -16,7 +16,7 @@
 - 根目录 `.github/workflows/ci.yml` 是唯一权威 CI workflow。
 - 根目录 `VERSION` 是项目默认版本源；README 徽章和后端 `settings.VERSION` 默认值必须与它一致。
 - 前端 `package.json` 和 `package-lock.json` 根包名必须是 `dbooth-frontend`，版本必须与根 `VERSION` 一致。
-- 不得新增 `D-Booth/backend/VERSION`、`D-Booth/backend/app/services/VERSION` 或 `D-Booth/frontend/VERSION` 等额外版本源。
+- 不得新增 `D-Booth/backend/VERSION`、`D-Booth/backend/app/services/VERSION`、`D-Booth/frontend/VERSION` 或 `D-Booth/runtime-dotnet/VERSION` 等额外版本源。
 - 仓库卫生检查同时覆盖已跟踪和未跟踪的生成型报告/本地产物。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
 - 前端文档、部署示例和开发指南不得回退到 pnpm/yarn。
@@ -97,6 +97,7 @@
 - 已清理部署/开发指南中的旧 pnpm 指令，并删除过期 AI 指令备份文件。
 - 已统一根 `VERSION`、README 徽章和后端默认 API 版本，并让仓库卫生检查阻止版本源分裂回归。
 - 已移除外部提交带入的冗余前端 `VERSION` 文件，并扩展仓库卫生检查阻止该额外版本源回归。
+- 已移除外部生成的冗余 Runtime `VERSION` 文件，并扩展仓库卫生检查阻止该额外版本源回归。
 - 已扩展仓库卫生检查，让未跟踪的生成型报告也会在本地暴露。
 - 已移除 CI 中仅 echo 的假部署步骤，生产主线只保留真实的 GitHub Release 创建。
 - 已修复活动统计服务中打印和分享数量固定为 0 的数据错误，并补充回归测试。
