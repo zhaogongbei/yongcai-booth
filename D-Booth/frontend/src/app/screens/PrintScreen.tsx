@@ -88,6 +88,26 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { selectedPhoto, photos, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const pollTimerRef = useRef<number | null>(null);
   const hasPrintablePhoto = photos.length > 0;
+  const printPhoto = selectedPhoto ?? photos[0];
+  const printUnavailableReason = useMemo(() => {
+    if (!hasPrintablePhoto) return "请先完成拍照";
+    if (!authToken) return "请从真实活动进入拍照后再打印";
+    if (!printPhoto?.serverPhotoId) {
+      return printPhoto?.uploadError ? "照片上传失败，无法打印" : "照片正在上传，完成后可打印";
+    }
+    if (!selectedPrinter) return "请先选择打印机";
+    return null;
+  }, [authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, selectedPrinter]);
+  const printButtonLabel = useMemo(() => {
+    if (!printUnavailableReason) {
+      return isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片";
+    }
+    if (!hasPrintablePhoto) return "请先拍照";
+    if (!authToken) return "无法打印";
+    if (printPhoto?.uploadError) return "上传失败";
+    if (!printPhoto?.serverPhotoId) return "等待上传";
+    return "请选择打印机";
+  }, [authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, printStatus, printUnavailableReason]);
 
   // 手动刷新打印机列表
   const handleRefreshPrinters = useCallback(async () => {
@@ -143,21 +163,13 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
 
-    if (!selectedPrinter) {
-      toast.error("请先选择打印机");
+    if (printUnavailableReason) {
+      toast.error(printUnavailableReason);
       return;
     }
 
-    const photoId = selectedPhoto?.serverPhotoId;
-    // 无云端 photoId（演示模式）-> 走本地模拟
-    if (!photoId || !authToken) {
-      sendPrintEvent("SUBMIT");
-      window.setTimeout(() => sendPrintEvent("START"), 100);
-      window.setTimeout(() => sendPrintEvent("COMPLETE"), 1200);
-      window.setTimeout(() => sendPrintEvent("RESET"), 5000);
-      if (!photoId) toast.info("演示模式：照片未上传云端，仅模拟打印");
-      return;
-    }
+    const photoId = printPhoto?.serverPhotoId;
+    if (!photoId || !authToken) return;
 
     sendPrintEvent("SUBMIT");
     try {
@@ -198,18 +210,18 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       sendPrintEvent("FAIL");
       toast.error(err instanceof Error ? err.message : "提交打印任务失败");
     }
-  }, [activePrintTemplate?.id, authToken, hasPrintablePhoto, qty, selectedPhoto, selectedPrinter, sendPrintEvent, stopPolling]);
+  }, [activePrintTemplate?.id, authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printUnavailableReason, qty, selectedPrinter, sendPrintEvent, stopPolling]);
 
   // 使用当前选中照片优先，其余照片按拍摄顺序补齐多照片框。
   const printPreviewImages = useMemo(() => {
-    if (selectedPhoto) {
-      return [selectedPhoto.url, ...photos.filter(photo => photo.id !== selectedPhoto.id).map(photo => photo.url)];
+    if (printPhoto) {
+      return [printPhoto.url, ...photos.filter(photo => photo.id !== printPhoto.id).map(photo => photo.url)];
     }
     if (photos.length > 0) {
       return photos.map(photo => photo.url);
     }
     return [];
-  }, [photos, selectedPhoto]);
+  }, [photos, printPhoto]);
 
   const templatePreviewSize = useMemo(() => {
     if (!activePrintTemplate) return null;
@@ -270,7 +282,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
             ) : hasPrintablePhoto ? (
               <div className="bg-white rounded-xl p-4 shadow-[0_0_60px_rgba(139,92,246,0.2)]" style={{ width: 260, height: 620 }}>
                 {printPreviewImages.map((src, i) => (
-                  <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: selectedPhoto ? 560 : 175 }}>
+                  <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: printPhoto ? 560 : 175 }}>
                     <img src={src}
                       alt={`print ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
                   </div>
@@ -379,6 +391,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
               />
             </div>
           </div>
+          {printUnavailableReason && (
+            <div className="mb-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200">
+              {printUnavailableReason}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-lg bg-white/[0.03] p-2">
               <div className="text-white/35">队列任务</div>
@@ -498,12 +515,12 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           className="w-full py-4 rounded-2xl font-semibold text-white text-base disabled:opacity-50"
           style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)", boxShadow: "0 0 30px rgba(139,92,246,0.4)" }}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          disabled={isPrintBusy(printStatus) || !selectedPrinter || !hasPrintablePhoto}
+          disabled={isPrintBusy(printStatus) || Boolean(printUnavailableReason)}
           onClick={handlePrint}
         >
           <div className="flex items-center justify-center gap-2">
             <Printer size={20} />
-            {!hasPrintablePhoto ? "请先拍照" : isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片"}
+            {printButtonLabel}
           </div>
         </motion.button>
       </GlassCard>
