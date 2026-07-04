@@ -63,7 +63,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [paperSize, setPaperSize] = useState("2x6 英寸");
   const [colorMode, setColorMode] = useState("自动");
   const [printStatus, setPrintStatus] = useState<PrintRuntimeState>("idle");
-  const [paperSizeSelect, setPaperSizeSelect] = useState("2x6 英寸");
   const [qty, setQty] = useState(1);
   const boothHealth = useBoothHealth(selectedPrinter);
 
@@ -241,8 +240,8 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/40">纸张大小：</span>
             <select className={getGlassSelectClassName("rounded-lg px-2 py-1 text-xs")}
-              value={paperSizeSelect}
-              onChange={e => setPaperSizeSelect(e.target.value)}>
+              value={paperSize}
+              onChange={e => setPaperSize(e.target.value)}>
               <option className={GLASS_SELECT_OPTION_CLASS_NAME}>2x6 英寸</option>
               <option className={GLASS_SELECT_OPTION_CLASS_NAME}>4x6 英寸</option>
             </select>
