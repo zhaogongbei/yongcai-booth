@@ -795,6 +795,75 @@ export async function processBeautyImage(image: Blob, params: BeautyParams, sign
   return res.blob();
 }
 
+// ─── Templates ────────────────────────────────────────────────────────────────
+
+export interface TemplatePayload {
+  name: string;
+  description?: string | null;
+  size?: string | null;
+  canvas_width?: number | null;
+  canvas_height?: number | null;
+  layers?: Record<string, unknown> | null;
+  thumbnail_url?: string | null;
+  is_public?: boolean;
+}
+
+export interface TemplateCreatePayload extends TemplatePayload {
+  team_id: string;
+}
+
+export type TemplateUpdatePayload = Partial<TemplatePayload>;
+
+export interface TemplateResponse {
+  id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  size?: string | null;
+  canvas_width?: string | number | null;
+  canvas_height?: string | number | null;
+  layers?: Record<string, unknown> | null;
+  thumbnail_url?: string | null;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getTemplates(teamId: string, token: string): Promise<TemplateResponse[]> {
+  return request<TemplateResponse[]>("/templates", {
+    token,
+    query: { team_id: teamId },
+  });
+}
+
+export async function createTemplate(payload: TemplateCreatePayload, token: string): Promise<TemplateResponse> {
+  return request<TemplateResponse>("/templates", {
+    method: "POST",
+    token,
+    body: payload,
+  });
+}
+
+export async function updateTemplate(
+  templateId: string,
+  payload: TemplateUpdatePayload,
+  token: string
+): Promise<TemplateResponse> {
+  return request<TemplateResponse>(`/templates/${templateId}`, {
+    method: "PUT",
+    token,
+    body: payload,
+  });
+}
+
+export async function validateTemplate(templateData: Record<string, unknown>, token: string): Promise<{ valid: boolean; message: string }> {
+  return request<{ valid: boolean; message: string }>("/templates/validate", {
+    method: "POST",
+    token,
+    body: { template_data: templateData },
+  });
+}
+
 // ─── Teams ────────────────────────────────────────────────────────────────────
 
 export interface TeamResponse {

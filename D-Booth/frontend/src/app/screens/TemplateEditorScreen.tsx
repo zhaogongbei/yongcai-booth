@@ -1,13 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ArrowLeft, ChevronDown, Eye, Download, Move, Copy, Layers, AlignCenter, Type, Palette, Lock, Trash2, Undo2, Redo2, Plus, LayoutTemplate, ChevronUp, GripVertical, Image as ImageIcon, ScanQrCode, Square, Type as TypeIcon, Calendar } from "lucide-react";
+import { ArrowLeft, ChevronDown, Eye, Download, Move, Copy, Layers, AlignCenter, Type, Palette, Lock, Trash2, Undo2, Redo2, Plus, LayoutTemplate, ChevronUp, GripVertical, Image as ImageIcon, ScanQrCode, Square, Type as TypeIcon, Calendar, Save } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
 import { TopBar } from "../components/TopBar";
 import { showToast } from "../stores/useToast";
+import { useSettings } from "../stores/useSettings";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
+import { createTemplate, getMyTeams, tokenStorage, updateTemplate, validateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
 
 const ZOOM_OPTIONS = [
@@ -76,6 +78,7 @@ const DISPLAY_SCALE = 0.45;
 
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
+  const { currentEvent } = useSettings();
   const undoRedo = useUndoRedo<TemplateLayout>(createDefaultLayout(), { maxHistory: 50 });
   const layout = undoRedo.present;
 
@@ -86,6 +89,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [presetOpen, setPresetOpen] = useState(false);
   const [templateName, setTemplateName] = useState('未命名模板');
   const [editingName, setEditingName] = useState(false);
+  const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // 拖拽状态
   const [dragging, setDragging] = useState(false);
@@ -136,6 +141,17 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   // 竖版时可能宽高对调
   const displayWidth = Math.round(canvasPx.width * DISPLAY_SCALE * zoom);
   const displayHeight = Math.round(canvasPx.height * DISPLAY_SCALE * zoom);
+
+  const getLayoutSnapshot = useCallback((): TemplateLayout => ({
+    ...layout,
+    name: templateName.trim() || "未命名模板",
+  }), [layout, templateName]);
+
+  const resolveTeamId = useCallback(async (token: string) => {
+    if (currentEvent?.teamId) return currentEvent.teamId;
+    const teams = await getMyTeams(token);
+    return teams[0]?.id ?? null;
+  }, [currentEvent?.teamId]);
 
   // ─── 布局修改辅助函数 ───
   const updateLayout = useCallback((updater: (draft: TemplateLayout) => void) => {
@@ -272,6 +288,53 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     const newProps = { ...selectedElement.props, [key]: value } as ElementProps;
     updateElement(selectedElement.id, { props: newProps });
   };
+
+  const saveTemplate = useCallback(async () => {
+    const token = tokenStorage.access;
+    if (!token) {
+      showToast.error("请先登录后再保存模板");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const teamId = await resolveTeamId(token);
+      if (!teamId) {
+        showToast.error("未找到可保存模板的团队");
+        return;
+      }
+
+      const snapshot = getLayoutSnapshot();
+      const layers = snapshot as unknown as Record<string, unknown>;
+      const validation = await validateTemplate(layers, token);
+      if (!validation.valid) {
+        showToast.error(validation.message || "模板结构校验失败");
+        return;
+      }
+
+      const payload = {
+        name: snapshot.name,
+        description: "由模板编辑器保存",
+        size: `${snapshot.paperSize.width}x${snapshot.paperSize.height}mm`,
+        canvas_width: canvasPx.width,
+        canvas_height: canvasPx.height,
+        layers,
+        is_public: false,
+      };
+
+      const saved = savedTemplateId
+        ? await updateTemplate(savedTemplateId, payload, token)
+        : await createTemplate({ ...payload, team_id: teamId }, token);
+
+      setSavedTemplateId(saved.id);
+      setTemplateName(saved.name);
+      showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "模板保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [canvasPx.height, canvasPx.width, getLayoutSnapshot, resolveTeamId, savedTemplateId]);
 
   // ─── 预设应用 ───
   const applyPreset = (presetIndex: number) => {
@@ -716,9 +779,12 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               className={isPreview ? "ring-1 ring-violet-500/50" : ""}>
               <Eye size={13} />{isPreview ? "退出预览" : "预览"}
             </GlowBtn>
+            <GlowBtn size="sm" variant="primary" onClick={saveTemplate} disabled={isSaving}>
+              <Save size={13} />{isSaving ? "保存中" : savedTemplateId ? "更新模板" : "保存模板"}
+            </GlowBtn>
             <GlowBtn size="sm" variant="primary"
               onClick={() => {
-                const json = JSON.stringify(layout, null, 2);
+                const json = JSON.stringify(getLayoutSnapshot(), null, 2);
                 const blob = new Blob([json], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
