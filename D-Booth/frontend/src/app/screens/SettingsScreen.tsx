@@ -200,15 +200,15 @@ export function SettingsScreen() {
     {
       title: "界面设置", items: [
         { label: "语言", desc: LANGUAGE_OPTIONS.find(o => o.value === ui.language)?.label ?? ui.language, icon: Globe, settingKey: "language" as const },
-        { label: "主题颜色", desc: "深空紫", icon: Palette },
+        { label: "主题颜色", desc: "当前主题由应用默认样式控制", icon: Palette },
         { label: "屏幕亮度", desc: `${ui.brightness}%`, icon: Sun, settingKey: "brightness" as const },
       ]
     },
     {
       title: "账号与订阅", items: [
-        { label: "Pro 会员", desc: "有效期至 2025-12-31", icon: Star },
-        { label: "AI 积分", desc: "剩余 8,420 积分", icon: Sparkles },
-        { label: "账号安全", desc: "最后登录 2 小时前", icon: Lock },
+        { label: "Pro 会员", desc: "未接入订阅管理", icon: Star },
+        { label: "AI 积分", desc: "未接入积分账户", icon: Sparkles },
+        { label: "账号安全", desc: "请在认证后台管理账号安全", icon: Lock },
       ]
     },
   ];
