@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type WheelEvent as ReactWheelEvent } from "react";
 import { ArrowLeft, ChevronDown, Eye, Download, Move, Copy, Layers, AlignCenter, Type, Palette, Lock, Trash2, Undo2, Redo2, Plus, LayoutTemplate, ChevronUp, GripVertical, Image as ImageIcon, ScanQrCode, Square, Type as TypeIcon, Calendar, Save, Upload } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
@@ -25,6 +25,7 @@ const ZOOM_OPTIONS = [
 
 const MINIMUM_ELEMENT_SIZE = 60;
 const SNAP_THRESHOLD = 18;
+const BACKGROUND_LAYER_ID = '__template_background_layer__';
 
 type SnapGuide = {
   orientation: 'vertical' | 'horizontal';
@@ -38,8 +39,50 @@ type SnapCandidate = {
   orientation: 'vertical' | 'horizontal';
 };
 
+type CanvasLayerItem =
+  | {
+      id: typeof BACKGROUND_LAYER_ID;
+      kind: 'background';
+      zIndex: number;
+    }
+  | {
+      id: string;
+      kind: 'element';
+      zIndex: number;
+      element: TemplateElement;
+    };
+
 function clampValue(value: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(value, minimum), maximum);
+}
+
+function getClosestZoomOptionIndex(currentZoom: number): number {
+  return ZOOM_OPTIONS.reduce((closestIndex, option, optionIndex) => {
+    const currentDistance = Math.abs(option.value - currentZoom);
+    const closestDistance = Math.abs(ZOOM_OPTIONS[closestIndex].value - currentZoom);
+    return currentDistance < closestDistance ? optionIndex : closestIndex;
+  }, 0);
+}
+
+function getNextZoomValue(currentZoom: number, direction: 'in' | 'out'): number {
+  const closestZoomOptionIndex = getClosestZoomOptionIndex(currentZoom);
+  const nextZoomOptionIndex = direction === 'in'
+    ? Math.min(closestZoomOptionIndex + 1, ZOOM_OPTIONS.length - 1)
+    : Math.max(closestZoomOptionIndex - 1, 0);
+
+  return ZOOM_OPTIONS[nextZoomOptionIndex]?.value ?? currentZoom;
+}
+
+function getResolvedBackgroundLayerZIndex(background: TemplateLayout['background'], elements: TemplateElement[]): number {
+  if (typeof background.zIndex === 'number') {
+    return background.zIndex;
+  }
+
+  if (elements.length === 0) {
+    return 0;
+  }
+
+  return Math.min(...elements.map(element => element.zIndex)) - 1;
 }
 
 function generateId() {
@@ -229,6 +272,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
+  const [isCanvasViewportHovered, setIsCanvasViewportHovered] = useState(false);
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
   // 拖拽状态
@@ -358,6 +402,25 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     }
   }, [layout, undoRedo]);
 
+  const handleCanvasWheelZoom = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    const currentCanvasViewport = canvasRef.current;
+    const eventTarget = event.target;
+    const isWheelInsideCanvasViewport = Boolean(
+      currentCanvasViewport &&
+      eventTarget instanceof Node &&
+      currentCanvasViewport.contains(eventTarget)
+    );
+
+    if (!isCanvasViewportHovered || !isWheelInsideCanvasViewport || event.deltaY === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setZoom(currentZoom => getNextZoomValue(currentZoom, event.deltaY < 0 ? 'in' : 'out'));
+    setZoomOpen(false);
+  }, [isCanvasViewportHovered]);
+
   // ─── 选中与图层操作 ───
   const selectElement = (id: string, multi: boolean) => {
     if (multi) {
@@ -404,15 +467,50 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   const moveLayer = (id: string, direction: 'up' | 'down') => {
     const draft = JSON.parse(JSON.stringify(layout));
-    const sorted = [...draft.elements].sort((a: TemplateElement, b: TemplateElement) => a.zIndex - b.zIndex);
-    const idx = sorted.findIndex((e: TemplateElement) => e.id === id);
+    const resolvedBackgroundLayerZIndex = getResolvedBackgroundLayerZIndex(draft.background, draft.elements);
+    const sortedCanvasLayers: CanvasLayerItem[] = [
+      ...(draft.background.type === 'image'
+        ? [{ id: BACKGROUND_LAYER_ID, kind: 'background', zIndex: resolvedBackgroundLayerZIndex } as CanvasLayerItem]
+        : []),
+      ...draft.elements.map((element: TemplateElement) => ({
+        id: element.id,
+        kind: 'element' as const,
+        zIndex: element.zIndex,
+        element,
+      })),
+    ].sort((leftLayer, rightLayer) => leftLayer.zIndex - rightLayer.zIndex);
+
+    const idx = sortedCanvasLayers.findIndex(layer => layer.id === id);
     if (idx < 0) return;
-    if (direction === 'up' && idx < sorted.length - 1) {
-      [sorted[idx].zIndex, sorted[idx + 1].zIndex] = [sorted[idx + 1].zIndex, sorted[idx].zIndex];
-    } else if (direction === 'down' && idx > 0) {
-      [sorted[idx].zIndex, sorted[idx - 1].zIndex] = [sorted[idx - 1].zIndex, sorted[idx].zIndex];
+
+    const swapTargetIndex = direction === 'up' ? idx + 1 : idx - 1;
+    if (swapTargetIndex < 0 || swapTargetIndex >= sortedCanvasLayers.length) {
+      return;
     }
-    draft.elements = sorted;
+
+    const currentLayer = sortedCanvasLayers[idx];
+    const swapTargetLayer = sortedCanvasLayers[swapTargetIndex];
+    const currentLayerZIndex = currentLayer.zIndex;
+    const swapTargetLayerZIndex = swapTargetLayer.zIndex;
+
+    if (currentLayer.kind === 'background') {
+      draft.background.zIndex = swapTargetLayerZIndex;
+    } else {
+      const currentElement = draft.elements.find((element: TemplateElement) => element.id === currentLayer.id);
+      if (currentElement) {
+        currentElement.zIndex = swapTargetLayerZIndex;
+      }
+    }
+
+    if (swapTargetLayer.kind === 'background') {
+      draft.background.zIndex = currentLayerZIndex;
+    } else {
+      const swapTargetElement = draft.elements.find((element: TemplateElement) => element.id === swapTargetLayer.id);
+      if (swapTargetElement) {
+        swapTargetElement.zIndex = currentLayerZIndex;
+      }
+    }
+
     undoRedo.set(draft);
   };
 
@@ -1152,10 +1250,22 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const hasPhotoFrameElements = layout.elements.some(element => element.type === 'photo');
   const hasImageBackground = layout.background.type === 'image';
   const visibleLayerCount = layout.elements.length + (hasImageBackground ? 1 : 0);
+  const resolvedBackgroundLayerZIndex = getResolvedBackgroundLayerZIndex(layout.background, layout.elements);
+  const sortedCanvasLayers: CanvasLayerItem[] = [
+    ...(hasImageBackground
+      ? [{ id: BACKGROUND_LAYER_ID, kind: 'background', zIndex: resolvedBackgroundLayerZIndex } as CanvasLayerItem]
+      : []),
+    ...sortedElements.map(element => ({
+      id: element.id,
+      kind: 'element' as const,
+      zIndex: element.zIndex,
+      element,
+    })),
+  ].sort((leftLayer, rightLayer) => leftLayer.zIndex - rightLayer.zIndex);
 
   // ─── 渲染 ───
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex overflow-hidden min-w-0">
       {/* ─── 预设选择对话框 ─── */}
       <AnimatePresence>
         {presetOpen && (
@@ -1197,7 +1307,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       </AnimatePresence>
 
       {/* ─── 左侧: 元素库 ─── */}
-      <GlassCard className="w-48 rounded-none border-r border-white/5 flex flex-col overflow-hidden">
+      <GlassCard className="w-48 shrink-0 rounded-none border-r border-white/5 flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-white/5">
           <div className="text-xs font-semibold text-white/60 uppercase tracking-wider">元素库</div>
         </div>
@@ -1342,7 +1452,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       </GlassCard>
 
       {/* ─── 中间: 画布 + 工具栏 ─── */}
-      <div className="flex-1 flex flex-col bg-[#0a0a1a]">
+      <div className="flex-1 min-w-0 flex flex-col bg-[#0a0a1a]">
         {/* 顶部工具栏 */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
           <div className="flex items-center gap-2">
@@ -1455,6 +1565,9 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         <div
           ref={canvasRef}
           className="flex-1 flex items-center justify-center p-6 overflow-auto"
+          onWheel={handleCanvasWheelZoom}
+          onMouseEnter={() => setIsCanvasViewportHovered(true)}
+          onMouseLeave={() => setIsCanvasViewportHovered(false)}
           style={{
             background: `
               linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
@@ -1477,15 +1590,6 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               overflow: 'hidden',
             }}
           >
-            {layout.background.type === 'image' && (
-              <img
-                src={layout.background.value}
-                alt="模板底图"
-                className="absolute inset-0 w-full h-full pointer-events-none select-none"
-                style={{ objectFit: 'fill' }}
-                draggable={false}
-              />
-            )}
             {/* 出血线 (内缩3%) */}
             {!isPreview && (
               <div
@@ -1499,7 +1603,22 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             )}
 
             {/* 渲染元素 */}
-            {sortedElements.map(el => renderElement(el))}
+            {sortedCanvasLayers.map(layer => {
+              if (layer.kind === 'background') {
+                return (
+                  <img
+                    key={layer.id}
+                    src={layout.background.value}
+                    alt="模板底图"
+                    className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                    style={{ objectFit: 'fill' }}
+                    draggable={false}
+                  />
+                );
+              }
+
+              return renderElement(layer.element);
+            })}
 
             {!isPreview && snapGuides.map((guide, index) => (
               <div
@@ -1532,7 +1651,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       </div>
 
       {/* ─── 右侧: 图层 + 属性 ─── */}
-      <GlassCard className="w-52 rounded-none border-l border-white/5 flex flex-col overflow-hidden">
+      <GlassCard className="w-52 shrink-0 rounded-none border-l border-white/5 flex flex-col overflow-hidden">
         {/* 图层标题 */}
         <div className="px-4 py-3 border-b border-white/5">
           <div className="text-xs font-semibold text-white/60 uppercase tracking-wider">
@@ -1547,6 +1666,22 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               <GripVertical size={10} className="text-emerald-300/40 shrink-0" />
               <span className="flex-1 truncate">底图</span>
               <div className="hidden group-hover:flex items-center gap-0.5">
+                <button
+                  className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => moveLayer(BACKGROUND_LAYER_ID, 'up')}
+                  title="上移"
+                  disabled={sortedCanvasLayers[sortedCanvasLayers.length - 1]?.id === BACKGROUND_LAYER_ID}
+                >
+                  <ChevronUp size={10} />
+                </button>
+                <button
+                  className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => moveLayer(BACKGROUND_LAYER_ID, 'down')}
+                  title="下移"
+                  disabled={sortedCanvasLayers[0]?.id === BACKGROUND_LAYER_ID}
+                >
+                  <ChevronDown size={10} />
+                </button>
                 <button
                   className={`p-0.5 rounded hover:bg-white/10 ${isBackgroundLocked ? 'text-amber-400' : 'text-emerald-300/70'}`}
                   onClick={() => setIsBackgroundLocked(value => !value)}
