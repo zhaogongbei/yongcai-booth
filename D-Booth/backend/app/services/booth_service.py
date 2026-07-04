@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -20,7 +20,7 @@ class BoothService(BaseService[Booth, BoothCreate, BoothUpdate]):
     async def before_create(self, obj_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize booth defaults before creation."""
         obj_dict["status"] = BoothStatus.ONLINE
-        obj_dict["last_heartbeat"] = datetime.utcnow()
+        obj_dict["last_heartbeat"] = datetime.now(timezone.utc)
         return obj_dict
 
     async def register_booth(self, booth_create: BoothCreate) -> Booth:
@@ -38,7 +38,7 @@ class BoothService(BaseService[Booth, BoothCreate, BoothUpdate]):
                 status=BoothStatus.ONLINE,
                 current_event_id=booth_create.current_event_id,
             )
-            existing_booth.last_heartbeat = datetime.utcnow()
+            existing_booth.last_heartbeat = datetime.now(timezone.utc)
             updated = await self.update(existing_booth.id, update_data)
             return updated
 

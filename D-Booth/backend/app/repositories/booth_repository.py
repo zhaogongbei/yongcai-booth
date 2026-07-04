@@ -2,7 +2,7 @@
 Booth repository for data access operations.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -41,7 +41,7 @@ class BoothRepository(BaseRepository[Booth]):
         if not booth:
             return None
 
-        booth.last_heartbeat = datetime.utcnow()
+        booth.last_heartbeat = datetime.now(timezone.utc)
         booth.status = BoothStatus.ONLINE
         await self.db.commit()
         await self.db.refresh(booth)
@@ -49,7 +49,7 @@ class BoothRepository(BaseRepository[Booth]):
 
     async def mark_offline_booths(self, timeout_seconds: int = 60) -> int:
         """Mark booths as offline if no heartbeat within timeout."""
-        cutoff_time = datetime.utcnow() - timedelta(seconds=timeout_seconds)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
         result = await self.db.execute(
             update(Booth)
             .where(Booth.last_heartbeat < cutoff_time)
