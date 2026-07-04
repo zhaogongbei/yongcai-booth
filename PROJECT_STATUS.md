@@ -16,6 +16,7 @@
 - 根目录 `.github/workflows/ci.yml` 是唯一权威 CI workflow。
 - 根目录 `VERSION` 是项目默认版本源；README 徽章和后端 `settings.VERSION` 默认值必须与它一致。
 - 前端 `package.json` 和 `package-lock.json` 根包名必须是 `dbooth-frontend`，版本必须与根 `VERSION` 一致。
+- 前端设置页“关于”信息必须展示真实前端版本，不得硬编码与根版本源冲突的构建号、设备 ID 或授权状态。
 - 不得新增 `D-Booth/backend/VERSION`、`D-Booth/backend/app/services/VERSION`、`D-Booth/frontend/VERSION` 或 `D-Booth/runtime-dotnet/VERSION` 等额外版本源。
 - 仓库卫生检查同时覆盖已跟踪和未跟踪的生成型报告/本地产物。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
@@ -123,6 +124,7 @@
 - 已将活动管理页“新建活动”接入后端 `/events` 创建接口，并修复状态筛选按钮只显示不筛选的问题。
 - 已移除活动列表仅弹提示的设置按钮，并将系统设置页未接入的主题、会员、积分和账号安全入口改为只读状态展示。
 - 已移除系统设置页未接入账号与订阅能力的假会员到期、假 AI 积分和假最近登录文案，改为真实只读状态说明。
+- 已移除系统设置页“关于”卡片中的假版本、假设备 ID 和假商业授权；前端构建会从 `package.json` 注入当前应用版本。
 - 已移除锁屏默认 `1234` 演示 PIN；未配置 PIN 或仍使用演示 PIN 时锁屏会阻止解锁并提示配置非默认 PIN。
 - 已在系统设置页补齐锁屏 PIN 配置入口；可设置 4-6 位非默认数字 PIN，已有 PIN 时修改需要当前 PIN，避免禁用默认 PIN 后现场无法自助配置。
 - 已移除活动管理页后端无数据时的演示活动回退、静态汇总、假云同步列和假最近活动/收入图表；未登录或无活动时展示真实空状态。

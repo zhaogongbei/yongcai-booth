@@ -96,6 +96,7 @@ export function SettingsScreen() {
   const prt = settings.print;
   const lockScreen = settings.lockScreen;
   const hasConfiguredLockPin = isValidLockPin(lockScreen.pin);
+  const appVersion = import.meta.env.VITE_APP_VERSION ?? "未知";
 
   // 虚拟助手本地状态
   const va = settings.virtualAttendant ?? {
@@ -650,13 +651,13 @@ export function SettingsScreen() {
               </div>
               <div>
                 <div className="text-base font-bold text-white">AI Booth</div>
-                <div className="text-xs text-white/40">v3.2.1 · 专业版</div>
+                <div className="text-xs text-white/40">v{appVersion}</div>
               </div>
             </div>
             {[
-              { label: "版本号", value: "3.2.1 (Build 2026.06)" },
-              { label: "设备ID", value: "AB-PRO-2026-001" },
-              { label: "许可证", value: "商业授权" },
+              { label: "版本号", value: appVersion },
+              { label: "设备ID", value: "未接入设备注册" },
+              { label: "许可证", value: "未接入授权状态" },
             ].map(i => (
               <div key={i.label} className="flex justify-between py-1.5 border-b border-white/5">
                 <span className="text-xs text-white/40">{i.label}</span>
