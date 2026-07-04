@@ -1,35 +1,39 @@
-import { useState, useCallback } from "react";
-import { Filter, Download, Share2, Eye, X } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { Filter, Download, Eye, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
-import { showToast } from "../stores/useToast";
 import type { Screen } from "../types";
 
 interface GalleryScreenProps {
   navigate?: (s: Screen) => void;
 }
 
-export function GalleryScreen({ navigate }: GalleryScreenProps) {
-  const photos = [
-    { src: '/images/scenes/wedding-couple-booth.webp', alt: '婚礼新人' },
-    { src: '/images/scenes/wedding-guests-fun.webp', alt: '婚礼宾客' },
-    { src: '/images/scenes/corporate-event-group.webp', alt: '企业活动' },
-    { src: '/images/scenes/conference-networking.webp', alt: '会议交流' },
-    { src: '/images/scenes/birthday-party-fun.webp', alt: '生日派对' },
-    { src: '/images/scenes/kids-birthday-booth.webp', alt: '儿童生日' },
-    { src: '/images/scenes/brand-popup-mall.webp', alt: '品牌快闪' },
-    { src: '/images/scenes/festival-outdoor-booth.webp', alt: '音乐节' },
-    { src: '/images/products/ipad-booth-setup.webp', alt: 'iPad照相亭' },
-    { src: '/images/products/camera-equipment.webp', alt: '相机设备' },
-    { src: '/images/products/printer-dnp-ds620.webp', alt: '打印机' },
-    { src: '/images/products/photo-prints-showcase.webp', alt: '照片成品' },
-  ];
+const GALLERY_PHOTOS = [
+  { src: '/images/scenes/wedding-couple-booth.webp', alt: '婚礼新人', category: '人物' },
+  { src: '/images/scenes/wedding-guests-fun.webp', alt: '婚礼宾客', category: '人物' },
+  { src: '/images/scenes/corporate-event-group.webp', alt: '企业活动', category: '场景' },
+  { src: '/images/scenes/conference-networking.webp', alt: '会议交流', category: '场景' },
+  { src: '/images/scenes/birthday-party-fun.webp', alt: '生日派对', category: '人物' },
+  { src: '/images/scenes/kids-birthday-booth.webp', alt: '儿童生日', category: '人物' },
+  { src: '/images/scenes/brand-popup-mall.webp', alt: '品牌快闪', category: '场景' },
+  { src: '/images/scenes/festival-outdoor-booth.webp', alt: '音乐节', category: '场景' },
+  { src: '/images/products/ipad-booth-setup.webp', alt: 'iPad照相亭', category: '产品' },
+  { src: '/images/products/camera-equipment.webp', alt: '相机设备', category: '产品' },
+  { src: '/images/products/printer-dnp-ds620.webp', alt: '打印机', category: '产品' },
+  { src: '/images/products/photo-prints-showcase.webp', alt: '照片成品', category: '产品' },
+];
 
+export function GalleryScreen({ navigate }: GalleryScreenProps) {
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("全部");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
-  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const filteredPhotos = useMemo(
+    () => selectedCategory === "全部" ? GALLERY_PHOTOS : GALLERY_PHOTOS.filter(photo => photo.category === selectedCategory),
+    [selectedCategory],
+  );
 
   const togglePhoto = (src: string) => {
     setSelectedPhotos(prev => {
@@ -40,26 +44,37 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
     });
   };
 
+  const downloadPhoto = useCallback((alt: string, src: string) => {
+    const link = document.createElement("a");
+    link.href = src;
+    link.download = `${alt || "photo"}.webp`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }, []);
+
   const handleDownload = useCallback((alt: string, src: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setDownloading(src);
-    const id = showToast.loading("正在下载...");
-    setTimeout(() => {
-      showToast.success("下载完成");
-      setDownloading(null);
-    }, 1000);
-  }, []);
+    downloadPhoto(alt, src);
+  }, [downloadPhoto]);
+
+  const handleBatchDownload = useCallback(() => {
+    const targets = selectedPhotos.size > 0
+      ? filteredPhotos.filter(photo => selectedPhotos.has(photo.src))
+      : filteredPhotos;
+    targets.forEach(photo => downloadPhoto(photo.alt, photo.src));
+  }, [downloadPhoto, filteredPhotos, selectedPhotos]);
 
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">照片相册</h2>
-          <p className="text-xs text-white/40 mt-0.5">共 {photos.length} 张照片 · 夏日派对 2026</p>
+          <p className="text-xs text-white/40 mt-0.5">共 {filteredPhotos.length} 张照片 · 夏日派对 2026</p>
         </div>
         <div className="flex items-center gap-2">
-          <GlowBtn size="sm" variant="ghost" onClick={() => showToast.info("批量下载功能开发中")}><Download size={14} />批量下载</GlowBtn>
-          <GlowBtn size="sm" variant="primary" onClick={() => showToast.info("分享相册功能开发中")}><Share2 size={14} />分享相册</GlowBtn>
+          <GlowBtn size="sm" variant="ghost" onClick={() => setShowFilters(f => !f)}><Filter size={14} />筛选</GlowBtn>
+          <GlowBtn size="sm" variant="primary" onClick={handleBatchDownload}><Download size={14} />{selectedPhotos.size > 0 ? `下载已选 ${selectedPhotos.size}` : "批量下载"}</GlowBtn>
         </div>
       </div>
 
@@ -69,7 +84,11 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
           <div className="flex items-center gap-4">
             <span className="text-xs text-white/40">按分类筛选：</span>
             {["全部", "场景", "产品", "人物"].map(f => (
-              <button key={f} className="px-3 py-1 rounded-lg text-xs bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-colors">
+              <button
+                key={f}
+                className={`px-3 py-1 rounded-lg text-xs transition-colors ${selectedCategory === f ? "bg-violet-500/20 text-violet-300 border border-violet-500/30" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}
+                onClick={() => setSelectedCategory(f)}
+              >
                 {f}
               </button>
             ))}
@@ -78,7 +97,7 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
       )}
 
       <div className="columns-4 gap-3">
-        {photos.map((photo, i) => (
+        {filteredPhotos.map((photo, i) => (
           <motion.div key={photo.src} className="break-inside-avoid mb-3 group cursor-pointer relative rounded-xl overflow-hidden"
             whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <img src={photo.src}
@@ -86,7 +105,7 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-xl">
               <div className="flex gap-2">
                 <GlowBtn size="sm" variant="primary" onClick={(e) => { e.stopPropagation(); setSelectedPhoto(photo.src); }}><Eye size={13} /></GlowBtn>
-                <GlowBtn size="sm" variant="ghost" className={downloading === photo.src ? "opacity-50 pointer-events-none" : ""} onClick={(e) => handleDownload(photo.alt, photo.src, e)}>
+                <GlowBtn size="sm" variant="ghost" onClick={(e) => handleDownload(photo.alt, photo.src, e)}>
                   <Download size={13} />
                 </GlowBtn>
               </div>
