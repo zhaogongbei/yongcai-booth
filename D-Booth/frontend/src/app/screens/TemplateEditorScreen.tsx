@@ -23,6 +23,25 @@ const ZOOM_OPTIONS = [
   { label: "200%", value: 2 },
 ];
 
+const MINIMUM_ELEMENT_SIZE = 60;
+const SNAP_THRESHOLD = 18;
+
+type SnapGuide = {
+  orientation: 'vertical' | 'horizontal';
+  position: number;
+};
+
+type SnapCandidate = {
+  guidePosition: number;
+  resolvedValue: number;
+  distance: number;
+  orientation: 'vertical' | 'horizontal';
+};
+
+function clampValue(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
 function generateId() {
   return `el_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -210,6 +229,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
   // 拖拽状态
   const [dragging, setDragging] = useState(false);
@@ -603,6 +623,127 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     }
   };
 
+  const getCanvasSnapGuides = useCallback(() => ({
+    vertical: [0, Math.round(canvasPx.width / 2), canvasPx.width],
+    horizontal: [0, Math.round(canvasPx.height / 2), canvasPx.height],
+  }), [canvasPx.height, canvasPx.width]);
+
+  const getBestSnapCandidate = useCallback((
+    candidates: SnapCandidate[],
+  ) => {
+    let bestCandidate: SnapCandidate | null = null;
+
+    for (const candidate of candidates) {
+      if (candidate.distance > SNAP_THRESHOLD) continue;
+      if (!bestCandidate || candidate.distance < bestCandidate.distance) {
+        bestCandidate = candidate;
+      }
+    }
+
+    return bestCandidate;
+  }, []);
+
+  const snapMovePosition = useCallback((x: number, y: number, width: number, height: number) => {
+    const guides = getCanvasSnapGuides();
+    const verticalCandidate = getBestSnapCandidate(
+      guides.vertical.flatMap(guidePosition => [
+        { guidePosition, resolvedValue: guidePosition, distance: Math.abs(x - guidePosition), orientation: 'vertical' as const },
+        { guidePosition, resolvedValue: guidePosition - width / 2, distance: Math.abs((x + width / 2) - guidePosition), orientation: 'vertical' as const },
+        { guidePosition, resolvedValue: guidePosition - width, distance: Math.abs((x + width) - guidePosition), orientation: 'vertical' as const },
+      ]),
+    );
+    const horizontalCandidate = getBestSnapCandidate(
+      guides.horizontal.flatMap(guidePosition => [
+        { guidePosition, resolvedValue: guidePosition, distance: Math.abs(y - guidePosition), orientation: 'horizontal' as const },
+        { guidePosition, resolvedValue: guidePosition - height / 2, distance: Math.abs((y + height / 2) - guidePosition), orientation: 'horizontal' as const },
+        { guidePosition, resolvedValue: guidePosition - height, distance: Math.abs((y + height) - guidePosition), orientation: 'horizontal' as const },
+      ]),
+    );
+
+    return {
+      x: verticalCandidate ? Math.round(verticalCandidate.resolvedValue) : x,
+      y: horizontalCandidate ? Math.round(horizontalCandidate.resolvedValue) : y,
+      guides: [
+        ...(verticalCandidate ? [{ orientation: 'vertical' as const, position: verticalCandidate.guidePosition }] : []),
+        ...(horizontalCandidate ? [{ orientation: 'horizontal' as const, position: horizontalCandidate.guidePosition }] : []),
+      ],
+    };
+  }, [getBestSnapCandidate, getCanvasSnapGuides]);
+
+  const snapResizeBounds = useCallback((
+    nextElement: { x: number; y: number; width: number; height: number },
+    resizeDirection: string,
+  ) => {
+    const guides = getCanvasSnapGuides();
+    const nextGuides: SnapGuide[] = [];
+    const rightEdge = nextElement.x + nextElement.width;
+    const bottomEdge = nextElement.y + nextElement.height;
+
+    if (resizeDirection.includes('e')) {
+      const candidate = getBestSnapCandidate(
+        guides.vertical.map(guidePosition => ({
+          guidePosition,
+          resolvedValue: guidePosition - nextElement.x,
+          distance: Math.abs(rightEdge - guidePosition),
+          orientation: 'vertical' as const,
+        })),
+      );
+      if (candidate && candidate.resolvedValue >= MINIMUM_ELEMENT_SIZE) {
+        nextElement.width = Math.round(candidate.resolvedValue);
+        nextGuides.push({ orientation: 'vertical', position: candidate.guidePosition });
+      }
+    }
+
+    if (resizeDirection.includes('w')) {
+      const candidate = getBestSnapCandidate(
+        guides.vertical.map(guidePosition => ({
+          guidePosition,
+          resolvedValue: guidePosition,
+          distance: Math.abs(nextElement.x - guidePosition),
+          orientation: 'vertical' as const,
+        })),
+      );
+      if (candidate && rightEdge - candidate.resolvedValue >= MINIMUM_ELEMENT_SIZE) {
+        nextElement.x = Math.round(candidate.resolvedValue);
+        nextElement.width = rightEdge - nextElement.x;
+        nextGuides.push({ orientation: 'vertical', position: candidate.guidePosition });
+      }
+    }
+
+    if (resizeDirection.includes('s')) {
+      const candidate = getBestSnapCandidate(
+        guides.horizontal.map(guidePosition => ({
+          guidePosition,
+          resolvedValue: guidePosition - nextElement.y,
+          distance: Math.abs(bottomEdge - guidePosition),
+          orientation: 'horizontal' as const,
+        })),
+      );
+      if (candidate && candidate.resolvedValue >= MINIMUM_ELEMENT_SIZE) {
+        nextElement.height = Math.round(candidate.resolvedValue);
+        nextGuides.push({ orientation: 'horizontal', position: candidate.guidePosition });
+      }
+    }
+
+    if (resizeDirection.includes('n')) {
+      const candidate = getBestSnapCandidate(
+        guides.horizontal.map(guidePosition => ({
+          guidePosition,
+          resolvedValue: guidePosition,
+          distance: Math.abs(nextElement.y - guidePosition),
+          orientation: 'horizontal' as const,
+        })),
+      );
+      if (candidate && bottomEdge - candidate.resolvedValue >= MINIMUM_ELEMENT_SIZE) {
+        nextElement.y = Math.round(candidate.resolvedValue);
+        nextElement.height = bottomEdge - nextElement.y;
+        nextGuides.push({ orientation: 'horizontal', position: candidate.guidePosition });
+      }
+    }
+
+    return nextGuides;
+  }, [getBestSnapCandidate, getCanvasSnapGuides]);
+
   // ─── 添加新元素 ───
   const addElement = (type: TemplateElement['type']) => {
     const draft = JSON.parse(JSON.stringify(layout));
@@ -653,13 +794,27 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
       if (dragging && selectedIds.length > 0) {
         const draft = JSON.parse(JSON.stringify(undoRedo.present));
+        const nextGuides: SnapGuide[] = [];
         selectedIds.forEach(sid => {
           const el = draft.elements.find((el: TemplateElement) => el.id === sid);
           if (el && !el.locked) {
-            el.x = Math.round(el.x + dx);
-            el.y = Math.round(el.y + dy);
+            const maximumX = Math.max(0, canvasPx.width - el.width);
+            const maximumY = Math.max(0, canvasPx.height - el.height);
+            const nextX = clampValue(Math.round(el.x + dx), 0, maximumX);
+            const nextY = clampValue(Math.round(el.y + dy), 0, maximumY);
+
+            if (selectedIds.length === 1) {
+              const snappedPosition = snapMovePosition(nextX, nextY, el.width, el.height);
+              el.x = clampValue(snappedPosition.x, 0, maximumX);
+              el.y = clampValue(snappedPosition.y, 0, maximumY);
+              nextGuides.push(...snappedPosition.guides);
+            } else {
+              el.x = nextX;
+              el.y = nextY;
+            }
           }
         });
+        setSnapGuides(nextGuides);
         undoRedo.set(draft);
       }
 
@@ -668,10 +823,47 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         const el = draft.elements.find((el: TemplateElement) => el.id === resizing);
         if (el && !el.locked) {
           const dir = resizeDirRef.current;
-          if (dir.includes('e')) { el.width = Math.max(10, Math.round(el.width + dx)); }
-          if (dir.includes('w')) { el.x = Math.round(el.x + dx); el.width = Math.max(10, Math.round(el.width - dx)); }
-          if (dir.includes('s')) { el.height = Math.max(10, Math.round(el.height + dy)); }
-          if (dir.includes('n')) { el.y = Math.round(el.y + dy); el.height = Math.max(10, Math.round(el.height - dy)); }
+          const rightEdge = el.x + el.width;
+          const bottomEdge = el.y + el.height;
+
+          if (dir.includes('e')) {
+            el.width = clampValue(
+              Math.round(el.width + dx),
+              MINIMUM_ELEMENT_SIZE,
+              Math.max(MINIMUM_ELEMENT_SIZE, canvasPx.width - el.x),
+            );
+          }
+
+          if (dir.includes('w')) {
+            const nextLeft = clampValue(
+              Math.round(el.x + dx),
+              0,
+              rightEdge - MINIMUM_ELEMENT_SIZE,
+            );
+            el.x = nextLeft;
+            el.width = rightEdge - nextLeft;
+          }
+
+          if (dir.includes('s')) {
+            el.height = clampValue(
+              Math.round(el.height + dy),
+              MINIMUM_ELEMENT_SIZE,
+              Math.max(MINIMUM_ELEMENT_SIZE, canvasPx.height - el.y),
+            );
+          }
+
+          if (dir.includes('n')) {
+            const nextTop = clampValue(
+              Math.round(el.y + dy),
+              0,
+              bottomEdge - MINIMUM_ELEMENT_SIZE,
+            );
+            el.y = nextTop;
+            el.height = bottomEdge - nextTop;
+          }
+
+          const snappedGuides = snapResizeBounds(el, dir);
+          setSnapGuides(snappedGuides);
         }
         undoRedo.set(draft);
       }
@@ -680,6 +872,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     const onMouseUp = () => {
       setDragging(false);
       setResizing(null);
+      setSnapGuides([]);
     };
 
     window.addEventListener('mousemove', onMouseMove);
@@ -688,11 +881,12 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [dragging, resizing, zoom, selectedIds, undoRedo]);
+  }, [canvasPx.height, canvasPx.width, dragging, resizing, zoom, selectedIds, undoRedo]);
 
   // ─── Canvas背景点击取消选中 ───
   const handleCanvasBackgroundClick = () => {
     setSelectedIds([]);
+    setSnapGuides([]);
   };
 
   // ─── 渲染元素───
@@ -723,6 +917,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     };
 
     let content: React.ReactNode;
+    const resizeHandleTouchSize = Math.max(18, 20 / Math.max(zoom, 0.5));
+    const resizeHandleVisualSize = Math.max(8, 10 / Math.max(zoom, 0.75));
 
     switch (el.type) {
       case 'photo': {
@@ -863,6 +1059,53 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         onMouseDown={(e) => handleCanvasMouseDown(e, el.id)}
       >
         {content}
+        {isSelected && !isPreview && el.type === 'photo' && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: -12,
+              transform: 'translateX(-50%)',
+              width: Math.max(72, Math.min(el.width * DISPLAY_SCALE * zoom * 0.45, 140)),
+              height: 18,
+              borderRadius: 999,
+              background: 'rgba(15, 23, 42, 0.9)',
+              border: '1px solid rgba(96, 165, 250, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              color: '#dbeafe',
+              fontSize: Math.max(9, 10 / Math.max(zoom, 0.75)),
+              cursor: 'grab',
+              boxShadow: '0 4px 12px rgba(15,23,42,0.28)',
+            }}
+            onMouseDown={(event) => handleCanvasMouseDown(event, el.id)}
+          >
+            <Move size={10} />
+            拖动条
+          </div>
+        )}
+        {isSelected && !isPreview && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: -24,
+              transform: 'translateX(-50%)',
+              padding: '2px 8px',
+              borderRadius: 999,
+              background: 'rgba(15, 23, 42, 0.82)',
+              color: '#e2e8f0',
+              fontSize: Math.max(9, 10 / Math.max(zoom, 0.75)),
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+            }}
+          >
+            {Math.round(el.width)} x {Math.round(el.height)}
+          </div>
+        )}
         {/* 缩放手柄 */}
         {isSelected && !isPreview && (
           <>
@@ -870,21 +1113,33 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               <div key={dir}
                 style={{
                   position: 'absolute',
-                  width: 8 * (zoom > 0.5 ? 1 : 1.5),
-                  height: 8 * (zoom > 0.5 ? 1 : 1.5),
-                  background: '#3b82f6',
-                  border: '1px solid white',
-                  borderRadius: 1,
+                  width: resizeHandleTouchSize,
+                  height: resizeHandleTouchSize,
+                  background: 'transparent',
                   cursor: `${dir}-resize`,
-                  ...(dir.includes('n') ? { top: -4 } : {}),
-                  ...(dir.includes('s') ? { bottom: -4 } : {}),
-                  ...(dir.includes('w') ? { left: -4 } : {}),
-                  ...(dir.includes('e') ? { right: -4 } : {}),
-                  ...(!dir.includes('n') && !dir.includes('s') ? { top: '50%', marginTop: -4 } : {}),
-                  ...(!dir.includes('w') && !dir.includes('e') ? { left: '50%', marginLeft: -4 } : {}),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  ...(dir.includes('n') ? { top: -resizeHandleTouchSize / 2 } : {}),
+                  ...(dir.includes('s') ? { bottom: -resizeHandleTouchSize / 2 } : {}),
+                  ...(dir.includes('w') ? { left: -resizeHandleTouchSize / 2 } : {}),
+                  ...(dir.includes('e') ? { right: -resizeHandleTouchSize / 2 } : {}),
+                  ...(!dir.includes('n') && !dir.includes('s') ? { top: '50%', marginTop: -resizeHandleTouchSize / 2 } : {}),
+                  ...(!dir.includes('w') && !dir.includes('e') ? { left: '50%', marginLeft: -resizeHandleTouchSize / 2 } : {}),
                 }}
                 onMouseDown={(e) => handleResizeMouseDown(e, el.id, dir)}
-              />
+              >
+                <div
+                  style={{
+                    width: resizeHandleVisualSize,
+                    height: resizeHandleVisualSize,
+                    background: '#3b82f6',
+                    border: '1px solid white',
+                    borderRadius: dir.length === 2 ? '999px' : 3,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                  }}
+                />
+              </div>
             ))}
           </>
         )}
@@ -895,6 +1150,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   // ─── 排序后的元素列表 ───
   const sortedElements = [...layout.elements].sort((a, b) => a.zIndex - b.zIndex);
   const hasPhotoFrameElements = layout.elements.some(element => element.type === 'photo');
+  const hasImageBackground = layout.background.type === 'image';
+  const visibleLayerCount = layout.elements.length + (hasImageBackground ? 1 : 0);
 
   // ─── 渲染 ───
   return (
@@ -945,6 +1202,43 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           <div className="text-xs font-semibold text-white/60 uppercase tracking-wider">元素库</div>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {!hasPhotoFrameElements && (
+            <div className="rounded-xl border border-emerald-500/15 bg-white/5 p-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                <LayoutTemplate size={14} />
+                {layout.background.type === 'image' ? '底图已就绪' : '开始创建模板'}
+              </div>
+              <div className="mt-2 text-[10px] leading-5 text-white/45">
+                {layout.background.type === 'image'
+                  ? '先添加照片框，再拖动到出片区域。'
+                  : '先上传底图，再添加照片框定义拍照区域。'}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                <button
+                  className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left text-[10px] text-emerald-300 hover:bg-emerald-500/15"
+                  onClick={() => backgroundImageInputRef.current?.click()}
+                >
+                  <div className="font-medium">上传底图</div>
+                  <div className="mt-0.5 text-emerald-200/70">导入 PNG/JPG 作为模板背景</div>
+                </button>
+                <button
+                  className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-left text-[10px] text-sky-300 hover:bg-sky-500/15"
+                  onClick={() => addElement('photo')}
+                >
+                  <div className="font-medium">添加照片框</div>
+                  <div className="mt-0.5 text-sky-200/70">拖动缩放到拍照区域</div>
+                </button>
+                <button
+                  className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-left text-[10px] text-violet-300 hover:bg-violet-500/15"
+                  onClick={() => setPresetOpen(true)}
+                >
+                  <div className="font-medium">查看预设布局</div>
+                  <div className="mt-0.5 text-violet-200/70">如果不想从零开始，可以直接套用预设</div>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="text-[10px] text-white/30 uppercase mb-2">添加元素</div>
             <div className="space-y-1">
@@ -967,34 +1261,6 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
                 </button>
               ))}
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] text-white/30 uppercase mb-2">快速版式</div>
-            <div className="space-y-1">
-              {QUICK_PRINT_LAYOUTS.map(preset => (
-                <button
-                  key={preset.id}
-                  className="w-full px-3 py-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-left transition-colors border border-emerald-500/10 hover:border-emerald-500/30"
-                  onClick={() => applyPrintLayout(preset)}
-                >
-                  <div className="flex items-center gap-2 text-xs text-emerald-300">
-                    <LayoutTemplate size={13} />
-                    <span className="truncate">{preset.name}</span>
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-white/35 truncate">{preset.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] text-white/30 uppercase mb-2">预设布局</div>
-            <button
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-xs text-violet-400 hover:text-violet-300 transition-colors border border-violet-500/20"
-              onClick={() => setPresetOpen(true)}
-            >
-              <LayoutTemplate size={13} />
-              预设布局 ({TEMPLATE_PRESETS.length}种)
-            </button>
           </div>
           <div>
             <div className="text-[10px] text-white/30 uppercase mb-2">导入</div>
@@ -1233,55 +1499,31 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             )}
 
             {/* 渲染元素 */}
-            {!hasPhotoFrameElements && !isPreview && (
-              <div className="absolute inset-0 flex items-center justify-center p-6">
-                <div className="w-72 rounded-xl border border-slate-900/10 bg-white/90 p-4 text-slate-900 shadow-sm">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <LayoutTemplate size={16} />
-                    {layout.background.type === 'image' ? '底图已就绪' : '开始创建模板'}
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2">
-                    <button
-                      className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left text-xs text-emerald-800 hover:bg-emerald-500/15"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        backgroundImageInputRef.current?.click();
-                      }}
-                    >
-                      <div className="font-medium">上传底图</div>
-                    </button>
-                    <button
-                      className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-left text-xs text-sky-900 hover:bg-sky-500/15"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        addElement('photo');
-                      }}
-                    >
-                      <div className="font-medium">添加照片框</div>
-                    </button>
-                  </div>
-                  <div className="mt-4 border-t border-slate-900/10 pt-3">
-                    <div className="text-xs font-medium">快速版式</div>
-                    <div className="mt-2 grid grid-cols-1 gap-2">
-                    {QUICK_PRINT_LAYOUTS.slice(0, 4).map(preset => (
-                      <button
-                        key={preset.id}
-                        className="rounded-lg border border-slate-900/10 px-3 py-2 text-left text-xs hover:bg-slate-900/5"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          applyPrintLayout(preset);
-                        }}
-                      >
-                        <div className="font-medium">{preset.name}</div>
-                        <div className="mt-0.5 text-[10px] text-slate-500">{preset.description}</div>
-                      </button>
-                    ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
             {sortedElements.map(el => renderElement(el))}
+
+            {!isPreview && snapGuides.map((guide, index) => (
+              <div
+                key={`${guide.orientation}-${guide.position}-${index}`}
+                className="absolute pointer-events-none"
+                style={guide.orientation === 'vertical'
+                  ? {
+                      left: guide.position * DISPLAY_SCALE * zoom,
+                      top: 0,
+                      width: 1,
+                      height: '100%',
+                      background: 'rgba(96, 165, 250, 0.95)',
+                      boxShadow: '0 0 0 1px rgba(191, 219, 254, 0.18)',
+                    }
+                  : {
+                      top: guide.position * DISPLAY_SCALE * zoom,
+                      left: 0,
+                      height: 1,
+                      width: '100%',
+                      background: 'rgba(96, 165, 250, 0.95)',
+                      boxShadow: '0 0 0 1px rgba(191, 219, 254, 0.18)',
+                    }}
+              />
+            ))}
 
             {/* 预览模式遮罩 */}
             {isPreview && <div className="absolute inset-0 pointer-events-none" />}
@@ -1294,12 +1536,43 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         {/* 图层标题 */}
         <div className="px-4 py-3 border-b border-white/5">
           <div className="text-xs font-semibold text-white/60 uppercase tracking-wider">
-            图层 ({layout.elements.length})
+            图层 ({visibleLayerCount})
           </div>
         </div>
 
         {/* 图层列表 */}
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ maxHeight: '40%' }}>
+          {hasImageBackground && (
+            <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/15 group">
+              <GripVertical size={10} className="text-emerald-300/40 shrink-0" />
+              <span className="flex-1 truncate">底图</span>
+              <div className="hidden group-hover:flex items-center gap-0.5">
+                <button
+                  className={`p-0.5 rounded hover:bg-white/10 ${isBackgroundLocked ? 'text-amber-400' : 'text-emerald-300/70'}`}
+                  onClick={() => setIsBackgroundLocked(value => !value)}
+                  title={isBackgroundLocked ? '解锁底图' : '锁定底图'}
+                >
+                  <Lock size={10} />
+                </button>
+                <button
+                  className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => backgroundImageInputRef.current?.click()}
+                  title="替换底图"
+                  disabled={isBackgroundLocked}
+                >
+                  <Upload size={10} />
+                </button>
+                <button
+                  className="p-0.5 rounded hover:bg-red-500/20 text-emerald-300/70 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => updateLayout(draftLayout => { draftLayout.background = { type: 'color', value: '#ffffff' }; })}
+                  title="移除底图"
+                  disabled={isBackgroundLocked}
+                >
+                  <Trash2 size={10} />
+                </button>
+              </div>
+            </div>
+          )}
           {sortedElements.map(el => (
             <div
               key={el.id}
@@ -1368,7 +1641,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               </div>
             </div>
           ))}
-          {layout.elements.length === 0 && (
+          {visibleLayerCount === 0 && (
             <div className="text-[10px] text-white/20 text-center py-4">无元素<br/>从左侧添加</div>
           )}
         </div>
