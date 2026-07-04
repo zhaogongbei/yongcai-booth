@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
 import { SliderControl } from "../components/SliderControl";
 import { GlowBtn } from "../components/GlowBtn";
+import { TemplateCaptureOverlay } from "../components/TemplateCaptureOverlay";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import type { Screen } from "../types";
 import { CAMERA_FILTERS, FORMAT_OPTIONS } from "../constants";
@@ -582,6 +583,12 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           {!cameraReady && (
             <img src="/images/scenes/wedding-guests-fun.webp"
               alt="相机预览画面" className="w-full h-full object-cover opacity-80" loading="lazy" />
+          )}
+          {activePrintTemplate && (
+            <TemplateCaptureOverlay
+              layout={activePrintTemplate.layout}
+              capturedPhotoCount={capturedTemplatePhotoCount}
+            />
           )}
           {cameraError && (
             <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-amber-300">

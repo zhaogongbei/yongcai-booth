@@ -633,12 +633,13 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         },
       });
       showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
+      navigate("templates");
     } catch (err) {
       showToast.error(err instanceof Error ? err.message : "模板保存失败");
     } finally {
       setIsSaving(false);
     }
-  }, [canvasPx.height, canvasPx.width, getLayoutSnapshot, resolveTeamId, savedTemplateId, setActivePrintTemplate]);
+  }, [canvasPx.height, canvasPx.width, getLayoutSnapshot, navigate, resolveTeamId, savedTemplateId, setActivePrintTemplate]);
 
   // ─── 预设应用 ───
   const applyPreset = (presetIndex: number) => {
