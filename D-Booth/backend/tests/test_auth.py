@@ -15,10 +15,19 @@ async def _register_and_login(client: AsyncClient, user_data: dict) -> dict:
 
 
 class FakeRedisClient:
-    def __init__(self, fail_setex: bool = False):
+    def __init__(self, fail_setex: bool = False, fail_exists: bool = False, exists_result: int = 0):
         self.fail_setex = fail_setex
+        self.fail_exists = fail_exists
+        self.exists_result = exists_result
+        self.exists_calls: list[str] = []
         self.setex_calls: list[tuple[str, int, str]] = []
         self.closed = False
+
+    async def exists(self, key: str):
+        if self.fail_exists:
+            raise RuntimeError("redis read failed")
+        self.exists_calls.append(key)
+        return self.exists_result
 
     async def setex(self, key: str, ttl: int, value: str):
         if self.fail_setex:
@@ -84,6 +93,105 @@ async def test_get_current_user(authenticated_client: AsyncClient):
 async def test_unauthorized_access(client: AsyncClient):
     response = await client.get("/api/v1/auth/me")
     assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_refresh_fails_when_revocation_status_unavailable(
+    client: AsyncClient, test_user_data, monkeypatch
+):
+    tokens = await _register_and_login(client, test_user_data)
+
+    async def get_unavailable_redis_client():
+        return None
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_unavailable_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "Refresh token revocation is unavailable"
+
+
+@pytest.mark.anyio
+async def test_refresh_fails_when_revocation_check_fails(
+    client: AsyncClient, test_user_data, monkeypatch
+):
+    tokens = await _register_and_login(client, test_user_data)
+    fake_client = FakeRedisClient(fail_exists=True)
+
+    async def get_failing_redis_client():
+        return fake_client
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_failing_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "Refresh token revocation is unavailable"
+    assert fake_client.closed is True
+
+
+@pytest.mark.anyio
+async def test_refresh_rejects_revoked_token(client: AsyncClient, test_user_data, monkeypatch):
+    tokens = await _register_and_login(client, test_user_data)
+    fake_client = FakeRedisClient(exists_result=1)
+
+    async def get_fake_redis_client():
+        return fake_client
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_fake_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["message"] == "Token revoked"
+    assert len(fake_client.exists_calls) == 1
+    assert fake_client.closed is True
+
+
+@pytest.mark.anyio
+async def test_refresh_revokes_old_refresh_token(
+    client: AsyncClient, test_user_data, monkeypatch
+):
+    tokens = await _register_and_login(client, test_user_data)
+    redis_clients = [FakeRedisClient(), FakeRedisClient()]
+    issued_clients: list[FakeRedisClient] = []
+
+    async def get_fake_redis_client():
+        client = redis_clients.pop(0)
+        issued_clients.append(client)
+        return client
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_fake_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"]
+    assert body["refresh_token"] != tokens["refresh_token"]
+    assert len(issued_clients) == 2
+    revocation_check_client, revocation_write_client = issued_clients
+    assert len(revocation_check_client.exists_calls) == 1
+    assert revocation_check_client.closed is True
+    assert len(revocation_write_client.setex_calls) == 1
+    key, ttl, value = revocation_write_client.setex_calls[0]
+    assert key == revocation_check_client.exists_calls[0]
+    assert ttl > 0
+    assert value == "1"
+    assert revocation_write_client.closed is True
 
 
 @pytest.mark.anyio

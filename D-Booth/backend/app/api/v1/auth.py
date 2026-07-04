@@ -15,6 +15,7 @@ from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
 from app.services.user_service import UserService
 
 router = APIRouter()
+REFRESH_REVOCATION_UNAVAILABLE_DETAIL = "Refresh token revocation is unavailable"
 
 
 def _refresh_revocation_key(payload: dict) -> str:
@@ -35,6 +36,10 @@ def _decode_refresh_payload(refresh_token: str) -> dict:
         )
 
     return payload
+
+
+def _refresh_token_ttl(payload: dict) -> int:
+    return int(payload["exp"] - datetime.now(timezone.utc).timestamp())
 
 
 async def _get_redis_client():
@@ -58,9 +63,47 @@ async def _get_redis_client():
 async def _is_refresh_token_revoked(payload: dict) -> bool:
     client = await _get_redis_client()
     if client is None:
-        return False
+        logger.warning("Redis unavailable while checking refresh token revocation")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=REFRESH_REVOCATION_UNAVAILABLE_DETAIL,
+        )
     try:
         return bool(await client.exists(_refresh_revocation_key(payload)))
+    except Exception as e:
+        logger.error(f"Failed to check refresh token revocation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=REFRESH_REVOCATION_UNAVAILABLE_DETAIL,
+        )
+    finally:
+        await client.aclose()
+
+
+async def _revoke_refresh_payload(payload: dict, context: str, user_id: UUID) -> None:
+    ttl = _refresh_token_ttl(payload)
+    if ttl <= 0:
+        return
+
+    client = await _get_redis_client()
+    if client is None:
+        logger.warning(
+            f"Redis unavailable during {context} for user {user_id}. "
+            f"Token revocation cannot be confirmed ({ttl}s remaining)."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=REFRESH_REVOCATION_UNAVAILABLE_DETAIL,
+        )
+
+    try:
+        await client.setex(_refresh_revocation_key(payload), ttl, "1")
+    except Exception as e:
+        logger.error(f"Failed to revoke token during {context} for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=REFRESH_REVOCATION_UNAVAILABLE_DETAIL,
+        )
     finally:
         await client.aclose()
 
@@ -125,6 +168,7 @@ async def refresh_token(
 
     access_token = create_access_token(user.id)
     new_refresh_token = create_refresh_token(user.id)
+    await _revoke_refresh_payload(payload, "refresh", user.id)
 
     return Token(access_token=access_token, refresh_token=new_refresh_token, token_type="bearer")
 
@@ -147,32 +191,12 @@ async def logout(
             detail="Refresh token does not belong to current user",
         )
 
-    ttl = int(payload["exp"] - datetime.now(timezone.utc).timestamp())
+    ttl = _refresh_token_ttl(payload)
     if ttl <= 0:
         return None
 
-    client = await _get_redis_client()
-    if client is None:
-        logger.warning(
-            f"Redis unavailable during logout for user {current_user.id}. "
-            f"Token revocation cannot be confirmed ({ttl}s remaining)."
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Refresh token revocation is unavailable",
-        )
-
-    try:
-        await client.setex(_refresh_revocation_key(payload), ttl, "1")
-        logger.info(f"User {current_user.id} logged out successfully, token revoked")
-    except Exception as e:
-        logger.error(f"Failed to revoke token for user {current_user.id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Refresh token revocation is unavailable",
-        )
-    finally:
-        await client.aclose()
+    await _revoke_refresh_payload(payload, "logout", current_user.id)
+    logger.info(f"User {current_user.id} logged out successfully, token revoked")
     return None
 
 

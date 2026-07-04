@@ -124,6 +124,7 @@
 - Stripe webhook 是公开入口，但必须配置 `STRIPE_WEBHOOK_SECRET` 并通过 Stripe 签名校验；缺少 webhook secret 时必须 fail closed。
 - 后端 service 类默认按实例使用；路由不得把实例方法当静态方法调用。
 - 登出 refresh token 撤销必须 fail closed；Redis 不可用或撤销写入失败时 `/auth/logout` 必须返回 503，不得报告成功后让 refresh token 继续有效。
+- refresh token 刷新必须先确认旧 token 未被撤销；撤销状态不可确认时必须返回 503，刷新成功前必须撤销旧 refresh token，避免旧 token 重放。
 
 ## 近期完成
 
@@ -221,6 +222,7 @@
 - 已为 GoPro 拍照和录像响应新增 `media_url`，并保留 `temp_url` 作为兼容别名，减少后续误用临时 URL 语义的风险。
 - 已移除分享测试邮件的默认外部占位照片和邮件/短信测试的默认假分享链接，并补充回归测试。
 - 已修复 `/auth/logout` 在 Redis 不可用或撤销写入失败时仍返回 204 的安全语义问题，并补充 refresh token 撤销回归测试。
+- 已修复 `/auth/refresh` 在撤销存储不可用时仍签发新 token、且旧 refresh token 可重复使用的问题；现在刷新前 fail-closed 检查撤销状态，刷新成功会撤销旧 token。
 - 已新增前端生产 Docker 镜像配置。
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。
