@@ -8,7 +8,7 @@ import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { useUndoRedo } from "../hooks/useUndoRedo";
-import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY } from "../constants/templateNavigation";
+import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY, TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY } from "../constants/templateNavigation";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
@@ -277,6 +277,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
+  const [highlightBackgroundUpload, setHighlightBackgroundUpload] = useState(false);
   const [interactionLayout, setInteractionLayout] = useState<TemplateLayout | null>(null);
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
@@ -300,6 +301,12 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   useEffect(() => {
     const templateId = sessionStorage.getItem(SELECTED_TEMPLATE_SESSION_KEY);
     const quickLayoutId = sessionStorage.getItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
+    const shouldHighlightBackgroundUpload = sessionStorage.getItem(TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY) === "1";
+    sessionStorage.removeItem(TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY);
+    if (shouldHighlightBackgroundUpload) {
+      setHighlightBackgroundUpload(true);
+      showToast.info("请先上传底图，再添加照片框定位拍照区域");
+    }
     if (!templateId && !quickLayoutId) return;
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
     sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
@@ -711,6 +718,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           value: backgroundImageDataUrl,
         };
       });
+      setHighlightBackgroundUpload(false);
       showToast.success("底图已导入，请继续拖放照片框定位拍照区域");
     } catch (err) {
       showToast.error(err instanceof Error ? err.message : "底图导入失败");
@@ -1372,7 +1380,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {!hasPhotoFrameElements && (
-            <div className="rounded-xl border border-emerald-500/15 bg-white/5 p-3">
+            <div className={`rounded-xl border p-3 transition-all ${highlightBackgroundUpload && layout.background.type !== 'image' ? "border-emerald-300/60 bg-emerald-500/15 shadow-[0_0_24px_rgba(16,185,129,0.18)]" : "border-emerald-500/15 bg-white/5"}`}>
               <div className="flex items-center gap-2 text-xs font-semibold text-white">
                 <LayoutTemplate size={14} />
                 {layout.background.type === 'image' ? '底图已就绪' : '开始创建模板'}
@@ -1384,7 +1392,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               </div>
               <div className="mt-3 grid grid-cols-1 gap-2">
                 <button
-                  className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left text-[10px] text-emerald-300 hover:bg-emerald-500/15"
+                  className={`rounded-lg border px-3 py-2 text-left text-[10px] text-emerald-300 transition-colors ${highlightBackgroundUpload && layout.background.type !== 'image' ? "border-emerald-300/50 bg-emerald-500/25 hover:bg-emerald-500/30" : "border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/15"}`}
                   onClick={() => backgroundImageInputRef.current?.click()}
                 >
                   <div className="font-medium">上传底图</div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Copy, Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate, Trash2, ImagePlus } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
@@ -8,7 +8,7 @@ import { TemplateThumbnailPreview } from "../components/TemplateThumbnailPreview
 import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
-import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY } from "../constants/templateNavigation";
+import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY, TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY } from "../constants/templateNavigation";
 import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
 import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
@@ -161,6 +161,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
 
   const openTemplateEditor = (templateId?: string) => {
     sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
+    sessionStorage.removeItem(TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY);
     if (templateId) {
       sessionStorage.setItem(SELECTED_TEMPLATE_SESSION_KEY, templateId);
     } else {
@@ -169,8 +170,16 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     navigate("template-editor");
   };
 
+  const openTemplateEditorForBackgroundUpload = () => {
+    sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
+    sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
+    sessionStorage.setItem(TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY, "1");
+    navigate("template-editor");
+  };
+
   const openTemplateEditorWithLayout = (layoutId: string) => {
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
+    sessionStorage.removeItem(TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY);
     sessionStorage.setItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, layoutId);
     navigate("template-editor");
   };
@@ -362,6 +371,9 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           </div>
           <GlowBtn size="sm" variant="ghost" onClick={() => setShowFilters(f => !f)}>
             <Filter size={14} />筛选
+          </GlowBtn>
+          <GlowBtn size="sm" variant="ghost" onClick={openTemplateEditorForBackgroundUpload}>
+            <ImagePlus size={14} />上传底图
           </GlowBtn>
           <GlowBtn size="sm" variant="primary" onClick={() => openTemplateEditor()}>
             <Plus size={14} />新建
