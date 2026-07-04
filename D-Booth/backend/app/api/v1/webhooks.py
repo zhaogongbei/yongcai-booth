@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import check_team_member, get_current_active_user, get_db
@@ -32,6 +33,19 @@ class WebhookCreateResponse(BaseModel):
     events: List[str]
     enabled: bool
     secret: str
+
+
+async def _ensure_webhook_access(
+    webhook_id: UUID,
+    current_user: User,
+    db: AsyncSession,
+) -> None:
+    result = await db.execute(select(WebhookModel.team_id).where(WebhookModel.id == webhook_id))
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found")
+
+    await check_team_member(team_id, current_user, db)
 
 
 @router.post("", response_model=WebhookCreateResponse, status_code=status.HTTP_201_CREATED)
@@ -111,6 +125,7 @@ async def delete_webhook(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a webhook"""
+    await _ensure_webhook_access(webhook_id, current_user, db)
     webhook_service = WebhookService(db)
     success = await webhook_service.delete_webhook(webhook_id)
     if not success:
@@ -126,6 +141,7 @@ async def get_webhook_logs(
     db: AsyncSession = Depends(get_db),
 ):
     """Get webhook dispatch logs"""
+    await _ensure_webhook_access(webhook_id, current_user, db)
     webhook_service = WebhookService(db)
     logs = await webhook_service.get_webhook_logs(webhook_id, skip, limit)
 
