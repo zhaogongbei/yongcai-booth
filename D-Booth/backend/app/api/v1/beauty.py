@@ -276,8 +276,7 @@ async def apply_beauty_async(
         )
         return {"status": "accepted", "task_id": task.id, "photo_id": req.photo_id}
     except Exception as e:
-        # Celery unavailable → fall back to sync processing
-        from app.services.beauty_service import BeautyProcessor
-
-        result = beauty_processor.process_image(b"", BeautyParams(), quality=req.quality)
-        return {"status": "sync_fallback", "photo_id": req.photo_id}
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Beauty task queue is unavailable. Please use synchronous preview or retry later.",
+        ) from e

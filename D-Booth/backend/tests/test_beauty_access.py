@@ -42,3 +42,23 @@ async def test_authenticated_beauty_processing_preserves_empty_file_validation(
 
     assert preview_response.status_code == 400
     assert detect_response.status_code == 400
+
+
+async def test_beauty_apply_fails_when_task_queue_unavailable(
+    authenticated_client: AsyncClient,
+    monkeypatch,
+):
+    from app.tasks import beauty_tasks
+
+    def fail_to_enqueue(*_args, **_kwargs):
+        raise RuntimeError("broker unavailable")
+
+    monkeypatch.setattr(beauty_tasks.apply_beauty_task, "delay", fail_to_enqueue)
+
+    response = await authenticated_client.post(
+        "/api/v1/beauty/apply",
+        json={"photo_id": "photo-1", "image_url": "https://example.test/photo.jpg"},
+    )
+
+    assert response.status_code == 503
+    assert "task queue is unavailable" in response.text
