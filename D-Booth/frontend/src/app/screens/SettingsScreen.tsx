@@ -1,4 +1,4 @@
-import { Camera, Printer, Cloud, Globe, Palette, Sun, Star, Sparkles, Lock, Droplets, Zap, Volume2, Mic, Play, Square } from "lucide-react";
+import { Camera, Printer, Cloud, Globe, Palette, Sun, Star, Sparkles, Lock, Droplets, Zap, Volume2, Mic, Play, Square, KeyRound } from "lucide-react";
 import type { ElementType } from "react";
 import { useState, useCallback } from "react";
 import { GlassCard } from "../components/GlassCard";
@@ -53,6 +53,10 @@ const PLAY_TIMINGS = [
   { key: "session_end", label: "会话结束", defaultText: "感谢您的参与！请取走您的照片。" },
 ];
 
+function isValidLockPin(pin: string): boolean {
+  return /^\d{4,6}$/.test(pin) && pin !== "1234";
+}
+
 // ─── Section item types ─────────────────────────────────────────────────────────
 
 interface DeviceToggleItem {
@@ -90,6 +94,8 @@ export function SettingsScreen() {
   const ui = settings.ui;
   const wm = settings.watermark;
   const prt = settings.print;
+  const lockScreen = settings.lockScreen;
+  const hasConfiguredLockPin = isValidLockPin(lockScreen.pin);
 
   // 虚拟助手本地状态
   const va = settings.virtualAttendant ?? {
@@ -111,6 +117,9 @@ export function SettingsScreen() {
   });
 
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [currentLockPin, setCurrentLockPin] = useState("");
+  const [newLockPin, setNewLockPin] = useState("");
+  const [confirmLockPin, setConfirmLockPin] = useState("");
 
   const toggleDevice = (key: "camera" | "printer" | "cloud") => {
     updateSettings({ device: { ...d, [key]: !d[key] } });
@@ -188,6 +197,39 @@ export function SettingsScreen() {
       showToast.error("试听失败");
     }
   }, [vaLocal, va]);
+
+  const handleSaveLockPin = () => {
+    const currentPin = currentLockPin.trim();
+    const nextPin = newLockPin.trim();
+    const confirmPin = confirmLockPin.trim();
+
+    if (hasConfiguredLockPin && currentPin !== lockScreen.pin) {
+      showToast.error("当前 PIN 不正确");
+      return;
+    }
+
+    if (!isValidLockPin(nextPin)) {
+      showToast.error("PIN 必须为 4-6 位数字，且不能使用 1234");
+      return;
+    }
+
+    if (nextPin !== confirmPin) {
+      showToast.error("两次输入的 PIN 不一致");
+      return;
+    }
+
+    updateSettings({
+      lockScreen: {
+        ...lockScreen,
+        pin: nextPin,
+        pinLength: nextPin.length,
+      },
+    });
+    setCurrentLockPin("");
+    setNewLockPin("");
+    setConfirmLockPin("");
+    showToast.success("锁屏 PIN 已保存");
+  };
 
   const sections = [
     {
@@ -272,6 +314,83 @@ export function SettingsScreen() {
             </div>
           </GlassCard>
         ))}
+
+        {/* 锁屏 PIN 设置 */}
+        <GlassCard className="p-5">
+          <div className="text-sm font-semibold text-white/80 mb-4 flex items-center gap-1.5">
+            <KeyRound size={15} className="text-violet-400" />
+            锁屏 PIN
+          </div>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm text-white">当前状态</div>
+                  <div className="text-xs text-white/40">
+                    {hasConfiguredLockPin ? `${lockScreen.pinLength} 位 PIN 已配置` : "未配置可用 PIN"}
+                  </div>
+                </div>
+                <div className={`rounded-lg px-2 py-1 text-[10px] ${
+                  hasConfiguredLockPin
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-amber-500/15 text-amber-300"
+                }`}>
+                  {hasConfiguredLockPin ? "可解锁" : "需设置"}
+                </div>
+              </div>
+            </div>
+
+            {hasConfiguredLockPin && (
+              <div>
+                <div className="text-sm text-white mb-1">当前 PIN</div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={currentLockPin}
+                  onChange={e => setCurrentLockPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-white/70 outline-none"
+                  autoComplete="current-password"
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="text-sm text-white mb-1">新 PIN</div>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={newLockPin}
+                onChange={e => setNewLockPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-white/70 outline-none"
+                autoComplete="new-password"
+              />
+              <div className="mt-1 text-xs text-white/35">4-6 位数字，不能使用 1234</div>
+            </div>
+
+            <div>
+              <div className="text-sm text-white mb-1">确认 PIN</div>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={confirmLockPin}
+                onChange={e => setConfirmLockPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm text-white/70 outline-none"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveLockPin}
+              className="w-full rounded-xl bg-violet-500 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-400"
+            >
+              保存锁屏 PIN
+            </button>
+          </div>
+        </GlassCard>
 
         {/* 水印设置 */}
         <GlassCard className="p-5">
