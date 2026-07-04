@@ -1,4 +1,6 @@
+from pathlib import Path
 from typing import List, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -8,6 +10,16 @@ from app.models.models import User
 from app.services.gopro_service import GoProDevice, GoProStatus, gopro_controller
 
 router = APIRouter()
+
+GOPRO_UPLOAD_DIR = Path("uploads") / "gopro"
+
+
+def _save_gopro_media(media_bytes: bytes, extension: str) -> str:
+    GOPRO_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"gopro_{uuid4().hex}.{extension.lstrip('.')}"
+    file_path = GOPRO_UPLOAD_DIR / filename
+    file_path.write_bytes(media_bytes)
+    return f"/api/v1/media/gopro/{filename}"
 
 
 class GoProConnectRequest(BaseModel):
@@ -100,23 +112,8 @@ async def take_gopro_photo(current_user: User = Depends(get_current_active_user)
             detail="Failed to take photo from GoPro",
         )
 
-    # Save photo to temporary storage
-    import os
-    import tempfile
-    from uuid import uuid4
-
-    from app.core.config import settings
-
-    temp_dir = tempfile.gettempdir()
-    filename = f"gopro_photo_{uuid4().hex}.jpg"
-    file_path = os.path.join(temp_dir, filename)
-
-    with open(file_path, "wb") as f:
-        f.write(photo_bytes)
-
-    # Return local temp URL (frontend should upload this to R2)
-    base_url = f"http://{settings.HOST}:{settings.PORT}" if settings.DEBUG else ""
-    return {"success": True, "temp_url": f"{base_url}/temp/{filename}", "size": len(photo_bytes)}
+    media_url = _save_gopro_media(photo_bytes, "jpg")
+    return {"success": True, "temp_url": media_url, "size": len(photo_bytes)}
 
 
 @router.post("/record/start", response_model=dict)
@@ -147,21 +144,8 @@ async def stop_recording(current_user: User = Depends(get_current_active_user)):
             detail="Failed to stop recording or download video",
         )
 
-    import os
-    import tempfile
-    from uuid import uuid4
-
-    from app.core.config import settings
-
-    temp_dir = tempfile.gettempdir()
-    filename = f"gopro_video_{uuid4().hex}.mp4"
-    file_path = os.path.join(temp_dir, filename)
-
-    with open(file_path, "wb") as f:
-        f.write(video_bytes)
-
-    base_url = f"http://{settings.HOST}:{settings.PORT}" if settings.DEBUG else ""
-    return {"success": True, "temp_url": f"{base_url}/temp/{filename}", "size": len(video_bytes)}
+    media_url = _save_gopro_media(video_bytes, "mp4")
+    return {"success": True, "temp_url": media_url, "size": len(video_bytes)}
 
 
 @router.post("/disconnect", response_model=dict)
