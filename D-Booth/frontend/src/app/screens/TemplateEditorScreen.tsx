@@ -263,8 +263,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
     sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
 
-    const token = tokenStorage.access;
-    if (templateId && !token) {
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    if (templateId && !hasStoredAuthSession) {
       showToast.error("请先登录后再打开模板");
       return;
     }
@@ -282,7 +282,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       return;
     }
 
-    getTemplate(templateId, token as string)
+    getTemplate(templateId)
       .then(template => {
         if (!isTemplateLayout(template.layers)) {
           showToast.error("模板数据结构无效");
@@ -754,18 +754,27 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       case 'photo': {
         const pp = el.props as PhotoElementProps;
         const photoLabel = `照片 ${pp.photoNumber}`;
-        const objectFit = { fill: 'cover', fit: 'contain', stretch: 'fill' }[pp.cropMode];
         const br = (pp.borderRadius || 0) * DISPLAY_SCALE * zoom;
+        const frameBorderColor = isSelected ? '#60a5fa' : '#38bdf8';
+        const frameBackgroundColor = isPreview ? 'rgba(255,255,255,0.08)' : 'rgba(56,189,248,0.12)';
         content = (
-          <div style={{ ...innerStyle, background: '#f0f0f0', borderRadius: br }}>
+          <div style={{
+            ...innerStyle,
+            background: frameBackgroundColor,
+            borderRadius: br,
+            border: `2px dashed ${frameBorderColor}`,
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.35)',
+          }}>
             <div style={{
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
-              color: '#999', fontSize: 10 * zoom,
+              color: '#0f172a', fontSize: 10 * zoom,
+              textAlign: 'center',
+              padding: `${8 * zoom}px`,
             }}>
-              <div style={{ fontSize: 16 * zoom }}>&#128247;</div>
-              <div>{photoLabel}</div>
-              <div style={{ fontSize: 8 * zoom, opacity: 0.6 }}>{pp.cropMode}</div>
+              <div style={{ fontSize: 18 * zoom, lineHeight: 1 }}>&#128247;</div>
+              <div style={{ marginTop: 4 * zoom, fontWeight: 700 }}>{photoLabel}</div>
+              <div style={{ fontSize: 8 * zoom, opacity: 0.55, marginTop: 2 * zoom }}>{pp.cropMode}</div>
             </div>
           </div>
         );
@@ -911,6 +920,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   // ─── 排序后的元素列表 ───
   const sortedElements = [...layout.elements].sort((a, b) => a.zIndex - b.zIndex);
+  const hasPhotoFrameElements = layout.elements.some(element => element.type === 'photo');
 
   // ─── 渲染 ───
   return (
@@ -1239,14 +1249,36 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             )}
 
             {/* 渲染元素 */}
-            {layout.elements.length === 0 && !isPreview && (
+            {!hasPhotoFrameElements && !isPreview && (
               <div className="absolute inset-0 flex items-center justify-center p-6">
-                <div className="w-64 rounded-xl border border-slate-900/10 bg-white/85 p-4 text-slate-900 shadow-sm">
+                <div className="w-72 rounded-xl border border-slate-900/10 bg-white/90 p-4 text-slate-900 shadow-sm">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <LayoutTemplate size={16} />
-                    快速版式
+                    {layout.background.type === 'image' ? '底图已就绪' : '开始创建模板'}
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2">
+                    <button
+                      className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left text-xs text-emerald-800 hover:bg-emerald-500/15"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        backgroundImageInputRef.current?.click();
+                      }}
+                    >
+                      <div className="font-medium">上传底图</div>
+                    </button>
+                    <button
+                      className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-left text-xs text-sky-900 hover:bg-sky-500/15"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        addElement('photo');
+                      }}
+                    >
+                      <div className="font-medium">添加照片框</div>
+                    </button>
+                  </div>
+                  <div className="mt-4 border-t border-slate-900/10 pt-3">
+                    <div className="text-xs font-medium">快速版式</div>
+                    <div className="mt-2 grid grid-cols-1 gap-2">
                     {QUICK_PRINT_LAYOUTS.slice(0, 4).map(preset => (
                       <button
                         key={preset.id}
@@ -1260,6 +1292,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
                         <div className="mt-0.5 text-[10px] text-slate-500">{preset.description}</div>
                       </button>
                     ))}
+                    </div>
                   </div>
                 </div>
               </div>

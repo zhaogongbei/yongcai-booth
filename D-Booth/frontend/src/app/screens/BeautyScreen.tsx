@@ -13,7 +13,8 @@ import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { useResponsive } from "../hooks/useResponsive";
 import type { Screen } from "../types";
 import type { BeautyParams as BeautyParamsType } from "../../lib/api";
-import { processBeautyImage } from "../../lib/api";
+import { processBeautyImage, resolveBackendUrl } from "../../lib/api";
+import { showToast } from "../stores/useToast";
 import {
   BEAUTY_PRESETS, DEFAULT_BEAUTY_VALUES, BEAUTY_FALLBACK_IMAGE, BEAUTY_PRESET_AVATARS,
   DEFAULT_PROPS
@@ -24,6 +25,12 @@ type Tool = "美颜" | "滤镜" | "调色" | "贴纸" | "文字" | "裁剪";
 const defaultBeautyValues = DEFAULT_BEAUTY_VALUES;
 
 const FALLBACK_IMAGE = BEAUTY_FALLBACK_IMAGE;
+
+function resolvePhotoUrl(url?: string): string {
+  if (!url) return FALLBACK_IMAGE;
+  if (/^(blob:|data:|https?:\/\/)/i.test(url)) return url;
+  return resolveBackendUrl(url);
+}
 
 // Debounce utility
 function debounce<T extends (...args: any[]) => any>(
@@ -44,7 +51,9 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [selectedPreset, setSelectedPreset] = useState(1);
   const [beautyLevel, setBeautyLevel] = useState<"light" | "natural" | "high">("natural");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const [processedImageBlob, setProcessedImageBlob] = useState<Blob | null>(null);
 
   const [smooth, setSmooth] = useState<number>(defaultBeautyValues.smooth);
   const [thinFace, setThinFace] = useState<number>(defaultBeautyValues.thinFace);
@@ -61,8 +70,8 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [selectedStickerCategory, setSelectedStickerCategory] = useState<string>("全部");
 
-  const { selectedPhoto, authToken } = useCaptureFlow();
-  const photoUrl = selectedPhoto?.url ?? FALLBACK_IMAGE;
+  const { selectedPhoto, authToken, addPhoto } = useCaptureFlow();
+  const photoUrl = useMemo(() => resolvePhotoUrl(selectedPhoto?.url), [selectedPhoto?.url]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const previousParamsRef = useRef<string | null>(null);
 
@@ -104,7 +113,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       abortControllerRef.current = abortController;
 
       // Fetch image blob
-      const response = await fetch(selectedPhoto.url);
+      const response = await fetch(resolvePhotoUrl(selectedPhoto.url));
       const imageBlob = await response.blob();
 
       // Process with beauty API
@@ -123,6 +132,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
         URL.revokeObjectURL(processedImageUrl);
       }
 
+      setProcessedImageBlob(processedBlob);
       setProcessedImageUrl(objectUrl);
     } catch (error) {
       if ((error as Error).name === "AbortError") {
@@ -131,6 +141,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       }
       console.error("Beauty processing failed:", error);
       // Fallback to original image on error
+      setProcessedImageBlob(null);
       setProcessedImageUrl(null);
     } finally {
       setIsProcessing(false);
@@ -162,6 +173,15 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       }
     };
   }, [processedImageUrl]);
+
+  useEffect(() => {
+    previousParamsRef.current = null;
+    setProcessedImageBlob(null);
+    setProcessedImageUrl(currentUrl => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return null;
+    });
+  }, [selectedPhoto?.id]);
 
   const displayedImageUrl = processedImageUrl || photoUrl;
 
@@ -200,6 +220,43 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     setBeautyLevel("natural");
     setSelectedPreset(1);
     previousParamsRef.current = null;
+    setProcessedImageBlob(null);
+    setProcessedImageUrl(currentUrl => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return null;
+    });
+  };
+
+  const continueWithBeautyResult = async (nextScreen: Screen) => {
+    if (isProcessing) {
+      showToast.info("请等待当前美颜处理完成");
+      return;
+    }
+
+    if (!selectedPhoto) {
+      navigate("camera");
+      return;
+    }
+
+    if (!processedImageBlob) {
+      navigate(nextScreen);
+      return;
+    }
+
+    try {
+      setIsCommitting(true);
+      await addPhoto({
+        blob: processedImageBlob,
+        filter: "beauty",
+        mediaType: selectedPhoto.mediaType,
+      });
+      showToast.success("已应用美颜结果");
+      navigate(nextScreen);
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "应用美颜结果失败");
+    } finally {
+      setIsCommitting(false);
+    }
   };
 
   // Apply preset
@@ -368,8 +425,8 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
             ) : (
               <GlowBtn size="sm" variant="ghost" onClick={resetBeauty}><RotateCcw size={13} />重置</GlowBtn>
             )}
-            <GlowBtn size="sm" variant="primary" onClick={() => navigate("print")}><Printer size={13} />打印照片</GlowBtn>
-            <GlowBtn size="sm" variant="accent" onClick={() => navigate("sharing")}><Share2 size={13} />分享照片</GlowBtn>
+            <GlowBtn size="sm" variant="primary" disabled={isProcessing || isCommitting} onClick={() => void continueWithBeautyResult("print")}><Printer size={13} />打印照片</GlowBtn>
+            <GlowBtn size="sm" variant="accent" disabled={isProcessing || isCommitting} onClick={() => void continueWithBeautyResult("sharing")}><Share2 size={13} />分享照片</GlowBtn>
           </div>
         </div>
 
