@@ -1661,121 +1661,151 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
         {/* 图层列表 */}
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5" style={{ maxHeight: '40%' }}>
-          {hasImageBackground && (
-            <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/15 group">
-              <GripVertical size={10} className="text-emerald-300/40 shrink-0" />
-              <span className="flex-1 truncate">底图</span>
-              <div className="hidden group-hover:flex items-center gap-0.5">
-                <button
-                  className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => moveLayer(BACKGROUND_LAYER_ID, 'up')}
-                  title="上移"
-                  disabled={sortedCanvasLayers[sortedCanvasLayers.length - 1]?.id === BACKGROUND_LAYER_ID}
+          {sortedCanvasLayers.map(layer => {
+            if (layer.kind === 'background') {
+              return (
+                <div
+                  key={layer.id}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/15 group"
                 >
-                  <ChevronUp size={10} />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => moveLayer(BACKGROUND_LAYER_ID, 'down')}
-                  title="下移"
-                  disabled={sortedCanvasLayers[0]?.id === BACKGROUND_LAYER_ID}
-                >
-                  <ChevronDown size={10} />
-                </button>
-                <button
-                  className={`p-0.5 rounded hover:bg-white/10 ${isBackgroundLocked ? 'text-amber-400' : 'text-emerald-300/70'}`}
-                  onClick={() => setIsBackgroundLocked(value => !value)}
-                  title={isBackgroundLocked ? '解锁底图' : '锁定底图'}
-                >
-                  <Lock size={10} />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => backgroundImageInputRef.current?.click()}
-                  title="替换底图"
-                  disabled={isBackgroundLocked}
-                >
-                  <Upload size={10} />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-red-500/20 text-emerald-300/70 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() => updateLayout(draftLayout => { draftLayout.background = { type: 'color', value: '#ffffff' }; })}
-                  title="移除底图"
-                  disabled={isBackgroundLocked}
-                >
-                  <Trash2 size={10} />
-                </button>
+                  <GripVertical size={10} className="text-emerald-300/40 shrink-0" />
+                  <span className="flex-1 truncate">底图</span>
+                  <div className="hidden group-hover:flex items-center gap-0.5">
+                    <button
+                      className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => moveLayer(BACKGROUND_LAYER_ID, 'up')}
+                      title="上移"
+                      disabled={sortedCanvasLayers[sortedCanvasLayers.length - 1]?.id === BACKGROUND_LAYER_ID}
+                    >
+                      <ChevronUp size={10} />
+                    </button>
+                    <button
+                      className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => moveLayer(BACKGROUND_LAYER_ID, 'down')}
+                      title="下移"
+                      disabled={sortedCanvasLayers[0]?.id === BACKGROUND_LAYER_ID}
+                    >
+                      <ChevronDown size={10} />
+                    </button>
+                    <button
+                      className={`p-0.5 rounded hover:bg-white/10 ${isBackgroundLocked ? 'text-amber-400' : 'text-emerald-300/70'}`}
+                      onClick={() => setIsBackgroundLocked(value => !value)}
+                      title={isBackgroundLocked ? '解锁底图' : '锁定底图'}
+                    >
+                      <Lock size={10} />
+                    </button>
+                    <button
+                      className="p-0.5 rounded hover:bg-white/10 text-emerald-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => backgroundImageInputRef.current?.click()}
+                      title="替换底图"
+                      disabled={isBackgroundLocked}
+                    >
+                      <Upload size={10} />
+                    </button>
+                    <button
+                      className="p-0.5 rounded hover:bg-red-500/20 text-emerald-300/70 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => updateLayout(draftLayout => { draftLayout.background = { type: 'color', value: '#ffffff' }; })}
+                      title="移除底图"
+                      disabled={isBackgroundLocked}
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            const element = layer.element;
+            return (
+              <div
+                key={element.id}
+                className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group ${
+                  selectedIds.includes(element.id)
+                    ? "bg-violet-500/20 text-violet-400"
+                    : "text-white/50 hover:bg-white/5 hover:text-white/70"
+                }`}
+                onClick={(event) => selectElement(element.id, event.shiftKey)}
+              >
+                <GripVertical size={10} className="text-white/20 shrink-0" />
+                <span className="flex-1 truncate">
+                  {element.type === 'photo'
+                    ? `照片${(element.props as PhotoElementProps).photoNumber}`
+                    : element.type === 'text'
+                      ? (element.props as TextElementProps).content?.slice(0, 8) || '文本'
+                      : element.type === 'shape'
+                        ? '形状'
+                        : element.type === 'date'
+                          ? '日期'
+                          : element.type}
+                </span>
+                <div className="hidden group-hover:flex items-center gap-0.5">
+                  <button
+                    className="p-0.5 rounded hover:bg-white/10"
+                    onClick={(event) => { event.stopPropagation(); moveLayer(element.id, 'up'); }}
+                    title="上移"
+                  >
+                    <ChevronUp size={10} />
+                  </button>
+                  <button
+                    className="p-0.5 rounded hover:bg-white/10"
+                    onClick={(event) => { event.stopPropagation(); moveLayer(element.id, 'down'); }}
+                    title="下移"
+                  >
+                    <ChevronDown size={10} />
+                  </button>
+                  <button
+                    className={`p-0.5 rounded hover:bg-white/10 ${element.locked ? 'text-amber-400' : ''}`}
+                    onClick={(event) => { event.stopPropagation(); toggleLock(element.id); }}
+                    title={element.locked ? '解锁' : '锁定'}
+                  >
+                    <Lock size={10} />
+                  </button>
+                  <button
+                    className={`p-0.5 rounded hover:bg-white/10 ${!element.visible ? 'text-white/20' : ''}`}
+                    onClick={(event) => { event.stopPropagation(); toggleVisibility(element.id); }}
+                    title={element.visible ? '隐藏' : '显示'}
+                  >
+                    <Eye size={10} />
+                  </button>
+                  <button
+                    className="p-0.5 rounded hover:bg-white/10 text-white/40"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const draft = JSON.parse(JSON.stringify(undoRedo.present));
+                      const originalElement = draft.elements.find((existingElement: TemplateElement) => existingElement.id === element.id);
+                      if (originalElement) {
+                        const clonedElement = {
+                          ...originalElement,
+                          id: generateId(),
+                          x: originalElement.x + 10,
+                          y: originalElement.y + 10,
+                          zIndex: Math.max(...draft.elements.map((existingElement: TemplateElement) => existingElement.zIndex)) + 1,
+                        };
+                        draft.elements.push(clonedElement);
+                        undoRedo.set(draft);
+                      }
+                    }}
+                    title="复制"
+                  >
+                    <Copy size={10} />
+                  </button>
+                  <button
+                    className="p-0.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const draft = JSON.parse(JSON.stringify(undoRedo.present));
+                      draft.elements = draft.elements.filter((existingElement: TemplateElement) => existingElement.id !== element.id);
+                      undoRedo.set(draft);
+                      setSelectedIds(previousSelectedIds => previousSelectedIds.filter(id => id !== element.id));
+                    }}
+                    title="删除"
+                  >
+                    <Trash2 size={10} />
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-          {sortedElements.map(el => (
-            <div
-              key={el.id}
-              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group ${
-                selectedIds.includes(el.id)
-                  ? "bg-violet-500/20 text-violet-400"
-                  : "text-white/50 hover:bg-white/5 hover:text-white/70"
-              }`}
-              onClick={(e) => selectElement(el.id, e.shiftKey)}
-            >
-              <GripVertical size={10} className="text-white/20 shrink-0" />
-              <span className="flex-1 truncate">
-                {el.type === 'photo'
-                  ? `照片${(el.props as PhotoElementProps).photoNumber}`
-                  : el.type === 'text'
-                    ? (el.props as TextElementProps).content?.slice(0, 8) || '文本'
-                    : el.type === 'shape'
-                      ? '形状'
-                      : el.type === 'date'
-                        ? '日期'
-                        : el.type}
-              </span>
-              <div className="hidden group-hover:flex items-center gap-0.5">
-                <button
-                  className="p-0.5 rounded hover:bg-white/10"
-                  onClick={(e) => { e.stopPropagation(); moveLayer(el.id, 'up'); }}
-                  title="上移"
-                >
-                  <ChevronUp size={10} />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-white/10"
-                  onClick={(e) => { e.stopPropagation(); moveLayer(el.id, 'down'); }}
-                  title="下移"
-                >
-                  <ChevronDown size={10} />
-                </button>
-                <button
-                  className={`p-0.5 rounded hover:bg-white/10 ${el.locked ? 'text-amber-400' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); toggleLock(el.id); }}
-                  title={el.locked ? '解锁' : '锁定'}
-                >
-                  <Lock size={10} />
-                </button>
-                <button
-                  className={`p-0.5 rounded hover:bg-white/10 ${!el.visible ? 'text-white/20' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); toggleVisibility(el.id); }}
-                  title={el.visible ? '隐藏' : '显示'}
-                >
-                  <Eye size={10} />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-white/10 text-white/40"
-                  onClick={(e) => { e.stopPropagation(); const d = JSON.parse(JSON.stringify(undoRedo.present)); const orig = d.elements.find((x: TemplateElement) => x.id === el.id); if (orig) { const clone = { ...orig, id: generateId(), x: orig.x + 10, y: orig.y + 10, zIndex: Math.max(...d.elements.map((x: TemplateElement) => x.zIndex)) + 1 }; d.elements.push(clone); undoRedo.set(d); } }}
-                  title="复制"
-                >
-                  <Copy size={10} />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400"
-                  onClick={(e) => { e.stopPropagation(); const d = JSON.parse(JSON.stringify(undoRedo.present)); d.elements = d.elements.filter((x: TemplateElement) => x.id !== el.id); undoRedo.set(d); setSelectedIds(prev => prev.filter(id => id !== el.id)); }}
-                  title="删除"
-                >
-                  <Trash2 size={10} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {visibleLayerCount === 0 && (
             <div className="text-[10px] text-white/20 text-center py-4">无元素<br/>从左侧添加</div>
           )}

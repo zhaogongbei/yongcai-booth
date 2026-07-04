@@ -65,7 +65,7 @@ export interface TemplateLayout {
   paperSize: { width: number; height: number }; // 毫米
   resolution: number;   // DPI (300)
   orientation: 'portrait' | 'landscape';
-  background: { type: 'color' | 'gradient' | 'image'; value: string };
+  background: { type: 'color' | 'gradient' | 'image'; value: string; zIndex?: number };
   elements: TemplateElement[];
 }
 
