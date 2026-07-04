@@ -57,6 +57,7 @@
 - 修复绿幕预览和测试照片分析接口缺少登录认证、前端 raw fetch 未附带访问令牌的问题，避免匿名消耗图片处理计算资源。
 - 修复 Webhook 删除和发送日志读取接口缺少团队成员授权的问题，避免跨团队删除 webhook 或读取发送日志。
 - 修复 Stripe webhook 在缺少 webhook secret 配置时未显式 fail closed 的问题，避免公开入口在签名密钥缺失时继续尝试处理请求。
+- 移除外部提交重新引入的后端 `VERSION` 文件，恢复根 `VERSION` 单一版本源。
 
 ### 优化
 - Booth 注册和心跳时间戳改为 timezone-aware UTC 时间，避免 Python 3.12 `datetime.utcnow()` 弃用警告。
