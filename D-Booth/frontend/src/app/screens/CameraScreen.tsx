@@ -161,7 +161,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
       } catch {
         setCameraReady(false);
         setCameraError("相机权限未开启");
-        toast.error("相机权限未开启，已切换到演示画面");
+        toast.error("相机权限未开启，当前仅显示预览占位");
       }
     }
 
@@ -564,7 +564,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
             </div>
           )}
           {photos.length > 0 && !eventId && (
-            <div className="text-[9px] text-amber-300/70 text-center px-1 leading-tight">演示模式</div>
+            <div className="text-[9px] text-amber-300/70 text-center px-1 leading-tight">本地未上传</div>
           )}
         </nav>
       )}
@@ -836,7 +836,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
               {cameraParams.white_balance}
             </div>
             <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70">
-              {cameraReady && videoRef.current?.videoWidth ? `${videoRef.current.videoWidth} × ${videoRef.current.videoHeight}` : "演示画面"}
+              {cameraReady && videoRef.current?.videoWidth ? `${videoRef.current.videoWidth} × ${videoRef.current.videoHeight}` : "预览占位"}
             </div>
           </div>
         </div>
