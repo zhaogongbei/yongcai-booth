@@ -273,6 +273,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [isSaving, setIsSaving] = useState(false);
   const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
   const [isCanvasViewportHovered, setIsCanvasViewportHovered] = useState(false);
+  const [interactionLayout, setInteractionLayout] = useState<TemplateLayout | null>(null);
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
   // 拖拽状态
@@ -280,14 +281,17 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [resizing, setResizing] = useState<string | null>(null);
   const resizeDirRef = useRef<string>('');
   const dragStartRef = useRef({ x: 0, y: 0 });
+  const interactionLayoutRef = useRef<TemplateLayout | null>(null);
+  const interactionDidChangeRef = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const backgroundImageInputRef = useRef<HTMLInputElement>(null);
   const elementImageInputRef = useRef<HTMLInputElement>(null);
 
   const zoomLabel = ZOOM_OPTIONS.find(z => z.value === zoom)?.label ?? "100%";
+  const renderedLayout = interactionLayout ?? layout;
 
-  const selectedElement = layout.elements.find(e => e.id === selectedIds[0]) || null;
+  const selectedElement = renderedLayout.elements.find(e => e.id === selectedIds[0]) || null;
 
   useEffect(() => {
     const templateId = sessionStorage.getItem(SELECTED_TEMPLATE_SESSION_KEY);
@@ -368,17 +372,17 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   // ─── 画布尺寸 ───
   const canvasPx = {
-    width: Math.round(layout.paperSize.width * layout.resolution / 25.4),
-    height: Math.round(layout.paperSize.height * layout.resolution / 25.4),
+    width: Math.round(renderedLayout.paperSize.width * renderedLayout.resolution / 25.4),
+    height: Math.round(renderedLayout.paperSize.height * renderedLayout.resolution / 25.4),
   };
   // 竖版时可能宽高对调
   const displayWidth = Math.round(canvasPx.width * DISPLAY_SCALE * zoom);
   const displayHeight = Math.round(canvasPx.height * DISPLAY_SCALE * zoom);
 
   const getLayoutSnapshot = useCallback((): TemplateLayout => ({
-    ...layout,
+    ...renderedLayout,
     name: templateName.trim() || "未命名模板",
-  }), [layout, templateName]);
+  }), [renderedLayout, templateName]);
 
   const resolveTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
@@ -388,19 +392,23 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   // ─── 布局修改辅助函数 ───
   const updateLayout = useCallback((updater: (draft: TemplateLayout) => void) => {
-    const draft = JSON.parse(JSON.stringify(layout));
+    const draft = JSON.parse(JSON.stringify(interactionLayoutRef.current ?? renderedLayout));
     updater(draft);
+    interactionLayoutRef.current = null;
+    setInteractionLayout(null);
     undoRedo.set(draft);
-  }, [layout, undoRedo]);
+  }, [renderedLayout, undoRedo]);
 
   const updateElement = useCallback((id: string, partial: Partial<TemplateElement>) => {
-    const draft = JSON.parse(JSON.stringify(layout));
+    const draft = JSON.parse(JSON.stringify(interactionLayoutRef.current ?? renderedLayout));
     const idx = draft.elements.findIndex((e: TemplateElement) => e.id === id);
     if (idx >= 0) {
       draft.elements[idx] = { ...draft.elements[idx], ...partial };
+      interactionLayoutRef.current = null;
+      setInteractionLayout(null);
       undoRedo.set(draft);
     }
-  }, [layout, undoRedo]);
+  }, [renderedLayout, undoRedo]);
 
   const handleCanvasWheelZoom = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     const currentCanvasViewport = canvasRef.current;
@@ -844,17 +852,21 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   // ─── 添加新元素 ───
   const addElement = (type: TemplateElement['type']) => {
-    const draft = JSON.parse(JSON.stringify(layout));
+    const draft = JSON.parse(JSON.stringify(renderedLayout));
     const maxZ = draft.elements.length > 0 ? Math.max(...draft.elements.map((e: TemplateElement) => e.zIndex)) : 0;
     const newEl = createDefaultElement(type);
     newEl.zIndex = maxZ + 1;
     draft.elements.push(newEl);
+    interactionLayoutRef.current = null;
+    setInteractionLayout(null);
     undoRedo.set(draft);
     setSelectedIds([newEl.id]);
   };
 
   // ─── 画布鼠标事件（拖拽移动/缩放） ───
   const handleCanvasMouseDown = (e: React.MouseEvent, elId: string) => {
+    e.preventDefault();
+
     // 如果有Shift键，进入多选模式
     if (e.shiftKey) {
       selectElement(elId, true);
@@ -865,10 +877,11 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       setSelectedIds([elId]);
     }
     // 检查是否为锁定的元素
-    const el = layout.elements.find(el => el.id === elId);
+    const el = renderedLayout.elements.find(el => el.id === elId);
     if (el?.locked) return;
 
     // 开始拖拽
+    interactionDidChangeRef.current = false;
     setDragging(true);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
     e.stopPropagation();
@@ -877,10 +890,22 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const handleResizeMouseDown = (e: React.MouseEvent, elId: string, dir: string) => {
     e.stopPropagation();
     e.preventDefault();
+    interactionDidChangeRef.current = false;
     setResizing(elId);
     resizeDirRef.current = dir;
     dragStartRef.current = { x: e.clientX, y: e.clientY };
   };
+
+  useEffect(() => {
+    if (dragging || resizing || !interactionLayout || interactionLayoutRef.current) {
+      return;
+    }
+
+    const committedLayoutMatchesInteractionLayout = JSON.stringify(layout) === JSON.stringify(interactionLayout);
+    if (committedLayoutMatchesInteractionLayout) {
+      setInteractionLayout(null);
+    }
+  }, [dragging, interactionLayout, layout, resizing]);
 
   useEffect(() => {
     if (!dragging && !resizing) return;
@@ -891,7 +916,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       dragStartRef.current = { x: e.clientX, y: e.clientY };
 
       if (dragging && selectedIds.length > 0) {
-        const draft = JSON.parse(JSON.stringify(undoRedo.present));
+        const draft = JSON.parse(JSON.stringify(interactionLayoutRef.current ?? renderedLayout));
         const nextGuides: SnapGuide[] = [];
         selectedIds.forEach(sid => {
           const el = draft.elements.find((el: TemplateElement) => el.id === sid);
@@ -913,11 +938,13 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           }
         });
         setSnapGuides(nextGuides);
-        undoRedo.set(draft);
+        interactionDidChangeRef.current = true;
+        interactionLayoutRef.current = draft;
+        setInteractionLayout(draft);
       }
 
       if (resizing) {
-        const draft = JSON.parse(JSON.stringify(undoRedo.present));
+        const draft = JSON.parse(JSON.stringify(interactionLayoutRef.current ?? renderedLayout));
         const el = draft.elements.find((el: TemplateElement) => el.id === resizing);
         if (el && !el.locked) {
           const dir = resizeDirRef.current;
@@ -962,15 +989,27 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
           const snappedGuides = snapResizeBounds(el, dir);
           setSnapGuides(snappedGuides);
+          interactionDidChangeRef.current = true;
+          interactionLayoutRef.current = draft;
+          setInteractionLayout(draft);
         }
-        undoRedo.set(draft);
       }
     };
 
     const onMouseUp = () => {
+      const finalInteractionLayout = interactionLayoutRef.current;
       setDragging(false);
       setResizing(null);
       setSnapGuides([]);
+
+      if (interactionDidChangeRef.current && finalInteractionLayout) {
+        undoRedo.set(finalInteractionLayout);
+      } else {
+        setInteractionLayout(null);
+      }
+
+      interactionLayoutRef.current = null;
+      interactionDidChangeRef.current = false;
     };
 
     window.addEventListener('mousemove', onMouseMove);
@@ -979,7 +1018,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [canvasPx.height, canvasPx.width, dragging, resizing, zoom, selectedIds, undoRedo]);
+  }, [canvasPx.height, canvasPx.width, dragging, renderedLayout, resizing, selectedIds, snapMovePosition, snapResizeBounds, undoRedo, zoom]);
 
   // ─── Canvas背景点击取消选中 ───
   const handleCanvasBackgroundClick = () => {
@@ -1004,6 +1043,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       cursor: el.locked ? 'default' : 'move',
       boxSizing: 'border-box' as const,
       overflow: 'hidden',
+      userSelect: 'none' as const,
+      touchAction: 'none' as const,
     };
 
     const innerStyle: React.CSSProperties = {
@@ -1017,6 +1058,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     let content: React.ReactNode;
     const resizeHandleTouchSize = Math.max(18, 20 / Math.max(zoom, 0.5));
     const resizeHandleVisualSize = Math.max(8, 10 / Math.max(zoom, 0.75));
+    const shouldShowCompactPhotoCaption = el.width * DISPLAY_SCALE * zoom >= 96 && el.height * DISPLAY_SCALE * zoom >= 72;
+    const shouldShowPhotoDragBar = el.width * DISPLAY_SCALE * zoom >= 110;
 
     switch (el.type) {
       case 'photo': {
@@ -1042,7 +1085,9 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             }}>
               <div style={{ fontSize: 18 * zoom, lineHeight: 1 }}>&#128247;</div>
               <div style={{ marginTop: 4 * zoom, fontWeight: 700 }}>{photoLabel}</div>
-              <div style={{ fontSize: 8 * zoom, opacity: 0.55, marginTop: 2 * zoom }}>{pp.cropMode}</div>
+              {shouldShowCompactPhotoCaption && (
+                <div style={{ fontSize: 8 * zoom, opacity: 0.55, marginTop: 2 * zoom }}>{pp.cropMode}</div>
+              )}
             </div>
           </div>
         );
@@ -1157,7 +1202,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         onMouseDown={(e) => handleCanvasMouseDown(e, el.id)}
       >
         {content}
-        {isSelected && !isPreview && el.type === 'photo' && (
+        {isSelected && !isPreview && el.type === 'photo' && shouldShowPhotoDragBar && (
           <div
             style={{
               position: 'absolute',
@@ -1246,11 +1291,11 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   // ─── 排序后的元素列表 ───
-  const sortedElements = [...layout.elements].sort((a, b) => a.zIndex - b.zIndex);
-  const hasPhotoFrameElements = layout.elements.some(element => element.type === 'photo');
-  const hasImageBackground = layout.background.type === 'image';
-  const visibleLayerCount = layout.elements.length + (hasImageBackground ? 1 : 0);
-  const resolvedBackgroundLayerZIndex = getResolvedBackgroundLayerZIndex(layout.background, layout.elements);
+  const sortedElements = [...renderedLayout.elements].sort((a, b) => a.zIndex - b.zIndex);
+  const hasPhotoFrameElements = renderedLayout.elements.some(element => element.type === 'photo');
+  const hasImageBackground = renderedLayout.background.type === 'image';
+  const visibleLayerCount = renderedLayout.elements.length + (hasImageBackground ? 1 : 0);
+  const resolvedBackgroundLayerZIndex = getResolvedBackgroundLayerZIndex(renderedLayout.background, renderedLayout.elements);
   const sortedCanvasLayers: CanvasLayerItem[] = [
     ...(hasImageBackground
       ? [{ id: BACKGROUND_LAYER_ID, kind: 'background', zIndex: resolvedBackgroundLayerZIndex } as CanvasLayerItem]
@@ -1586,7 +1631,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             style={{
               width: displayWidth,
               height: displayHeight,
-              background: layout.background.type === 'color' ? layout.background.value : '#ffffff',
+              background: renderedLayout.background.type === 'color' ? renderedLayout.background.value : '#ffffff',
               overflow: 'hidden',
             }}
           >
@@ -1608,7 +1653,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
                 return (
                   <img
                     key={layer.id}
-                    src={layout.background.value}
+                    src={renderedLayout.background.value}
                     alt="模板底图"
                     className="absolute inset-0 w-full h-full pointer-events-none select-none"
                     style={{ objectFit: 'fill' }}

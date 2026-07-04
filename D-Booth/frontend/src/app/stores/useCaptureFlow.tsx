@@ -38,6 +38,7 @@ export interface ActivePrintTemplate {
 interface CaptureFlowContextType {
   photos: CapturedPhoto[];
   addPhoto: (photo: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType; serverPhotoId?: string; uploaded?: boolean }) => Promise<void>;
+  removePhoto: (id: string) => void;
   clearPhotos: () => void;
   selectedPhotoId: string | null;
   setSelectedPhotoId: (id: string | null) => void;
@@ -109,6 +110,17 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
     // No event context: keep the captured media local and mark it unavailable for print.
   }, [eventId, sessionId, authToken]);
 
+  const removePhoto = useCallback((id: string) => {
+    setPhotos(prev => {
+      const target = prev.find(p => p.id === id);
+      if (target?.url.startsWith("blob:")) {
+        URL.revokeObjectURL(target.url);
+      }
+      return prev.filter(p => p.id !== id);
+    });
+    setSelectedPhotoId(current => (current === id ? null : current));
+  }, []);
+
   const clearPhotos = useCallback(() => {
     // Revoke blob URLs to prevent memory leaks
     for (const p of photos) {
@@ -124,7 +136,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
 
   return (
     <CaptureFlowContext.Provider value={{
-      photos, addPhoto, clearPhotos, selectedPhotoId, setSelectedPhotoId, selectedPhoto,
+      photos, addPhoto, removePhoto, clearPhotos, selectedPhotoId, setSelectedPhotoId, selectedPhoto,
       activePrintTemplate, setActivePrintTemplate,
       templateSelectionReturnScreen, setTemplateSelectionReturnScreen,
       eventId, sessionId, currentSessionId: sessionId, authToken, setCaptureContext,

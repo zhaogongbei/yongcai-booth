@@ -10,3 +10,8 @@ export function getRequiredTemplatePhotoCount(layout: TemplateLayout | null | un
     return Math.max(required, Math.floor(photoNumber));
   }, 0);
 }
+
+export function getTemplatePhotoSlots(layout: TemplateLayout | null | undefined): number[] {
+  const requiredCount = getRequiredTemplatePhotoCount(layout);
+  return Array.from({ length: requiredCount }, (_, index) => index + 1);
+}

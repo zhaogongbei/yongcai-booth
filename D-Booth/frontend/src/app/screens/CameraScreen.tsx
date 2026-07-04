@@ -16,7 +16,7 @@ import { GifRecorder } from "../services/gifRecorder";
 import { VideoRecorder } from "../services/videoRecorder";
 import { useResponsive } from "../hooks/useResponsive";
 import { request, type PhotoResponse } from "../../lib/api";
-import { getRequiredTemplatePhotoCount } from "../utils/templateLayout";
+import { getRequiredTemplatePhotoCount, getTemplatePhotoSlots } from "../utils/templateLayout";
 
 const FILTERS = CAMERA_FILTERS;
 
@@ -48,6 +48,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { isMobile, isTablet, isDesktop } = useResponsive();
   const [countdown, setCountdown] = useState<number | null>(null);
   const [captured, setCaptured] = useState(false);
+  const [showPhotoActions, setShowPhotoActions] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [greenScreenEnabled, setGreenScreenEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -73,7 +74,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     focus_mode: "AF-C",
   });
 
-  const { addPhoto, photos, eventId, currentSessionId, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
+  const { addPhoto, removePhoto, photos, eventId, currentSessionId, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRecorderRef = useRef<VideoRecorder | null>(null);
@@ -86,6 +87,10 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const requiredTemplatePhotoCount = useMemo(
     () => getRequiredTemplatePhotoCount(activePrintTemplate?.layout),
+    [activePrintTemplate?.layout],
+  );
+  const templatePhotoSlots = useMemo(
+    () => getTemplatePhotoSlots(activePrintTemplate?.layout),
     [activePrintTemplate?.layout],
   );
   const capturedTemplatePhotoCount = activePrintTemplate
@@ -108,6 +113,21 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
     navigate("print");
   }, [activePrintTemplate, missingTemplatePhotoCount, navigate, openTemplateSelectionForCamera]);
+
+  const hidePostCaptureActions = useCallback(() => {
+    setCaptured(false);
+    setShowPhotoActions(false);
+    setGifProgress(0);
+  }, []);
+
+  const discardLatestPhotoAndRetake = useCallback(() => {
+    const latestPhoto = photos[photos.length - 1];
+    if (latestPhoto) {
+      removePhoto(latestPhoto.id);
+      setSelectedPhoto(null);
+    }
+    hidePostCaptureActions();
+  }, [hidePostCaptureActions, photos, removePhoto]);
 
   useEffect(() => {
     let cancelled = false;
@@ -453,6 +473,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const shoot = useCallback(() => {
     if (countdown !== null || isRecordingVideo) return;
 
+    setShowPhotoActions(false);
     attendantPlayer.playForTiming("before_countdown");
 
     setCountdown(3);
@@ -465,7 +486,8 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           case "photo":
             void captureFrame().then(success => {
               if (success) {
-                window.setTimeout(() => setCaptured(false), 1200);
+                setShowPhotoActions(true);
+                window.setTimeout(() => setCaptured(false), 650);
               } else {
                 setCaptured(false);
               }
@@ -608,11 +630,35 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
               ))}
             </div>
             {activePrintTemplate && (
-              <div className="mx-auto mt-2 flex max-w-72 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/20 px-2 py-1 text-[10px] text-emerald-200 backdrop-blur-sm">
-                <LayoutTemplate size={11} />
-                <span className="truncate">
-                  {activePrintTemplate.name} · 已拍 {capturedTemplatePhotoCount}/{Math.max(requiredTemplatePhotoCount, 1)}
-                </span>
+              <div className="mx-auto mt-2 max-w-80 rounded-lg bg-emerald-500/20 px-2 py-1.5 text-[10px] text-emerald-200 backdrop-blur-sm">
+                <div className="flex items-center justify-center gap-1.5">
+                  <LayoutTemplate size={11} />
+                  <span className="truncate">
+                    {activePrintTemplate.name} · 已拍 {capturedTemplatePhotoCount}/{Math.max(requiredTemplatePhotoCount, 1)}
+                  </span>
+                </div>
+                {templatePhotoSlots.length > 1 && (
+                  <div className="mt-1 flex justify-center gap-1">
+                    {templatePhotoSlots.map(slot => {
+                      const isFilled = photos.length >= slot;
+                      const isNext = !isFilled && photos.length + 1 === slot;
+                      return (
+                        <span
+                          key={slot}
+                          className={`grid h-5 w-5 place-items-center rounded-full border text-[10px] font-semibold ${
+                            isFilled
+                              ? "border-emerald-300 bg-emerald-300 text-black"
+                              : isNext
+                                ? "border-amber-300 bg-amber-300/20 text-amber-100"
+                                : "border-white/20 bg-black/20 text-white/45"
+                          }`}
+                        >
+                          {slot}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -719,7 +765,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
           {/* Post-capture action buttons (photo mode only) */}
           <AnimatePresence>
-            {captured && captureMode === "photo" && (
+            {showPhotoActions && captureMode === "photo" && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
@@ -737,7 +783,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <GlowBtn onClick={openPrintPreview} variant="accent" size="lg">
                   <Printer size={16} /> {missingTemplatePhotoCount > 0 ? `还差 ${missingTemplatePhotoCount} 张` : "打印预览"}
                 </GlowBtn>
-                <GlowBtn onClick={() => setCaptured(false)} variant="ghost" size="lg">
+                <GlowBtn onClick={discardLatestPhotoAndRetake} variant="ghost" size="lg">
                   <RotateCcw size={16} /> 重拍
                 </GlowBtn>
               </motion.div>

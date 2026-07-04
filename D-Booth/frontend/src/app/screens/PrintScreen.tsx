@@ -22,7 +22,7 @@ import {
 import { MAX_PRINT_QTY } from "../constants";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
-import { getRequiredTemplatePhotoCount } from "../utils/templateLayout";
+import { getRequiredTemplatePhotoCount, getTemplatePhotoSlots } from "../utils/templateLayout";
 
 function printerStatusLabel(status: PrinterInfo["status"]): string {
   const map: Record<string, string> = {
@@ -104,6 +104,10 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const printPreviewImages = useMemo(() => orderedPrintPhotos.map(photo => photo.url), [orderedPrintPhotos]);
   const requiredTemplatePhotoCount = useMemo(
     () => getRequiredTemplatePhotoCount(activePrintTemplate?.layout),
+    [activePrintTemplate?.layout],
+  );
+  const templatePhotoSlots = useMemo(
+    () => getTemplatePhotoSlots(activePrintTemplate?.layout),
     [activePrintTemplate?.layout],
   );
   const templatePhotoRequirement = activePrintTemplate ? Math.max(requiredTemplatePhotoCount, 1) : 0;
@@ -354,26 +358,56 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
               </GlassCard>
             )}
             {hasPrintablePhoto && (
-              <div className={`mx-auto mt-4 flex max-w-[420px] items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs ${
+              <div className={`mx-auto mt-4 flex max-w-[520px] items-center justify-between gap-3 rounded-xl border px-3 py-2 text-xs ${
                 activePrintTemplate
                   ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
                   : "border-white/10 bg-white/5 text-white/55"
               }`}>
                 <div className="flex min-w-0 items-center gap-1.5">
                   <LayoutTemplate size={13} className="flex-shrink-0" />
-                  <span className="truncate">
-                    {activePrintTemplate
-                      ? `${activePrintTemplate.name} · 照片 ${Math.min(orderedPrintPhotos.length, templatePhotoRequirement)}/${templatePhotoRequirement}`
-                      : "当前未选择打印模板"}
-                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate">
+                      {activePrintTemplate
+                        ? `${activePrintTemplate.name} · 照片 ${Math.min(orderedPrintPhotos.length, templatePhotoRequirement)}/${templatePhotoRequirement}`
+                        : "当前未选择打印模板"}
+                    </div>
+                    {activePrintTemplate && templatePhotoSlots.length > 1 && (
+                      <div className="mt-1 flex gap-1">
+                        {templatePhotoSlots.map(slot => {
+                          const isFilled = orderedPrintPhotos.length >= slot;
+                          return (
+                            <span
+                              key={slot}
+                              className={`grid h-4 w-4 place-items-center rounded-full text-[9px] font-semibold ${
+                                isFilled ? "bg-emerald-300 text-black" : "bg-amber-300/20 text-amber-100"
+                              }`}
+                            >
+                              {slot}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  className={activePrintTemplate ? "flex-shrink-0 text-emerald-100 hover:text-white" : "flex-shrink-0 text-violet-300 hover:text-violet-200"}
-                  onClick={openTemplateSelectionForPrint}
-                >
-                  {activePrintTemplate ? "更换模板" : "选择模板"}
-                </button>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  {activePrintTemplate && missingTemplatePhotoCount > 0 && (
+                    <button
+                      type="button"
+                      className="text-amber-100 hover:text-white"
+                      onClick={() => navigate("camera")}
+                    >
+                      继续拍照
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={activePrintTemplate ? "text-emerald-100 hover:text-white" : "text-violet-300 hover:text-violet-200"}
+                    onClick={openTemplateSelectionForPrint}
+                  >
+                    {activePrintTemplate ? "更换模板" : "选择模板"}
+                  </button>
+                </div>
               </div>
             )}
             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-white/30">100%</div>
@@ -437,6 +471,28 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
             出纸尺寸：{paperSizeLabel}
             {activePrintTemplate && ` · 照片 ${Math.min(orderedPrintPhotos.length, templatePhotoRequirement)}/${templatePhotoRequirement}`}
           </div>
+          {activePrintTemplate && templatePhotoSlots.length > 1 && (
+            <div className="mt-3 flex items-center gap-1.5">
+              {templatePhotoSlots.map(slot => {
+                const isFilled = orderedPrintPhotos.length >= slot;
+                const isNext = !isFilled && orderedPrintPhotos.length + 1 === slot;
+                return (
+                  <span
+                    key={slot}
+                    className={`grid h-6 w-6 place-items-center rounded-full border text-[10px] font-semibold ${
+                      isFilled
+                        ? "border-emerald-300 bg-emerald-300 text-black"
+                        : isNext
+                          ? "border-amber-300 bg-amber-300/15 text-amber-100"
+                          : "border-white/10 bg-white/[0.03] text-white/35"
+                    }`}
+                  >
+                    {slot}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </GlassCard>
         <GlassCard className="p-3">
           <div className="mb-2 flex items-center justify-between">
