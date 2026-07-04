@@ -9,10 +9,12 @@ GET  /api/v1/beauty/status      - Check if beauty engine is available
 
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from app.api.deps import get_current_active_user
+from app.models.models import User
 from app.services.beauty_service import BeautyParams, beauty_processor
 
 router = APIRouter()
@@ -192,6 +194,7 @@ async def preview_beauty(
     lipColor: int = Form(default=0, ge=0, le=100),
     quality: str = Form(default="full"),
     file: UploadFile = File(...),
+    _current_user: User = Depends(get_current_active_user),
 ):
     """Apply beauty params and return the JPEG result directly.
     ``quality``: "lite" (LiveView, <50ms) or "full" (print/preview, higher quality).
@@ -219,7 +222,10 @@ async def preview_beauty(
 
 
 @router.post("/detect-face")
-async def detect_face(file: UploadFile = File(...)):
+async def detect_face(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(get_current_active_user),
+):
     try:
         image_bytes = await file.read()
     except Exception as e:
@@ -252,7 +258,10 @@ class ApplyRequest(BaseModel):
 
 
 @router.post("/apply", status_code=status.HTTP_202_ACCEPTED)
-async def apply_beauty_async(req: ApplyRequest):
+async def apply_beauty_async(
+    req: ApplyRequest,
+    _current_user: User = Depends(get_current_active_user),
+):
     """Submit beauty processing as a Celery background task.
     Returns immediately with 202 Accepted; the caller polls the photo record.
     """
