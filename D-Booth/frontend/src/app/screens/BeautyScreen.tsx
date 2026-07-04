@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Sparkles, Users, Eye, Sun, Zap, Sliders, Star, Heart,
-  ArrowLeft, ImagePlus, Type, Layers, RotateCcw, Download, Printer, Share2,
+  ArrowLeft, ImagePlus, RotateCcw, Download, Printer, Share2,
   Trash2
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -20,7 +20,7 @@ import {
   DEFAULT_PROPS
 } from "../constants";
 
-type Tool = "美颜" | "滤镜" | "调色" | "贴纸" | "文字" | "裁剪";
+type Tool = "美颜" | "贴纸";
 
 const defaultBeautyValues = DEFAULT_BEAUTY_VALUES;
 
@@ -262,14 +262,6 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const displayedImageUrl = processedImageUrl || photoUrl;
 
-  const cssFilter = useMemo(() => {
-    const brightness = 1 + (whiten - 50) / 200;
-    const contrast = 1 + (smooth - 50) / 200;
-    const saturate = 1 + (lipColor - 50) / 200;
-    const blur = acne > 30 ? (acne - 30) / 100 : 0;
-    return `brightness(${brightness}) contrast(${contrast}) saturate(${saturate})${blur > 0 ? ` blur(${blur}px)` : ''}`;
-  }, [smooth, whiten, thinFace, bigEye, eyeLight, acne, nasolabial, teethWhiten, lipColor]);
-
   const presets = BEAUTY_PRESETS;
 
   const beautyControls = [
@@ -376,11 +368,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const tools: { icon: React.ElementType; label: Tool }[] = [
     { icon: Sparkles, label: "美颜" },
-    { icon: Sliders, label: "滤镜" },
-    { icon: Sun, label: "调色" },
     { icon: ImagePlus, label: "贴纸" },
-    { icon: Type, label: "文字" },
-    { icon: Layers, label: "裁剪" },
   ];
 
   const levelLabels: { key: "light" | "natural" | "high"; label: string }[] = [
