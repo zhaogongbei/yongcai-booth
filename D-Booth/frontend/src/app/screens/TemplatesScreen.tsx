@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw } from "lucide-react";
+import { Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
 import { GlowBtn } from "../components/GlowBtn";
 import { useSettings } from "../stores/useSettings";
+import { FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
 import { getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 
@@ -48,6 +49,10 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     return true;
   });
 
+  const quickCreateLayouts = QUICK_PRINT_LAYOUTS.filter(layout =>
+    FEATURED_QUICK_PRINT_LAYOUT_IDS.includes(layout.id as (typeof FEATURED_QUICK_PRINT_LAYOUT_IDS)[number])
+  );
+
   const loadSavedTemplates = useCallback(async () => {
     const token = tokenStorage.access;
     if (!token) {
@@ -90,11 +95,18 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   });
 
   const openTemplateEditor = (templateId?: string) => {
+    sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
     if (templateId) {
       sessionStorage.setItem(SELECTED_TEMPLATE_SESSION_KEY, templateId);
     } else {
       sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
     }
+    navigate("template-editor");
+  };
+
+  const openTemplateEditorWithLayout = (layoutId: string) => {
+    sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
+    sessionStorage.setItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, layoutId);
     navigate("template-editor");
   };
 
@@ -130,6 +142,47 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <GlowBtn size="sm" variant="primary" onClick={() => openTemplateEditor()}>
             <Plus size={14} />新建
           </GlowBtn>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-white">快速创建</span>
+              <NeonBadge color="green">常用打印版式</NeonBadge>
+            </div>
+          </div>
+          <div className="grid grid-cols-5 gap-3">
+            {quickCreateLayouts.map(layout => (
+              <motion.button
+                key={layout.id}
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/15 p-3 text-left transition-colors"
+                onClick={() => openTemplateEditorWithLayout(layout.id)}
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-emerald-300">
+                  <LayoutTemplate size={14} />
+                  <span className="truncate">{layout.name}</span>
+                </div>
+                <div className="mt-1 text-[10px] text-white/45">{layout.description}</div>
+                <div className="mt-3 relative h-16 rounded-lg bg-white/90 overflow-hidden">
+                  {layout.frames.map((frame, index) => (
+                    <div
+                      key={`${layout.id}-${index}`}
+                      className="absolute rounded-sm bg-emerald-950/20 border border-emerald-950/20"
+                      style={{
+                        left: `${frame.x / layout.canvasWidth * 100}%`,
+                        top: `${frame.y / layout.canvasHeight * 100}%`,
+                        width: `${frame.width / layout.canvasWidth * 100}%`,
+                        height: `${frame.height / layout.canvasHeight * 100}%`,
+                      }}
+                    />
+                  ))}
+                </div>
+              </motion.button>
+            ))}
+          </div>
         </div>
 
         {/* Category tabs */}

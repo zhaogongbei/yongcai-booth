@@ -8,6 +8,7 @@ import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
+import { QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
 import { createTemplate, getMyTeams, getTemplate, tokenStorage, updateTemplate, validateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
@@ -77,148 +78,6 @@ function createDefaultElement(type: TemplateElement['type']): TemplateElement {
 const DISPLAY_SCALE = 0.45;
 const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
 
-type PrintLayoutFrame = {
-  photoNumber: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type PrintLayoutPreset = {
-  id: string;
-  name: string;
-  description: string;
-  canvasWidth: number;
-  canvasHeight: number;
-  frames: PrintLayoutFrame[];
-};
-
-const QUICK_PRINT_LAYOUTS: PrintLayoutPreset[] = [
-  {
-    id: "one-single-vertical",
-    name: "1张 单版 竖",
-    description: "整张 4x6 竖版",
-    canvasWidth: 1200,
-    canvasHeight: 1800,
-    frames: [{ photoNumber: 1, x: 0, y: 0, width: 1200, height: 1800 }],
-  },
-  {
-    id: "one-single-horizontal",
-    name: "1张 单版 横",
-    description: "整张 6x4 横版",
-    canvasWidth: 1800,
-    canvasHeight: 1200,
-    frames: [{ photoNumber: 1, x: 0, y: 0, width: 1800, height: 1200 }],
-  },
-  {
-    id: "one-double-vertical",
-    name: "1张 双条 竖",
-    description: "上下双联",
-    canvasWidth: 1200,
-    canvasHeight: 1800,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 1200, height: 800 },
-      { photoNumber: 1, x: 0, y: 1000, width: 1200, height: 800 },
-    ],
-  },
-  {
-    id: "one-double-horizontal",
-    name: "1张 双条 横",
-    description: "左右双联",
-    canvasWidth: 1800,
-    canvasHeight: 1200,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 800, height: 1200 },
-      { photoNumber: 1, x: 1000, y: 0, width: 800, height: 1200 },
-    ],
-  },
-  {
-    id: "two-double-horizontal",
-    name: "2张 双条 横",
-    description: "每条 2 张",
-    canvasWidth: 1800,
-    canvasHeight: 1200,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 900, height: 600 },
-      { photoNumber: 2, x: 0, y: 600, width: 900, height: 600 },
-      { photoNumber: 1, x: 900, y: 0, width: 900, height: 600 },
-      { photoNumber: 2, x: 900, y: 600, width: 900, height: 600 },
-    ],
-  },
-  {
-    id: "three-double-vertical",
-    name: "3张 双条 竖",
-    description: "每条 3 张",
-    canvasWidth: 1200,
-    canvasHeight: 1800,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 600, height: 400 },
-      { photoNumber: 2, x: 0, y: 400, width: 600, height: 400 },
-      { photoNumber: 3, x: 0, y: 800, width: 600, height: 400 },
-      { photoNumber: 1, x: 600, y: 0, width: 600, height: 400 },
-      { photoNumber: 2, x: 600, y: 400, width: 600, height: 400 },
-      { photoNumber: 3, x: 600, y: 800, width: 600, height: 400 },
-    ],
-  },
-  {
-    id: "four-single-vertical",
-    name: "4张 单版 竖",
-    description: "2x2 竖版",
-    canvasWidth: 1200,
-    canvasHeight: 1800,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 600, height: 900 },
-      { photoNumber: 2, x: 600, y: 0, width: 600, height: 900 },
-      { photoNumber: 3, x: 0, y: 900, width: 600, height: 900 },
-      { photoNumber: 4, x: 600, y: 900, width: 600, height: 900 },
-    ],
-  },
-  {
-    id: "four-single-horizontal",
-    name: "4张 单版 横",
-    description: "2x2 横版",
-    canvasWidth: 1800,
-    canvasHeight: 1200,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 900, height: 600 },
-      { photoNumber: 2, x: 900, y: 0, width: 900, height: 600 },
-      { photoNumber: 3, x: 0, y: 600, width: 900, height: 600 },
-      { photoNumber: 4, x: 900, y: 600, width: 900, height: 600 },
-    ],
-  },
-  {
-    id: "four-double-vertical",
-    name: "4张 双条 竖",
-    description: "每条 4 张",
-    canvasWidth: 1200,
-    canvasHeight: 1800,
-    frames: [
-      { photoNumber: 1, x: 0, y: 0, width: 600, height: 400 },
-      { photoNumber: 2, x: 0, y: 400, width: 600, height: 400 },
-      { photoNumber: 3, x: 0, y: 800, width: 600, height: 400 },
-      { photoNumber: 4, x: 0, y: 1200, width: 600, height: 400 },
-      { photoNumber: 1, x: 600, y: 0, width: 600, height: 400 },
-      { photoNumber: 2, x: 600, y: 400, width: 600, height: 400 },
-      { photoNumber: 3, x: 600, y: 800, width: 600, height: 400 },
-      { photoNumber: 4, x: 600, y: 1200, width: 600, height: 400 },
-    ],
-  },
-  {
-    id: "one-large-three-small-horizontal",
-    name: "1大3小 横",
-    description: "主图加三连拍",
-    canvasWidth: 1800,
-    canvasHeight: 1200,
-    frames: [
-      { photoNumber: 1, x: 130, y: 60, width: 1005, height: 670 },
-      { photoNumber: 2, x: 40, y: 787, width: 560, height: 373 },
-      { photoNumber: 3, x: 620, y: 787, width: 560, height: 373 },
-      { photoNumber: 4, x: 1200, y: 787, width: 560, height: 373 },
-    ],
-  },
-];
-
 function isTemplateLayout(value: unknown): value is TemplateLayout {
   if (!value || typeof value !== "object") return false;
   const layout = value as Partial<TemplateLayout>;
@@ -231,6 +90,38 @@ function isTemplateLayout(value: unknown): value is TemplateLayout {
     layout.background &&
     Array.isArray(layout.elements)
   );
+}
+
+function createLayoutFromPrintPreset(layoutId: string, preset: PrintLayoutPreset): TemplateLayout {
+  return {
+    id: layoutId,
+    name: preset.name,
+    paperSize: {
+      width: Number((preset.canvasWidth * 25.4 / 300).toFixed(1)),
+      height: Number((preset.canvasHeight * 25.4 / 300).toFixed(1)),
+    },
+    resolution: 300,
+    orientation: preset.canvasWidth > preset.canvasHeight ? 'landscape' : 'portrait',
+    background: { type: 'color', value: '#ffffff' },
+    elements: preset.frames.map((frame, index) => ({
+      id: generateId(),
+      type: 'photo',
+      x: frame.x,
+      y: frame.y,
+      width: frame.width,
+      height: frame.height,
+      rotation: 0,
+      opacity: 1,
+      zIndex: index,
+      locked: false,
+      visible: true,
+      props: {
+        photoNumber: frame.photoNumber,
+        cropMode: 'stretch',
+        borderRadius: 0,
+      } as PhotoElementProps,
+    })),
+  };
 }
 
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
@@ -262,16 +153,31 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   useEffect(() => {
     const templateId = sessionStorage.getItem(SELECTED_TEMPLATE_SESSION_KEY);
-    if (!templateId) return;
+    const quickLayoutId = sessionStorage.getItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
+    if (!templateId && !quickLayoutId) return;
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
+    sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
 
     const token = tokenStorage.access;
-    if (!token) {
+    if (templateId && !token) {
       showToast.error("请先登录后再打开模板");
       return;
     }
 
-    getTemplate(templateId, token)
+    if (!templateId) {
+      const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === quickLayoutId);
+      if (!preset) {
+        showToast.error("未找到所选版式");
+        return;
+      }
+      undoRedo.reset(createLayoutFromPrintPreset(layout.id, preset));
+      setTemplateName(preset.name);
+      setSavedTemplateId(null);
+      setSelectedIds([]);
+      return;
+    }
+
+    getTemplate(templateId, token as string)
       .then(template => {
         if (!isTemplateLayout(template.layers)) {
           showToast.error("模板数据结构无效");
@@ -543,37 +449,9 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   const applyPrintLayout = (preset: PrintLayoutPreset) => {
-    const nextLayout: TemplateLayout = {
-      id: layout.id,
-      name: preset.name,
-      paperSize: {
-        width: Number((preset.canvasWidth * 25.4 / 300).toFixed(1)),
-        height: Number((preset.canvasHeight * 25.4 / 300).toFixed(1)),
-      },
-      resolution: 300,
-      orientation: preset.canvasWidth > preset.canvasHeight ? 'landscape' : 'portrait',
-      background: { type: 'color', value: '#ffffff' },
-      elements: preset.frames.map((frame, index) => ({
-        id: generateId(),
-        type: 'photo',
-        x: frame.x,
-        y: frame.y,
-        width: frame.width,
-        height: frame.height,
-        rotation: 0,
-        opacity: 1,
-        zIndex: index,
-        locked: false,
-        visible: true,
-        props: {
-          photoNumber: frame.photoNumber,
-          cropMode: 'stretch',
-          borderRadius: 0,
-        } as PhotoElementProps,
-      })),
-    };
-    undoRedo.set(nextLayout);
+    undoRedo.set(createLayoutFromPrintPreset(layout.id, preset));
     setTemplateName(preset.name);
+    setSavedTemplateId(null);
     setSelectedIds([]);
     showToast.success(`已应用版式: ${preset.name}`);
   };
@@ -1124,6 +1002,31 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             )}
 
             {/* 渲染元素 */}
+            {layout.elements.length === 0 && !isPreview && (
+              <div className="absolute inset-0 flex items-center justify-center p-6">
+                <div className="w-64 rounded-xl border border-slate-900/10 bg-white/85 p-4 text-slate-900 shadow-sm">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <LayoutTemplate size={16} />
+                    快速版式
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2">
+                    {QUICK_PRINT_LAYOUTS.slice(0, 4).map(preset => (
+                      <button
+                        key={preset.id}
+                        className="rounded-lg border border-slate-900/10 px-3 py-2 text-left text-xs hover:bg-slate-900/5"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          applyPrintLayout(preset);
+                        }}
+                      >
+                        <div className="font-medium">{preset.name}</div>
+                        <div className="mt-0.5 text-[10px] text-slate-500">{preset.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             {sortedElements.map(el => renderElement(el))}
 
             {/* 预览模式遮罩 */}
