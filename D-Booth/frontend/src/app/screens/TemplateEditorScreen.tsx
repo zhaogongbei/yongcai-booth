@@ -259,7 +259,7 @@ function readImageFileAsDataUrl(file: File): Promise<string> {
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
   const { currentEvent } = useSettings();
-  const { setActivePrintTemplate } = useCaptureFlow();
+  const { authToken, setActivePrintTemplate } = useCaptureFlow();
   const undoRedo = useUndoRedo<TemplateLayout>(createDefaultLayout(), { maxHistory: 50 });
   const layout = undoRedo.present;
 
@@ -301,7 +301,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
     sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
 
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
     if (templateId && !hasStoredAuthSession) {
       showToast.error("请先登录后再打开模板");
       return;
@@ -320,7 +320,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       return;
     }
 
-    getTemplate(templateId)
+    getTemplate(templateId, authToken ?? undefined)
       .then(template => {
         if (!isTemplateLayout(template.layers)) {
           showToast.error("模板数据结构无效");
@@ -339,7 +339,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       .catch(err => {
         showToast.error(err instanceof Error ? err.message : "模板加载失败");
       });
-  }, []);
+  }, [authToken, layout.id, undoRedo]);
 
   // ─── 快捷键 ───
   useEffect(() => {
@@ -387,9 +387,9 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   const resolveTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
-    const teams = await getMyTeams();
+    const teams = await getMyTeams(authToken ?? undefined);
     return teams[0]?.id ?? null;
-  }, [currentEvent?.teamId]);
+  }, [authToken, currentEvent?.teamId]);
 
   // ─── 布局修改辅助函数 ───
   const updateLayout = useCallback((updater: (draft: TemplateLayout) => void) => {
@@ -586,7 +586,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   const saveTemplate = useCallback(async () => {
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
     if (!hasStoredAuthSession) {
       showToast.error("请先登录后再保存模板");
       return;
@@ -602,7 +602,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
       const snapshot = getLayoutSnapshot();
       const layers = snapshot as unknown as Record<string, unknown>;
-      const validation = await validateTemplate(layers);
+      const validation = await validateTemplate(layers, authToken ?? undefined);
       if (!validation.valid) {
         showToast.error(validation.message || "模板结构校验失败");
         return;
@@ -619,8 +619,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       };
 
       const saved = savedTemplateId
-        ? await updateTemplate(savedTemplateId, payload)
-        : await createTemplate({ ...payload, team_id: teamId });
+        ? await updateTemplate(savedTemplateId, payload, authToken ?? undefined)
+        : await createTemplate({ ...payload, team_id: teamId }, authToken ?? undefined);
 
       setSavedTemplateId(saved.id);
       setTemplateName(saved.name);
@@ -641,7 +641,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     } finally {
       setIsSaving(false);
     }
-  }, [canvasPx.height, canvasPx.width, getLayoutSnapshot, navigate, resolveTeamId, savedTemplateId, setActivePrintTemplate]);
+  }, [authToken, canvasPx.height, canvasPx.width, getLayoutSnapshot, navigate, resolveTeamId, savedTemplateId, setActivePrintTemplate]);
 
   // ─── 预设应用 ───
   const applyPreset = (presetIndex: number) => {
