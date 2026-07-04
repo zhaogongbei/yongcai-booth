@@ -1,14 +1,15 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.deps import get_current_active_user
 from app.schemas.booth_health import ApiHealth, BoothHealthResponse, CameraHealth, PrintQueueSummary
 from app.schemas.printer import PrinterInfo, PrinterStatus, PrintQueueItem
 from app.services.camera_service import camera_manager
 from app.services.printer_driver_service import PrinterDriverService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_active_user)])
 
 
 @router.get("/health", response_model=BoothHealthResponse)

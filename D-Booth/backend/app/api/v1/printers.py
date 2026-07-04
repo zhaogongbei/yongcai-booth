@@ -1,11 +1,12 @@
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.deps import get_current_active_user
 from app.schemas.printer import CalibrationParams, PrinterInfo, PrinterStatus, PrintQueueItem
 from app.services.printer_driver_service import PrinterDriverService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_active_user)])
 
 
 @router.get("", response_model=List[PrinterInfo])
