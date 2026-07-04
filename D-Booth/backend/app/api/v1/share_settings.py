@@ -72,14 +72,14 @@ class ShareSettingsResponse(ShareSettings):
 class TestEmailRequest(BaseModel):
     to_email: EmailStr
     event_id: UUID
-    photo_urls: list[str] = ["https://via.placeholder.com/600x400"]
-    share_url: str = "https://example.com/s/test123"
+    photo_urls: list[str] = Field(default_factory=list)
+    share_url: str
 
 
 class TestSMSRequest(BaseModel):
     to_phone: str
     event_id: UUID
-    share_url: str = "https://example.com/s/test123"
+    share_url: str
     country_code: str = "+86"
 
 
