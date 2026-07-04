@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { CalendarDays, TrendingUp, Camera, Printer, Filter, Plus, Search, Eye, RefreshCw } from "lucide-react";
-import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
-import { SimpleBarChart } from "../components/SimpleBarChart";
 import { showToast } from "../stores/useToast";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { createEvent, createPhotoSession, getEvents, getMyTeams, tokenStorage, type EventResponse } from "../../lib/api";
@@ -13,27 +11,35 @@ interface EventsScreenProps {
   navigate?: (s: Screen) => void;
 }
 
-// 演示数据：后端无活动时回退展示
-const DEMO_EVENTS = [
-  { id: "demo-event-1", name: "夏日派对 2026", date: "2026-06-10", status: "进行中", photos: 1234, prints: 856, guests: 234, qr: 1892, revenue: "¥12,800" },
-  { id: "demo-event-2", name: "婚礼庆典 2026", date: "2026-06-08", status: "已完成", photos: 2341, prints: 1890, guests: 412, qr: 3241, revenue: "¥28,500" },
-  { id: "demo-event-3", name: "毕业典礼 2026", date: "2026-06-15", status: "即将开始", photos: 0, prints: 0, guests: 0, qr: 0, revenue: "¥0" },
-];
+interface EventRow {
+  id: string;
+  name: string;
+  date: string;
+  status: string;
+  photos: number;
+  prints: number;
+  guests: number;
+  revenue: string;
+}
 
 // 后端状态映射到中文展示
 const STATUS_LABEL: Record<string, string> = {
   active: "进行中", completed: "已完成", scheduled: "即将开始", draft: "草稿", cancelled: "已取消",
 };
 
-function toRow(ev: EventResponse) {
+function toRow(ev: EventResponse): EventRow {
   return {
     id: ev.id,
     name: ev.name,
     date: (ev.start_date || "").slice(0, 10),
     status: STATUS_LABEL[ev.status] ?? ev.status,
-    photos: 0, prints: 0, guests: 0, qr: 0, revenue: "—",
-    real: true,
+    photos: 0, prints: 0, guests: 0, revenue: "—",
   };
+}
+
+function parseRevenue(value: string) {
+  const numeric = Number(value.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function toEventDateInputValue(date = new Date()) {
@@ -56,9 +62,9 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("全部");
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
-  const [events, setEvents] = useState(DEMO_EVENTS);
+  const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [usingMock, setUsingMock] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newEventName, setNewEventName] = useState("");
@@ -67,20 +73,19 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
 
   const loadEvents = useCallback(async () => {
     const token = tokenStorage.access;
-    if (!token) { setUsingMock(true); setEvents(DEMO_EVENTS); return; }
+    if (!token) {
+      setEvents([]);
+      setLoadError("请先登录后查看和创建活动");
+      return;
+    }
     setLoading(true);
     try {
       const data = await getEvents(token);
-      if (data.length > 0) {
-        setEvents(data.map(toRow));
-        setUsingMock(false);
-      } else {
-        setEvents(DEMO_EVENTS);
-        setUsingMock(true);
-      }
+      setEvents(data.map(toRow));
+      setLoadError(null);
     } catch {
-      setEvents(DEMO_EVENTS);
-      setUsingMock(true);
+      setEvents([]);
+      setLoadError("活动列表加载失败");
     } finally {
       setLoading(false);
     }
@@ -137,7 +142,6 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
       });
 
       setEvents(prev => [toRow(event), ...prev.filter(item => item.id !== event.id)]);
-      setUsingMock(false);
       resetCreateForm();
       setShowCreateForm(false);
       showToast.success("活动已创建");
@@ -152,10 +156,8 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
   // 进入某活动的拍照流程：注入 eventId + token，跳转相机屏
   const enterCapture = async (eventId: string, eventName: string) => {
     const token = tokenStorage.access;
-    if (!token || usingMock) {
-      setCaptureContext({ eventId, sessionId: null, authToken: token });
-      showToast.success(`已进入「${eventName}」拍照模式（演示数据，上传会失败）`);
-      navigate?.("camera");
+    if (!token) {
+      showToast.error("请先登录后再进入拍照");
       return;
     }
 
@@ -175,6 +177,12 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
     "已完成": "text-blue-400 bg-blue-400/10 border-blue-400/20",
     "即将开始": "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
   };
+  const totals = {
+    events: events.length,
+    revenue: events.reduce((sum, event) => sum + parseRevenue(event.revenue), 0),
+    photos: events.reduce((sum, event) => sum + event.photos, 0),
+    prints: events.reduce((sum, event) => sum + event.prints, 0),
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -182,7 +190,7 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
         <div>
           <h2 className="text-xl font-bold text-white">活动管理</h2>
           <p className="text-xs text-white/40 mt-0.5">
-            共 {events.length} 个活动{usingMock ? " · 演示数据" : ""}
+            共 {events.length} 个活动
             {loading && " · 加载中…"}
           </p>
         </div>
@@ -236,6 +244,12 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
         </GlassCard>
       )}
 
+      {loadError && (
+        <GlassCard className="border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
+          {loadError}
+        </GlassCard>
+      )}
+
       {/* Filter panel */}
       {showFilters && (
         <GlassCard className="p-4">
@@ -284,10 +298,10 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "总活动数", value: "24", icon: CalendarDays, color: "violet" },
-          { label: "本月收入", value: "¥41,300", icon: TrendingUp, color: "green" },
-          { label: "总拍摄量", value: "12,856", icon: Camera, color: "blue" },
-          { label: "总打印量", value: "8,234", icon: Printer, color: "pink" },
+          { label: "总活动数", value: totals.events.toLocaleString(), icon: CalendarDays, color: "violet" },
+          { label: "收入记录", value: totals.revenue ? `¥${totals.revenue.toLocaleString()}` : "—", icon: TrendingUp, color: "green" },
+          { label: "总拍摄量", value: totals.photos.toLocaleString(), icon: Camera, color: "blue" },
+          { label: "总打印量", value: totals.prints.toLocaleString(), icon: Printer, color: "pink" },
         ].map(s => (
           <GlassCard key={s.label} className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center">
@@ -317,7 +331,7 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5">
-                {["活动名称", "日期", "状态", "照片数", "打印数", "参与人数", "二维码下载", "云端相册", "收入", "操作"].map(h => (
+                {["活动名称", "日期", "状态", "照片数", "打印数", "参与人数", "收入", "操作"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-[10px] text-white/30 uppercase font-medium">{h}</th>
                 ))}
               </tr>
@@ -333,13 +347,6 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
                   <td className="px-4 py-4 text-sm text-white">{e.photos.toLocaleString()}</td>
                   <td className="px-4 py-4 text-sm text-white">{e.prints.toLocaleString()}</td>
                   <td className="px-4 py-4 text-sm text-white">{e.guests.toLocaleString()}</td>
-                  <td className="px-4 py-4 text-sm text-white">{e.qr.toLocaleString()}</td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span className="text-xs text-emerald-400">同步中</span>
-                    </div>
-                  </td>
                   <td className="px-4 py-4 text-sm font-semibold text-emerald-400">{e.revenue}</td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-1">
@@ -349,39 +356,17 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-white/35">
+                    暂无活动，请先新建真实活动
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </GlassCard>
-
-      {/* Recent activity */}
-      <div className="grid grid-cols-2 gap-4">
-        <GlassCard className="p-4">
-          <div className="text-xs text-white/60 font-semibold mb-3">最近活动</div>
-          <div className="space-y-3">
-            {[
-              { action: "拍摄完成", detail: "夏日派对 · 共 12 张", time: "2 分钟前", color: "violet" },
-              { action: "打印任务", detail: "完成 5 张打印", time: "8 分钟前", color: "blue" },
-              { action: "新访客", detail: "3 人扫码下载", time: "15 分钟前", color: "green" },
-              { action: "云同步", detail: "已同步 24 张照片", time: "20 分钟前", color: "pink" },
-            ].map((a, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${a.color === "violet" ? "bg-violet-400" : a.color === "blue" ? "bg-blue-400" : a.color === "green" ? "bg-emerald-400" : "bg-pink-400"}`} />
-                <div className="flex-1">
-                  <div className="text-xs text-white">{a.action}</div>
-                  <div className="text-[10px] text-white/40">{a.detail}</div>
-                </div>
-                <span className="text-[10px] text-white/30">{a.time}</span>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-4">
-          <div className="text-xs text-white/60 font-semibold mb-3">收入分析</div>
-          <SimpleBarChart data={[{n:"1月",v:8200},{n:"2月",v:11500},{n:"3月",v:9800},{n:"4月",v:14200},{n:"5月",v:12800},{n:"6月",v:18500}]} valueKey="v" labelKey="n" color="#8b5cf6" height={120} />
-        </GlassCard>
-      </div>
     </div>
   );
 }
