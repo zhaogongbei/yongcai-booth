@@ -92,7 +92,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   lockScreen: {
     pinLength: 4,
-    pin: "1234",
+    pin: "",
     title: "拍照亭已锁定",
     subtitle: "",
     backgroundImage: "",

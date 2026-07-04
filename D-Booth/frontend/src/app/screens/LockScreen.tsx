@@ -13,6 +13,8 @@ export function LockScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
 
   const pinLength = settings.lockScreen?.pinLength || 4;
+  const configuredPin = settings.lockScreen?.pin?.trim() ?? "";
+  const isPinConfigured = configuredPin.length === pinLength && configuredPin !== "1234";
   const maxPinLength = 6;
 
   const handleNumberPress = (num: string) => {
@@ -38,15 +40,18 @@ export function LockScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
 
+    if (!isPinConfigured) {
+      setError(true);
+      setPin('');
+      return;
+    }
+
     setIsUnlocking(true);
 
     try {
-      // Demo mode: compare with stored pin (in real implementation, call API)
-      const storedPin = settings.lockScreen?.pin || '1234'; // Default demo pin
-
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      if (pin === storedPin) {
+      if (pin === configuredPin) {
         setIsUnlocked(true);
         setTimeout(() => {
           navigate('dashboard');
@@ -67,7 +72,7 @@ export function LockScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (pin.length === pinLength) {
       validatePin();
     }
-  }, [pin, pinLength]);
+  }, [pin, pinLength, isPinConfigured]);
 
   const numberButtons = [
     ['1', '2', '3'],
@@ -126,9 +131,15 @@ export function LockScreen({ navigate }: { navigate: (s: Screen) => void }) {
             ))}
           </div>
 
+          {!isPinConfigured && (
+            <div className="text-center text-amber-300 mb-4" aria-live="polite">
+              锁屏 PIN 未配置，请先设置非默认 PIN
+            </div>
+          )}
+
           {/* Error Message */}
           <AnimatePresence>
-            {error && (
+            {error && isPinConfigured && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -142,7 +153,7 @@ export function LockScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </AnimatePresence>
 
           {/* Numpad */}
-          <div className="grid gap-3">
+          <div className={`grid gap-3 ${isPinConfigured ? '' : 'opacity-40 pointer-events-none'}`}>
             {numberButtons.map((row, rowIndex) => (
               <div key={rowIndex} className="flex justify-center gap-3">
                 {row.map((btn) => (
