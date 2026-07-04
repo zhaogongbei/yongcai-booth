@@ -939,9 +939,13 @@ export async function previewVirtualAttendantTts(params: {
   language: string;
   voice: string;
 }): Promise<Blob> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = tokenStorage.access;
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const response = await fetch(`${BASE_URL}/virtual-attendant/preview`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     credentials: "include",
     body: JSON.stringify(params),
   });

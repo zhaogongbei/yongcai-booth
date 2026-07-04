@@ -1,9 +1,14 @@
 from typing import List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import check_team_member, get_current_active_user, get_db
+from app.models.models import Event, User
 from app.services.tts_service import TTSService
 from app.services.virtual_attendant_service import PlaylistItem, PlayTiming, VirtualAttendantService
 
@@ -24,6 +29,15 @@ class PreviewTTSRequest(BaseModel):
     voice: str = Field(default="female", description="语音类型")
 
 
+async def _ensure_event_access(db: AsyncSession, event_id: UUID, current_user: User) -> None:
+    result = await db.execute(select(Event.team_id).where(Event.id == event_id))
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    await check_team_member(team_id, current_user, db)
+
+
 @router.get("/playlist/{event_id}", response_model=List[PlaylistItem])
 async def get_playlist(event_id: str):
     """获取事件的播放列表"""
@@ -37,11 +51,19 @@ async def get_playlist(event_id: str):
 
 
 @router.put("/playlist/{event_id}", response_model=List[PlaylistItem])
-async def update_playlist(event_id: str, request: UpdatePlaylistRequest):
+async def update_playlist(
+    event_id: UUID,
+    request: UpdatePlaylistRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     """更新事件的播放列表"""
     try:
-        playlist = VirtualAttendantService.update_playlist(event_id, request.items)
+        await _ensure_event_access(db, event_id, current_user)
+        playlist = VirtualAttendantService.update_playlist(str(event_id), request.items)
         return playlist
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新播放列表失败: {str(e)}"
@@ -49,7 +71,10 @@ async def update_playlist(event_id: str, request: UpdatePlaylistRequest):
 
 
 @router.post("/preview", response_class=Response)
-async def preview_tts(request: PreviewTTSRequest):
+async def preview_tts(
+    request: PreviewTTSRequest,
+    current_user: User = Depends(get_current_active_user),
+):
     """预览TTS语音，返回MP3音频"""
     try:
         audio_data = await TTSService.synthesize(
