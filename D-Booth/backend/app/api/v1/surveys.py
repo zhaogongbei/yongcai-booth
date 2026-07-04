@@ -113,7 +113,7 @@ async def update_event_survey(
     except Exception as e:
         logger.error(f"更新调查配置失败: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"更新调查配置失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="更新调查配置失败")
 
 
 @router.post("/responses", response_model=SurveyAnswerResponse)
@@ -159,7 +159,7 @@ async def submit_survey_response(
     except Exception as e:
         logger.error(f"提交调查回答失败: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"提交调查回答失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="提交调查回答失败")
 
 
 @router.get("/responses/session/{session_id}", response_model=List[SurveyAnswerResponse])
@@ -251,4 +251,4 @@ async def export_survey_responses(
         raise
     except Exception as e:
         logger.error(f"导出调查回答失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="导出失败")

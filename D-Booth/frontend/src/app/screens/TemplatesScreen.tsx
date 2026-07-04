@@ -1,18 +1,34 @@
 import { useCallback, useEffect, useState } from "react";
-import { Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate } from "lucide-react";
+import { Check, Copy, Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
 import { GlowBtn } from "../components/GlowBtn";
+import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
+import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
-import { getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
+import { deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
+import type { TemplateLayout } from "../types/template";
 
 const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
 
+function isTemplateLayout(value: unknown): value is TemplateLayout {
+  const layout = value as Partial<TemplateLayout>;
+  return Boolean(
+    layout &&
+    typeof layout === "object" &&
+    layout.paperSize &&
+    typeof layout.resolution === "number" &&
+    layout.background &&
+    Array.isArray(layout.elements)
+  );
+}
+
 export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const { currentEvent } = useSettings();
+  const { activePrintTemplate, setActivePrintTemplate } = useCaptureFlow();
   const [activeCategory, setActiveCategory] = useState("全部");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -24,6 +40,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [savedTemplates, setSavedTemplates] = useState<TemplateResponse[]>([]);
   const [savedTemplatesLoading, setSavedTemplatesLoading] = useState(false);
   const [savedTemplatesError, setSavedTemplatesError] = useState<string | null>(null);
+  const [operatingTemplateId, setOperatingTemplateId] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
   const categoryCards = [
@@ -108,6 +125,56 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
     sessionStorage.setItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, layoutId);
     navigate("template-editor");
+  };
+
+  const selectTemplateForPrint = (template: TemplateResponse) => {
+    if (!isTemplateLayout(template.layers)) {
+      showToast.error("该模板缺少可打印版式，请先打开编辑器保存一次");
+      return;
+    }
+
+    setActivePrintTemplate({
+      id: template.id,
+      name: template.name,
+      layout: {
+        ...template.layers,
+        id: template.layers.id || template.id,
+        name: template.name,
+      },
+    });
+    showToast.success(`已使用模板：${template.name}`);
+    navigate("camera");
+  };
+
+  const duplicateSavedTemplate = async (template: TemplateResponse) => {
+    setOperatingTemplateId(template.id);
+    try {
+      const copy = await duplicateTemplate(template.id, `${template.name} 副本`);
+      setSavedTemplates(prev => [copy, ...prev]);
+      showToast.success("模板副本已创建");
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "复制模板失败");
+    } finally {
+      setOperatingTemplateId(null);
+    }
+  };
+
+  const deleteSavedTemplate = async (template: TemplateResponse) => {
+    if (!window.confirm(`删除模板「${template.name}」？此操作无法撤销。`)) return;
+
+    setOperatingTemplateId(template.id);
+    try {
+      await deleteTemplate(template.id);
+      setSavedTemplates(prev => prev.filter(item => item.id !== template.id));
+      if (activePrintTemplate?.id === template.id) {
+        setActivePrintTemplate(null);
+      }
+      showToast.success("模板已删除");
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "删除模板失败");
+    } finally {
+      setOperatingTemplateId(null);
+    }
   };
 
   const getSavedTemplateBackground = (template: TemplateResponse) => {
@@ -239,15 +306,56 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                     <div className="absolute left-[18%] top-[50%] w-[64%] h-[8%] rounded bg-black/15" />
                     <div className="absolute left-[24%] top-[64%] w-[52%] h-[6%] rounded bg-black/10" />
                     <div className="absolute top-2 right-2">
-                      <NeonBadge color="green">已保存</NeonBadge>
+                      <NeonBadge color={activePrintTemplate?.id === t.id ? "purple" : "green"}>
+                        {activePrintTemplate?.id === t.id ? "使用中" : "已保存"}
+                      </NeonBadge>
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                      <GlowBtn size="sm" variant="primary" className="w-full justify-center">编辑</GlowBtn>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <div className="grid w-full grid-cols-2 gap-1.5">
+                        <GlowBtn
+                          size="sm"
+                          variant="primary"
+                          className="justify-center px-2"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            selectTemplateForPrint(t);
+                          }}
+                        >
+                          <Check size={12} />使用
+                        </GlowBtn>
+                        <GlowBtn size="sm" variant="ghost" className="justify-center px-2">编辑</GlowBtn>
+                      </div>
                     </div>
                   </div>
                   <div className="mt-2">
                     <div className="text-xs font-medium text-white truncate">{t.name}</div>
-                    <div className="text-[10px] text-white/40">{t.size || "自定义尺寸"}</div>
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="text-[10px] text-white/40 truncate">{t.size || "自定义尺寸"}</div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          className="rounded p-1 text-white/35 hover:bg-white/10 hover:text-white/80 disabled:opacity-40"
+                          title="复制模板"
+                          disabled={operatingTemplateId === t.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void duplicateSavedTemplate(t);
+                          }}
+                        >
+                          <Copy size={11} />
+                        </button>
+                        <button
+                          className="rounded p-1 text-white/35 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
+                          title="删除模板"
+                          disabled={operatingTemplateId === t.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void deleteSavedTemplate(t);
+                          }}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               ))}

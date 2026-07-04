@@ -15,7 +15,7 @@ async def list_printers():
     try:
         return await PrinterDriverService.discover_printers()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list printers: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list printers")
 
 
 @router.get("/{printer_name}/status", response_model=PrinterStatus)
@@ -25,7 +25,7 @@ async def get_printer_status(printer_name: str):
         status = await PrinterDriverService.get_printer_status(printer_name)
         return status
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get printer status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get printer status")
 
 
 @router.get("/{printer_name}/queue", response_model=List[PrintQueueItem])
@@ -34,7 +34,7 @@ async def get_print_queue(printer_name: str):
     try:
         return await PrinterDriverService.get_print_queue(printer_name)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get print queue: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get print queue")
 
 
 @router.delete("/{printer_name}/queue/{job_id}")
@@ -48,7 +48,7 @@ async def cancel_print_job(printer_name: str, job_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cancel job")
 
 
 @router.post("/{printer_name}/test-page")
@@ -62,7 +62,7 @@ async def print_test_page(printer_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to print test page: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to print test page")
 
 
 @router.put("/{printer_name}/calibration")
@@ -76,4 +76,4 @@ async def save_calibration(printer_name: str, params: CalibrationParams):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save calibration: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save calibration")

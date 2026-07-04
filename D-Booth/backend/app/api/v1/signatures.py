@@ -71,7 +71,7 @@ async def upload_signature(
     except Exception as e:
         logger.error(f"上传签名失败: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"上传签名失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="上传签名失败")
 
 
 @router.get("/session/{session_id}", response_model=List[SignatureResponse])
@@ -134,4 +134,4 @@ async def delete_signature(
     except Exception as e:
         logger.error(f"删除签名失败: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"删除签名失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="删除签名失败")

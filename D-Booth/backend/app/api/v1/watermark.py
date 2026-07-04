@@ -93,7 +93,7 @@ async def upload_watermark(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload watermark: {str(e)}",
+            detail="Failed to upload watermark",
         )
 
     return {"url": url}
@@ -154,5 +154,5 @@ async def preview_watermark(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate preview: {str(e)}",
+            detail="Failed to generate preview",
         )

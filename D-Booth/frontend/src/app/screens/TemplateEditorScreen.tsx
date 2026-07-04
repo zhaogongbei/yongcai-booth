@@ -6,6 +6,7 @@ import { GlowBtn } from "../components/GlowBtn";
 import { TopBar } from "../components/TopBar";
 import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
+import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import { QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
@@ -212,6 +213,7 @@ function parseLegacyTemplateXml(xmlText: string): TemplateLayout {
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
   const { currentEvent } = useSettings();
+  const { setActivePrintTemplate } = useCaptureFlow();
   const undoRedo = useUndoRedo<TemplateLayout>(createDefaultLayout(), { maxHistory: 50 });
   const layout = undoRedo.present;
 
@@ -509,13 +511,22 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
       setSavedTemplateId(saved.id);
       setTemplateName(saved.name);
+      setActivePrintTemplate({
+        id: saved.id,
+        name: saved.name,
+        layout: {
+          ...snapshot,
+          id: snapshot.id || saved.id,
+          name: saved.name,
+        },
+      });
       showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
     } catch (err) {
       showToast.error(err instanceof Error ? err.message : "模板保存失败");
     } finally {
       setIsSaving(false);
     }
-  }, [canvasPx.height, canvasPx.width, getLayoutSnapshot, resolveTeamId, savedTemplateId]);
+  }, [canvasPx.height, canvasPx.width, getLayoutSnapshot, resolveTeamId, savedTemplateId, setActivePrintTemplate]);
 
   // ─── 预设应用 ───
   const applyPreset = (presetIndex: number) => {

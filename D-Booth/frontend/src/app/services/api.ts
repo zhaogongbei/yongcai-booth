@@ -14,10 +14,11 @@ const boothApi = {
     return updateBooth(boothId, token, data);
   },
 
-  // 同步展位配置
-  syncBooth: async (boothId: string) => {
+  // 同步展位配置（推送配置到展位）。teamId 必须是展位所属团队的真实 ID，
+  // 后端 /sync/push/{boothId} 会通过 check_team_member 校验调用者是否该团队成员。
+  syncBooth: async (boothId: string, teamId: string) => {
     const token = tokenStorage.access || '';
-    return pushConfig(boothId, 'current-team-id', token);
+    return pushConfig(boothId, teamId, token);
   },
 };
 

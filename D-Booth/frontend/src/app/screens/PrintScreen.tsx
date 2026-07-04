@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { ArrowLeft, Printer, Check, Share2, RefreshCw, FileText, Settings2 } from "lucide-react";
+import type React from "react";
+import { ArrowLeft, Printer, Check, Share2, RefreshCw, FileText, Settings2, LayoutTemplate } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
 import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { GlowBtn } from "../components/GlowBtn";
+import { TemplatePrintPreview, getTemplateCanvasSize } from "../components/TemplatePrintPreview";
 import { TopBar } from "../components/TopBar";
 import { StatusPill } from "../components/StatusPill";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
@@ -79,7 +81,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
   }, [boothPrinters, selectedPrinter]);
 
-  const { selectedPhoto, authToken } = useCaptureFlow();
+  const { selectedPhoto, photos, authToken, activePrintTemplate } = useCaptureFlow();
   const pollTimerRef = useRef<number | null>(null);
 
   // 校准参数
@@ -190,10 +192,34 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
   }, [authToken, qty, selectedPhoto, selectedPrinter, sendPrintEvent, stopPolling]);
 
-  // 使用当前选中照片，或回退到默认图片
-  const printPreviewImages = selectedPhoto
-    ? [selectedPhoto.url]
-    : PRINT_PREVIEW_FALLBACKS;
+  // 使用当前选中照片优先，其余照片按拍摄顺序补齐多照片框。
+  const printPreviewImages = useMemo(() => {
+    if (selectedPhoto) {
+      return [selectedPhoto.url, ...photos.filter(photo => photo.id !== selectedPhoto.id).map(photo => photo.url)];
+    }
+    if (photos.length > 0) {
+      return photos.map(photo => photo.url);
+    }
+    return [...PRINT_PREVIEW_FALLBACKS];
+  }, [photos, selectedPhoto]);
+
+  const templatePreviewSize = useMemo(() => {
+    if (!activePrintTemplate) return null;
+    const canvas = getTemplateCanvasSize(activePrintTemplate.layout);
+    const maxWidth = canvas.width >= canvas.height ? 520 : 360;
+    const maxHeight = 620;
+    let width = maxWidth;
+    let height = width * canvas.height / canvas.width;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * canvas.width / canvas.height;
+    }
+    return {
+      width,
+      height,
+      scale: width / canvas.width,
+    };
+  }, [activePrintTemplate]);
 
   return (
     <main className="flex-1 flex overflow-hidden">
@@ -219,20 +245,42 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="relative">
-            <div className="bg-white rounded-xl p-4 shadow-[0_0_60px_rgba(139,92,246,0.2)]" style={{ width: 260, height: 620 }}>
-              {printPreviewImages.map((src, i) => (
-                <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: selectedPhoto ? 560 : 175 }}>
-                  <img src={src}
-                    alt={`print ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
-                </div>
-              ))}
-              {!selectedPhoto && (
-                <div className="text-center mt-2">
-                  <div className="text-xs font-bold text-pink-500">LOVE FOREVER</div>
-                  <div className="text-[10px] text-gray-400">Thank You</div>
-                </div>
-              )}
-            </div>
+            {activePrintTemplate && templatePreviewSize ? (
+              <div
+                className="overflow-hidden rounded-xl bg-white shadow-[0_0_60px_rgba(139,92,246,0.2)]"
+                style={{
+                  width: templatePreviewSize.width,
+                  height: templatePreviewSize.height,
+                  "--template-preview-scale": templatePreviewSize.scale,
+                } as React.CSSProperties}
+              >
+                <TemplatePrintPreview
+                  layout={activePrintTemplate.layout}
+                  photoUrls={printPreviewImages}
+                />
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl p-4 shadow-[0_0_60px_rgba(139,92,246,0.2)]" style={{ width: 260, height: 620 }}>
+                {printPreviewImages.map((src, i) => (
+                  <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: selectedPhoto ? 560 : 175 }}>
+                    <img src={src}
+                      alt={`print ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+                {!selectedPhoto && (
+                  <div className="text-center mt-2">
+                    <div className="text-xs font-bold text-pink-500">LOVE FOREVER</div>
+                    <div className="text-[10px] text-gray-400">Thank You</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {activePrintTemplate && (
+              <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-300">
+                <LayoutTemplate size={13} />
+                {activePrintTemplate.name}
+              </div>
+            )}
             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-white/30">100%</div>
           </div>
         </div>
@@ -278,6 +326,21 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       {/* Right settings panel */}
       <GlassCard className="w-72 rounded-none border-l border-white/5 p-5 space-y-4 overflow-y-auto">
         <div className="text-sm font-semibold text-white/80">打印设置</div>
+        <GlassCard className="p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs text-white/40">当前模板</span>
+            <button
+              className="text-xs text-violet-400 hover:text-violet-300"
+              onClick={() => navigate("templates")}
+            >
+              更换
+            </button>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-white/80">
+            <LayoutTemplate size={14} className={activePrintTemplate ? "text-emerald-300" : "text-white/30"} />
+            <span className="min-w-0 flex-1 truncate">{activePrintTemplate?.name ?? "未选择，使用默认预览"}</span>
+          </div>
+        </GlassCard>
         <GlassCard className="p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs text-white/40">现场打印状态</span>

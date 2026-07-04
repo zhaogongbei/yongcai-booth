@@ -264,9 +264,7 @@ async def preview_green_screen(
         raise
     except Exception as e:
         logger.error(f"Green screen preview failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Processing failed: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Processing failed")
 
 
 @router.post("/process")
@@ -293,7 +291,7 @@ async def process_photos(
         logger.error(f"Batch green screen processing failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch processing failed: {str(e)}",
+            detail="Batch processing failed",
         )
 
 
@@ -314,7 +312,7 @@ async def get_green_screen_settings(
         logger.error(f"Failed to get green screen settings: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get settings: {str(e)}",
+            detail="Failed to get settings",
         )
 
 
@@ -345,7 +343,7 @@ async def update_green_screen_settings(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update settings: {str(e)}",
+            detail="Failed to update settings",
         )
 
 
@@ -429,7 +427,7 @@ async def upload_background(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload background: {str(e)}",
+            detail="Failed to upload background",
         )
 
 
@@ -474,7 +472,7 @@ async def delete_background(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete background: {str(e)}",
+            detail="Failed to delete background",
         )
 
 
@@ -519,5 +517,5 @@ async def analyze_test_photo(
     except Exception as e:
         logger.error(f"Test photo analysis failed: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Analysis failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Analysis failed"
         )

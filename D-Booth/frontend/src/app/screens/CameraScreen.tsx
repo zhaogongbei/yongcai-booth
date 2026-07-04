@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Image, Timer, Sliders, CircleDot, Grid3X3, Wand2, Printer,
-  Sparkles, RotateCcw, Video, Film, Zap, Square, Play, Camera, Layers, Wrench
+  Sparkles, RotateCcw, Video, Film, Zap, Square, Play, Camera, Layers, Wrench, LayoutTemplate
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -72,7 +72,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     focus_mode: "AF-C",
   });
 
-  const { addPhoto, photos, eventId } = useCaptureFlow();
+  const { addPhoto, photos, eventId, activePrintTemplate } = useCaptureFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRecorderRef = useRef<VideoRecorder | null>(null);
@@ -544,6 +544,12 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 </button>
               ))}
             </div>
+            {activePrintTemplate && (
+              <div className="mx-auto mt-2 flex max-w-72 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/20 px-2 py-1 text-[10px] text-emerald-200 backdrop-blur-sm">
+                <LayoutTemplate size={11} />
+                <span className="truncate">{activePrintTemplate.name}</span>
+              </div>
+            )}
           </div>
 
           {/* GIF progress overlay */}
@@ -728,10 +734,13 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <div className="bg-black/90 px-8 py-4 flex items-center justify-between border-t border-white/5">
           <div className="flex items-center gap-4">
             <button className="flex flex-col items-center gap-1" onClick={() => navigate("templates")}>
-              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
+              <div className={`relative w-11 h-11 rounded-xl flex items-center justify-center ${activePrintTemplate ? "bg-emerald-500/20 ring-1 ring-emerald-400/40" : "bg-white/10"}`}>
                 <Image size={18} className="text-white/70" />
+                {activePrintTemplate && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-300" />}
               </div>
-              <span className="text-[10px] text-white/40">模板</span>
+              <span className={`text-[10px] ${activePrintTemplate ? "text-emerald-300" : "text-white/40"}`}>
+                {activePrintTemplate ? "已选模板" : "模板"}
+              </span>
             </button>
             <button className="flex flex-col items-center gap-1" onClick={shoot}>
               <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">

@@ -1,5 +1,6 @@
 import { useState, createContext, useContext, useCallback } from "react";
 import { uploadPhoto, type PhotoResponse } from "../lib/api";
+import type { TemplateLayout } from "../types/template";
 
 /**
  * Capture flow state: tracks photos taken in the current session,
@@ -27,6 +28,12 @@ export interface CapturedPhoto {
   uploadError?: string;
 }
 
+export interface ActivePrintTemplate {
+  id: string;
+  name: string;
+  layout: TemplateLayout;
+}
+
 interface CaptureFlowContextType {
   photos: CapturedPhoto[];
   addPhoto: (photo: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType }) => Promise<void>;
@@ -34,6 +41,8 @@ interface CaptureFlowContextType {
   selectedPhotoId: string | null;
   setSelectedPhotoId: (id: string | null) => void;
   selectedPhoto: CapturedPhoto | undefined;
+  activePrintTemplate: ActivePrintTemplate | null;
+  setActivePrintTemplate: (template: ActivePrintTemplate | null) => void;
 
   // Event/session context for backend persistence
   eventId: string | null;
@@ -48,6 +57,7 @@ const CaptureFlowContext = createContext<CaptureFlowContextType | null>(null);
 export function CaptureFlowProvider({ children }: { children: React.ReactNode }) {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const [activePrintTemplate, setActivePrintTemplate] = useState<ActivePrintTemplate | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -103,6 +113,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
   return (
     <CaptureFlowContext.Provider value={{
       photos, addPhoto, clearPhotos, selectedPhotoId, setSelectedPhotoId, selectedPhoto,
+      activePrintTemplate, setActivePrintTemplate,
       eventId, sessionId, currentSessionId: sessionId, authToken, setCaptureContext,
     }}>
       {children}

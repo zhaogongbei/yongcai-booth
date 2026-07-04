@@ -46,7 +46,7 @@ async def get_playlist(event_id: str):
         return playlist
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取播放列表失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取播放列表失败"
         )
 
 
@@ -66,7 +66,7 @@ async def update_playlist(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"更新播放列表失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新播放列表失败"
         )
 
 
@@ -95,7 +95,7 @@ async def preview_tts(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"TTS合成失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="TTS合成失败"
         )
 
 
@@ -136,5 +136,5 @@ async def get_tts_by_timing(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取TTS失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取TTS失败"
         )

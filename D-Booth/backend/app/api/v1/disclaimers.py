@@ -101,7 +101,7 @@ async def update_event_disclaimer(
     except Exception as e:
         logger.error(f"更新免责声明失败: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"更新免责声明失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="更新免责声明失败")
 
 
 @router.post("/accept", response_model=DisclaimerAcceptanceResponse)
@@ -146,4 +146,4 @@ async def accept_disclaimer(
     except Exception as e:
         logger.error(f"记录免责声明接受失败: {str(e)}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"提交失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="提交失败")
