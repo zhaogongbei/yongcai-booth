@@ -1,6 +1,33 @@
 import pytest
 from httpx import AsyncClient
 
+from app.api.v1 import auth as auth_api
+
+
+async def _register_and_login(client: AsyncClient, user_data: dict) -> dict:
+    await client.post("/api/v1/auth/register", json=user_data)
+    response = await client.post(
+        "/api/v1/auth/login",
+        data={"username": user_data["email"], "password": user_data["password"]},
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+class FakeRedisClient:
+    def __init__(self, fail_setex: bool = False):
+        self.fail_setex = fail_setex
+        self.setex_calls: list[tuple[str, int, str]] = []
+        self.closed = False
+
+    async def setex(self, key: str, ttl: int, value: str):
+        if self.fail_setex:
+            raise RuntimeError("redis write failed")
+        self.setex_calls.append((key, ttl, value))
+
+    async def aclose(self):
+        self.closed = True
+
 
 @pytest.mark.anyio
 async def test_root_endpoint(client: AsyncClient):
@@ -29,14 +56,7 @@ async def test_register_user(client: AsyncClient, test_user_data):
 
 @pytest.mark.anyio
 async def test_login_success(client: AsyncClient, test_user_data):
-    await client.post("/api/v1/auth/register", json=test_user_data)
-
-    response = await client.post(
-        "/api/v1/auth/login",
-        data={"username": test_user_data["email"], "password": test_user_data["password"]},
-    )
-    assert response.status_code == 200
-    data = response.json()
+    data = await _register_and_login(client, test_user_data)
     assert "access_token" in data
     assert data["token_type"] == "bearer"
 
@@ -64,3 +84,74 @@ async def test_get_current_user(authenticated_client: AsyncClient):
 async def test_unauthorized_access(client: AsyncClient):
     response = await client.get("/api/v1/auth/me")
     assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_logout_fails_when_refresh_revocation_unavailable(
+    client: AsyncClient, test_user_data, monkeypatch
+):
+    tokens = await _register_and_login(client, test_user_data)
+
+    async def get_unavailable_redis_client():
+        return None
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_unavailable_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "Refresh token revocation is unavailable"
+
+
+@pytest.mark.anyio
+async def test_logout_fails_when_refresh_revocation_write_fails(
+    client: AsyncClient, test_user_data, monkeypatch
+):
+    tokens = await _register_and_login(client, test_user_data)
+    fake_client = FakeRedisClient(fail_setex=True)
+
+    async def get_failing_redis_client():
+        return fake_client
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_failing_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "Refresh token revocation is unavailable"
+    assert fake_client.closed is True
+
+
+@pytest.mark.anyio
+async def test_logout_revokes_refresh_token(
+    client: AsyncClient, test_user_data, monkeypatch
+):
+    tokens = await _register_and_login(client, test_user_data)
+    fake_client = FakeRedisClient()
+
+    async def get_fake_redis_client():
+        return fake_client
+
+    monkeypatch.setattr(auth_api, "_get_redis_client", get_fake_redis_client)
+
+    response = await client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert response.status_code == 204
+    assert len(fake_client.setex_calls) == 1
+    key, ttl, value = fake_client.setex_calls[0]
+    assert key.startswith("revoked_refresh:")
+    assert ttl > 0
+    assert value == "1"
+    assert fake_client.closed is True

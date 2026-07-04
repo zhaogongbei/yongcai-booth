@@ -137,8 +137,8 @@ async def logout(
     """
     Revoke a refresh token until it naturally expires.
 
-    Degraded mode: If Redis is unavailable, logout still succeeds
-    but token remains valid until expiration (security tradeoff for availability).
+    Logout must fail closed when token revocation cannot be confirmed; otherwise
+    the refresh token would remain valid while the API reports success.
     """
     payload = _decode_refresh_payload(refresh_token)
     if payload["sub"] != str(current_user.id):
@@ -155,18 +155,22 @@ async def logout(
     if client is None:
         logger.warning(
             f"Redis unavailable during logout for user {current_user.id}. "
-            f"Token revocation skipped - token will remain valid until expiration ({ttl}s)"
+            f"Token revocation cannot be confirmed ({ttl}s remaining)."
         )
-        # Degraded mode: still return success
-        # Frontend will clear local token, token expires naturally
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Refresh token revocation is unavailable",
+        )
 
     try:
         await client.setex(_refresh_revocation_key(payload), ttl, "1")
         logger.info(f"User {current_user.id} logged out successfully, token revoked")
     except Exception as e:
         logger.error(f"Failed to revoke token for user {current_user.id}: {e}")
-        # Still return success - availability over strict security
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Refresh token revocation is unavailable",
+        )
     finally:
         await client.aclose()
     return None

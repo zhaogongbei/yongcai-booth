@@ -121,6 +121,7 @@
 - Webhook 配置和发送日志属于团队管理数据；创建、列表、删除和日志读取必须验证当前用户已认证，删除和日志读取必须校验 webhook 所属团队成员身份。
 - Stripe webhook 是公开入口，但必须配置 `STRIPE_WEBHOOK_SECRET` 并通过 Stripe 签名校验；缺少 webhook secret 时必须 fail closed。
 - 后端 service 类默认按实例使用；路由不得把实例方法当静态方法调用。
+- 登出 refresh token 撤销必须 fail closed；Redis 不可用或撤销写入失败时 `/auth/logout` 必须返回 503，不得报告成功后让 refresh token 继续有效。
 
 ## 近期完成
 
@@ -215,6 +216,7 @@
 - 已修复 `gphoto2` 相机参数接口返回固定模拟曝光值的问题；后端改为明确参数未读取，前端同步显示真实/本地/未读取状态，并补充回归测试。
 - 已修复 GoPro 拍照和录像下载成功后返回不可访问 `/temp/...` 地址的问题；现在写入 `uploads/gopro` 并返回可读取的认证媒体 URL。
 - 已移除分享测试邮件的默认外部占位照片和邮件/短信测试的默认假分享链接，并补充回归测试。
+- 已修复 `/auth/logout` 在 Redis 不可用或撤销写入失败时仍返回 204 的安全语义问题，并补充 refresh token 撤销回归测试。
 - 已新增前端生产 Docker 镜像配置。
 - 已删除不会被仓库触发的嵌套后端旧 workflow。
 - 已新增聚焦的 `BaseService` 单元测试覆盖。
