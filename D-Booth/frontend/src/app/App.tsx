@@ -37,14 +37,6 @@ const CameraWizardScreen = React.lazy(() => import("./screens/CameraWizardScreen
 const BoothManagerScreen = React.lazy(() => import("./screens/BoothManagerScreen").then(m => ({ default: m.default })));
 const TriggerConfigScreen = React.lazy(() => import("./screens/TriggerConfigScreen").then(m => ({ default: m.TriggerConfigScreen })));
 const GoProScreen = React.lazy(() => import("./screens/GoProScreen").then(m => ({ default: m.GoProScreen })));
-const PrinterCalibrationScreen = React.memo(() => (
-  <div className="flex-1 flex items-center justify-center">
-    <div className="text-center">
-      <h2 className="text-2xl font-bold text-white mb-4">打印机校准</h2>
-      <p className="text-white/70">此功能正在开发中</p>
-    </div>
-  </div>
-));
 
 import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -271,7 +263,6 @@ function AppInner() {
                   {screen === "booth-manager" && <BoothManagerScreen navigate={navigate} />}
                   {screen === "trigger-config" && <TriggerConfigScreen navigate={navigate} />}
                   {screen === "gopro" && <GoProScreen navigate={navigate} />}
-                  {screen === "printer-calibration" && <PrinterCalibrationScreen />}
                   </ErrorBoundary>
                 </Suspense>
               </motion.div>

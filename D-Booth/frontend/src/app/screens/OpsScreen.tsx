@@ -43,7 +43,7 @@ const groups: OpsGroup[] = [
     priority: "P0",
     items: [
       { title: "相机向导", detail: "检测相机、闪光灯、曝光与试拍结果", target: "camera-wizard", icon: Camera, accent: "purple" },
-      { title: "打印校准", detail: "对齐、边距、裁切与出片前检查", target: "printer-calibration", icon: Printer, accent: "blue" },
+      { title: "打印中心", detail: "选择打印机、测试页、队列与出片前检查", target: "print", icon: Printer, accent: "blue" },
       { title: "绿幕配置", detail: "背景替换、抠图参数与现场预览", target: "green-screen", icon: Wand2, accent: "green" },
       { title: "锁屏控制", detail: "现场防误触、PIN 与值守模式", target: "lock", icon: Lock, accent: "pink" },
     ],
