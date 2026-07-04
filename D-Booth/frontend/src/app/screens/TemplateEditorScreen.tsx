@@ -259,7 +259,12 @@ function readImageFileAsDataUrl(file: File): Promise<string> {
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
   const { currentEvent } = useSettings();
-  const { authToken, setActivePrintTemplate } = useCaptureFlow();
+  const {
+    authToken,
+    setActivePrintTemplate,
+    templateSelectionReturnScreen,
+    setTemplateSelectionReturnScreen,
+  } = useCaptureFlow();
   const undoRedo = useUndoRedo<TemplateLayout>(createDefaultLayout(), { maxHistory: 50 });
   const layout = undoRedo.present;
 
@@ -621,9 +626,19 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           name: saved.name,
         },
       });
-      sessionStorage.setItem(JUST_SAVED_TEMPLATE_SESSION_KEY, saved.id);
-      showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
-      navigate("templates");
+      const returnScreen = templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera"
+        ? templateSelectionReturnScreen
+        : null;
+
+      if (returnScreen) {
+        setTemplateSelectionReturnScreen(null);
+        showToast.success(savedTemplateId ? "模板已更新并应用" : "模板已保存并应用");
+        navigate(returnScreen);
+      } else {
+        sessionStorage.setItem(JUST_SAVED_TEMPLATE_SESSION_KEY, saved.id);
+        showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
+        navigate("templates");
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "模板保存失败";
       if (/401|unauthorized|未授权|not authenticated|login/i.test(errorMessage)) {
@@ -634,7 +649,18 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
     } finally {
       setIsSaving(false);
     }
-  }, [authToken, canvasPx.height, canvasPx.width, getLayoutSnapshot, navigate, resolveTeamId, savedTemplateId, setActivePrintTemplate]);
+  }, [
+    authToken,
+    canvasPx.height,
+    canvasPx.width,
+    getLayoutSnapshot,
+    navigate,
+    resolveTeamId,
+    savedTemplateId,
+    setActivePrintTemplate,
+    setTemplateSelectionReturnScreen,
+    templateSelectionReturnScreen,
+  ]);
 
   // ─── 预设应用 ───
   const applyPreset = (presetIndex: number) => {
