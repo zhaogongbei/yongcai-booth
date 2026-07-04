@@ -241,6 +241,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const [editingName, setEditingName] = useState(false);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isBackgroundLocked, setIsBackgroundLocked] = useState(false);
 
   // 拖拽状态
   const [dragging, setDragging] = useState(false);
@@ -589,6 +590,11 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   const importBackgroundImage = async (file: File) => {
+    if (isBackgroundLocked) {
+      showToast.info("底图已锁定，请先解锁后再替换");
+      return;
+    }
+
     try {
       const backgroundImageDataUrl = await readImageFileAsDataUrl(file);
       updateLayout(draftLayout => {
@@ -1056,16 +1062,25 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             />
             <div className="space-y-1">
               <button
-                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-xs text-emerald-300 hover:text-emerald-200 transition-colors border border-emerald-500/20"
+                className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors border ${isBackgroundLocked ? "bg-amber-500/10 border-amber-500/20 text-amber-300 hover:bg-amber-500/20" : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80"}`}
+                onClick={() => setIsBackgroundLocked(value => !value)}
+              >
+                <Lock size={13} />
+                {isBackgroundLocked ? "底图已锁定" : "锁定底图"}
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-xs text-emerald-300 hover:text-emerald-200 transition-colors border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => backgroundImageInputRef.current?.click()}
+                disabled={isBackgroundLocked}
               >
                 <Upload size={13} />
                 上传底图
               </button>
               {layout.background.type === 'image' && (
                 <button
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white/80 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => updateLayout(draftLayout => { draftLayout.background = { type: 'color', value: '#ffffff' }; })}
+                  disabled={isBackgroundLocked}
                 >
                   <Trash2 size={13} />
                   移除底图
@@ -1079,8 +1094,9 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
               ].map(bg => (
                 <button
                   key={bg.color}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white/80 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => updateLayout(d => { d.background = { type: 'color', value: bg.color }; })}
+                  disabled={isBackgroundLocked}
                 >
                   <div className="w-3 h-3 rounded border border-white/10" style={{ background: bg.color }} />
                   {bg.label}
@@ -1328,7 +1344,15 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
             >
               <GripVertical size={10} className="text-white/20 shrink-0" />
               <span className="flex-1 truncate">
-                {el.type === 'photo' ? `照片框` : el.type === 'text' ? (el.props as TextElementProps).content?.slice(0, 8) || '文本' : el.type === 'shape' ? '形状' : el.type === 'date' ? '日期' : el.type}
+                {el.type === 'photo'
+                  ? `照片${(el.props as PhotoElementProps).photoNumber}`
+                  : el.type === 'text'
+                    ? (el.props as TextElementProps).content?.slice(0, 8) || '文本'
+                    : el.type === 'shape'
+                      ? '形状'
+                      : el.type === 'date'
+                        ? '日期'
+                        : el.type}
               </span>
               <div className="hidden group-hover:flex items-center gap-0.5">
                 <button
@@ -1411,6 +1435,20 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
                     <div className="text-[10px] text-white/40 mb-2">照片框属性</div>
                     <PropertyRow label="照片号" value={(selectedElement.props as PhotoElementProps).photoNumber}
                       onChange={v => updateProp('photoNumber', Number(v))} />
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-white/40">快速切换</span>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4].map(photoNumber => (
+                          <button
+                            key={photoNumber}
+                            className={`px-1.5 py-0.5 rounded text-[10px] ${(selectedElement.props as PhotoElementProps).photoNumber === photoNumber ? 'bg-violet-500/30 text-violet-400' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+                            onClick={() => updateProp('photoNumber', photoNumber)}
+                          >
+                            {photoNumber}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-white/40">裁剪</span>
                       <div className="flex gap-1">

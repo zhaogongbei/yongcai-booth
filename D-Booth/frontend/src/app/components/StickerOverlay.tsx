@@ -22,6 +22,29 @@ interface StickerOverlayProps {
   selectedStickerId: string | null;
 }
 
+function isImageStickerSource(src: string): boolean {
+  return /^(blob:|data:|https?:\/\/|\/)/i.test(src);
+}
+
+function StickerVisual({ sticker }: { sticker: Sticker }) {
+  if (isImageStickerSource(sticker.imageUrl)) {
+    return (
+      <img
+        src={sticker.imageUrl}
+        alt="Sticker"
+        className="w-16 h-16 object-contain pointer-events-none"
+        draggable={false}
+      />
+    );
+  }
+
+  return (
+    <span className="flex h-16 w-16 items-center justify-center text-5xl leading-none pointer-events-none">
+      {sticker.imageUrl}
+    </span>
+  );
+}
+
 export function StickerOverlay({
   photoUrl,
   stickers,
@@ -192,12 +215,7 @@ export function StickerOverlay({
             onClick={(e) => handleStickerClick(e, sticker.id)}
             onMouseDown={(e) => handleMouseDown(e, sticker.id)}
           >
-            <img
-              src={sticker.imageUrl}
-              alt="Sticker"
-              className="w-16 h-16 object-contain pointer-events-none"
-              draggable={false}
-            />
+            <StickerVisual sticker={sticker} />
 
             {isSelected && (
               <>

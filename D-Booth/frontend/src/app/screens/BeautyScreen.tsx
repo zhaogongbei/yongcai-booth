@@ -29,7 +29,84 @@ const FALLBACK_IMAGE = BEAUTY_FALLBACK_IMAGE;
 function resolvePhotoUrl(url?: string): string {
   if (!url) return FALLBACK_IMAGE;
   if (/^(blob:|data:|https?:\/\/)/i.test(url)) return url;
-  return resolveBackendUrl(url);
+  if (/^\/?(api\/v1\/media|uploads)\//i.test(url)) return resolveBackendUrl(url);
+  return url;
+}
+
+function isImageStickerSource(src: string): boolean {
+  return /^(blob:|data:|https?:\/\/|\/)/i.test(src);
+}
+
+async function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    return await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("图片加载失败"));
+      image.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function loadImageFromUrl(url: string): Promise<HTMLImageElement> {
+  const response = await fetch(resolvePhotoUrl(url));
+  if (!response.ok) {
+    throw new Error(`图片加载失败: ${response.status}`);
+  }
+  return loadImageFromBlob(await response.blob());
+}
+
+async function renderStickerOutput(baseUrl: string, stickers: Sticker[]): Promise<Blob> {
+  const baseImage = await loadImageFromUrl(baseUrl);
+  const width = baseImage.naturalWidth || baseImage.width;
+  const height = baseImage.naturalHeight || baseImage.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("无法创建图片画布");
+
+  ctx.drawImage(baseImage, 0, 0, width, height);
+
+  for (const sticker of stickers) {
+    const size = Math.max(32, Math.round(Math.min(width, height) * 0.16 * sticker.scale));
+    const x = sticker.x * width;
+    const y = sticker.y * height;
+    ctx.save();
+    ctx.globalAlpha = sticker.opacity;
+    ctx.translate(x, y);
+    ctx.rotate((sticker.rotation * Math.PI) / 180);
+    ctx.scale(sticker.flipH ? -1 : 1, sticker.flipV ? -1 : 1);
+
+    if (isImageStickerSource(sticker.imageUrl)) {
+      try {
+        const stickerImage = await loadImageFromUrl(sticker.imageUrl);
+        ctx.drawImage(stickerImage, -size / 2, -size / 2, size, size);
+      } catch {
+        // Keep the photo export usable even if a decorative asset fails to load.
+      }
+    } else {
+      ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(sticker.imageUrl, 0, 0);
+    }
+
+    ctx.restore();
+  }
+
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error("导出图片失败"));
+    }, "image/jpeg", 0.92);
+  });
 }
 
 // Debounce utility
@@ -238,19 +315,27 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
 
-    if (!processedImageBlob) {
+    const needsStickerRender = stickers.length > 0;
+    if (!processedImageBlob && !needsStickerRender) {
       navigate(nextScreen);
       return;
     }
 
     try {
       setIsCommitting(true);
+      const outputBlob = needsStickerRender
+        ? await renderStickerOutput(displayedImageUrl, stickers)
+        : processedImageBlob;
+      if (!outputBlob) {
+        navigate(nextScreen);
+        return;
+      }
       await addPhoto({
-        blob: processedImageBlob,
-        filter: "beauty",
+        blob: outputBlob,
+        filter: needsStickerRender ? "beauty-sticker" : "beauty",
         mediaType: selectedPhoto.mediaType,
       });
-      showToast.success("已应用美颜结果");
+      showToast.success(needsStickerRender ? "已应用美颜和贴纸" : "已应用美颜结果");
       navigate(nextScreen);
     } catch (err) {
       showToast.error(err instanceof Error ? err.message : "应用美颜结果失败");
@@ -304,8 +389,10 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     { key: "high", label: "高" },
   ];
 
-  // Sticker categories
-  const stickerCategories = ["全部", "节日", "婚礼", "生日", "动物", "眼镜", "帽子", "胡须", "自定义"];
+  const stickerCategories = useMemo(
+    () => ["全部", ...Array.from(new Set(DEFAULT_PROPS.map(prop => prop.category)))],
+    []
+  );
 
   // Filter props by category
   const filteredProps = useMemo(() => {
