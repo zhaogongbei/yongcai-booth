@@ -734,6 +734,53 @@ export async function getAnalyticsOverview(teamId: string, token: string): Promi
     .catch(() => ({}));
 }
 
+// ─── GoPro ───────────────────────────────────────────────────────────────────
+
+export interface GoProDeviceResponse {
+  name: string;
+  ip_address: string;
+  model?: string | null;
+  connected?: boolean;
+}
+
+export interface GoProStatusResponse {
+  connected: boolean;
+  device?: GoProDeviceResponse | null;
+  status?: {
+    battery_level?: number | null;
+    sd_card_remaining?: number | null;
+    wifi_signal?: number | null;
+    recording?: boolean | null;
+  } | null;
+}
+
+export async function discoverGoProDevices(token: string): Promise<GoProDeviceResponse[]> {
+  return request<GoProDeviceResponse[]>("/gopro/discover", { token });
+}
+
+export async function connectGoProDevice(device: GoProDeviceResponse, token: string): Promise<GoProStatusResponse> {
+  return request<GoProStatusResponse>("/gopro/connect", {
+    method: "POST",
+    token,
+    body: {
+      ip_address: device.ip_address,
+      name: device.name,
+      model: device.model,
+    },
+  });
+}
+
+export async function getGoProStatus(token: string): Promise<GoProStatusResponse> {
+  return request<GoProStatusResponse>("/gopro/status", { token });
+}
+
+export async function disconnectGoProDevice(token: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>("/gopro/disconnect", {
+    method: "POST",
+    token,
+  });
+}
+
 // ─── Beauty ───────────────────────────────────────────────────────────────────
 
 export interface BeautyParams {

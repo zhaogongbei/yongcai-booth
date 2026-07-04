@@ -23,15 +23,6 @@ import { MAX_PRINT_QTY } from "../constants";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
 
-function formatTemplatePaperSize(layout: { paperSize: { width: number; height: number } } | null): string {
-  if (!layout) return "默认 2x6 英寸";
-  const formatInches = (mm: number) => {
-    const inches = mm / 25.4;
-    return Number.isInteger(inches) ? String(inches) : inches.toFixed(1);
-  };
-  return `${formatInches(layout.paperSize.width)}x${formatInches(layout.paperSize.height)} 英寸`;
-}
-
 function printerStatusLabel(status: PrinterInfo["status"]): string {
   const map: Record<string, string> = {
     ready: "就绪",
@@ -63,6 +54,15 @@ function printerStatusDot(status: PrinterInfo["status"]): string {
     error: "bg-red-400",
   };
   return map[status] ?? "bg-white/40";
+}
+
+function formatTemplatePaperSize(layout: { paperSize: { width: number; height: number } } | null): string {
+  if (!layout) return "默认 2x6 英寸";
+  const formatInches = (mm: number) => {
+    const inches = mm / 25.4;
+    return Number.isInteger(inches) ? String(inches) : inches.toFixed(1);
+  };
+  return `${formatInches(layout.paperSize.width)}x${formatInches(layout.paperSize.height)} 英寸`;
 }
 
 export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
@@ -108,6 +108,15 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (!printPhoto?.serverPhotoId) return "等待上传";
     return "请选择打印机";
   }, [authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, printStatus, printUnavailableReason]);
+  const paperSizeLabel = useMemo(
+    () => formatTemplatePaperSize(activePrintTemplate?.layout ?? null),
+    [activePrintTemplate?.layout],
+  );
+
+  const openTemplateSelectionForPrint = useCallback(() => {
+    setTemplateSelectionReturnScreen("print");
+    navigate("templates");
+  }, [navigate, setTemplateSelectionReturnScreen]);
 
   // 手动刷新打印机列表
   const handleRefreshPrinters = useCallback(async () => {
@@ -140,11 +149,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       toast.error("取消打印队列任务失败");
     }
   }, [boothHealth, selectedPrinter]);
-
-  const openTemplateSelectionForPrint = useCallback(() => {
-    setTemplateSelectionReturnScreen("print");
-    navigate("templates");
-  }, [navigate, setTemplateSelectionReturnScreen]);
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -241,11 +245,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     };
   }, [activePrintTemplate]);
 
-  const paperSizeLabel = useMemo(
-    () => formatTemplatePaperSize(activePrintTemplate?.layout ?? null),
-    [activePrintTemplate?.layout],
-  );
-
   return (
     <main className="flex-1 flex overflow-hidden">
       {/* Preview area */}
@@ -300,12 +299,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
                         alt={`print ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                   ))}
-                  {!selectedPhoto && (
-                    <div className="text-center mt-2">
-                      <div className="text-xs font-bold text-pink-500">LOVE FOREVER</div>
-                      <div className="text-[10px] text-gray-400">Thank You</div>
-                    </div>
-                  )}
                 </div>
               </div>
             ) : (
@@ -394,16 +387,9 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </div>
           <div className="flex items-center gap-2 text-xs text-white/80">
             <LayoutTemplate size={14} className={activePrintTemplate ? "text-emerald-300" : "text-white/30"} />
-            <span className="min-w-0 flex-1 truncate">{activePrintTemplate?.name ?? "未选择，使用默认预览"}</span>
+            <span className="min-w-0 flex-1 truncate">{activePrintTemplate?.name ?? "未选择模板"}</span>
           </div>
           <div className="mt-2 text-[10px] text-white/35">出纸尺寸：{paperSizeLabel}</div>
-          <button
-            type="button"
-            onClick={openTemplateSelectionForPrint}
-            className="mt-3 w-full rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-200 hover:bg-violet-500/15"
-          >
-            {activePrintTemplate ? "从模板库重新选择" : "去模板库选择出纸版式"}
-          </button>
         </GlassCard>
         <GlassCard className="p-3">
           <div className="mb-2 flex items-center justify-between">

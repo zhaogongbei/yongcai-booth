@@ -1,56 +1,122 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
+import {
+  connectGoProDevice,
+  disconnectGoProDevice,
+  discoverGoProDevices,
+  getGoProStatus,
+  tokenStorage,
+  type GoProDeviceResponse,
+} from "../../lib/api";
 import type { Screen } from "../types";
 
-interface GoProDevice {
-  name: string;
-  ip: string;
-  model: string;
-  status: "online" | "offline" | "connecting";
+interface GoProDevice extends GoProDeviceResponse {
+  status: "online" | "connecting";
 }
 
-const DEMO_DEVICES: GoProDevice[] = [
-  { name: "GoPro HERO12", ip: "10.5.5.9", model: "HERO12 Black", status: "offline" },
-  { name: "GoPro HERO11", ip: "10.5.5.10", model: "HERO11 Black", status: "offline" },
-];
+function deviceKey(device: GoProDeviceResponse): string {
+  return device.ip_address;
+}
 
 export function GoProScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  const [devices, setDevices] = useState<GoProDevice[]>(DEMO_DEVICES);
+  const [devices, setDevices] = useState<GoProDevice[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [connectedDevice, setConnectedDevice] = useState<GoProDevice | null>(null);
+  const [connectingIp, setConnectingIp] = useState<string | null>(null);
+  const [connectedDevice, setConnectedDevice] = useState<GoProDeviceResponse | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const scanForDevices = () => {
+  const refreshStatus = useCallback(async () => {
+    const token = tokenStorage.access;
+    if (!token) {
+      setConnectedDevice(null);
+      setMessage("请先登录后连接 GoPro");
+      return;
+    }
+
+    try {
+      const status = await getGoProStatus(token);
+      setConnectedDevice(status.connected && status.device ? status.device : null);
+      setMessage(null);
+    } catch {
+      setConnectedDevice(null);
+      setMessage("GoPro 状态读取失败");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  const scanForDevices = useCallback(async () => {
+    const token = tokenStorage.access;
+    if (!token) {
+      setMessage("请先登录后扫描 GoPro");
+      setDevices([]);
+      return;
+    }
+
     setScanning(true);
-    setTimeout(() => {
-      setDevices((prev) =>
-        prev.map((d) => ({ ...d, status: d.ip === "10.5.5.9" ? "online" : "offline" }))
-      );
+    setMessage(null);
+    try {
+      const discovered = await discoverGoProDevices(token);
+      setDevices(discovered.map((device) => ({
+        ...device,
+        status: device.connected ? "online" : "online",
+      })));
+      if (discovered.length === 0) {
+        setMessage("未发现 GoPro，请确认设备已开启 WiFi 并连接到同一网络");
+      }
+      await refreshStatus();
+    } catch {
+      setDevices([]);
+      setMessage("GoPro 扫描失败，请确认后端服务和网络权限可用");
+    } finally {
       setScanning(false);
-    }, 2000);
-  };
+    }
+  }, [refreshStatus]);
 
-  const connect = (device: GoProDevice) => {
-    setDevices((prev) =>
-      prev.map((d) => (d.ip === device.ip ? { ...d, status: "connecting" } : d))
-    );
-    setTimeout(() => {
-      setDevices((prev) =>
-        prev.map((d) =>
-          d.ip === device.ip ? { ...d, status: "online" } : d
-        )
-      );
-      setConnectedDevice(device);
-    }, 1500);
-  };
+  const connect = useCallback(async (device: GoProDevice) => {
+    const token = tokenStorage.access;
+    if (!token) {
+      setMessage("请先登录后连接 GoPro");
+      return;
+    }
 
-  const disconnect = () => {
-    setConnectedDevice(null);
-    setDevices((prev) =>
-      prev.map((d) => ({ ...d, status: d.ip === connectedDevice?.ip ? "online" : d.status }))
-    );
-  };
+    setConnectingIp(device.ip_address);
+    setMessage(null);
+    setDevices((prev) => prev.map((item) =>
+      item.ip_address === device.ip_address ? { ...item, status: "connecting" } : item
+    ));
+
+    try {
+      const result = await connectGoProDevice(device, token);
+      setConnectedDevice(result.device ?? device);
+      setDevices((prev) => prev.map((item) => ({ ...item, status: "online" })));
+    } catch {
+      setMessage("连接 GoPro 失败，请检查 IP、WiFi 模式和设备授权");
+      setDevices((prev) => prev.map((item) => ({ ...item, status: "online" })));
+    } finally {
+      setConnectingIp(null);
+    }
+  }, []);
+
+  const disconnect = useCallback(async () => {
+    const token = tokenStorage.access;
+    if (!token) {
+      setMessage("请先登录后断开 GoPro");
+      return;
+    }
+
+    try {
+      await disconnectGoProDevice(token);
+      setConnectedDevice(null);
+      setMessage(null);
+    } catch {
+      setMessage("断开 GoPro 失败");
+    }
+  }, []);
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -58,19 +124,25 @@ export function GoProScreen({ navigate }: { navigate: (s: Screen) => void }) {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white">GoPro 摄像机</h2>
-            <p className="text-xs text-white/40 mt-0.5">通过WiFi连接GoPro进行远程拍摄</p>
+            <p className="text-xs text-white/40 mt-0.5">通过后端真实扫描和连接 GoPro WiFi 设备</p>
           </div>
           <GlowBtn size="sm" variant="ghost" onClick={() => navigate("camera")}>返回拍照</GlowBtn>
         </div>
 
         <div className="flex gap-3">
-          <GlowBtn size="sm" variant="primary" onClick={scanForDevices} disabled={scanning}>
+          <GlowBtn size="sm" variant="primary" onClick={scanForDevices} disabled={scanning || Boolean(connectingIp)}>
             {scanning ? "扫描中..." : "扫描设备"}
           </GlowBtn>
           {connectedDevice && (
-            <GlowBtn size="sm" variant="outline" onClick={disconnect}>断开连接</GlowBtn>
+            <GlowBtn size="sm" variant="outline" onClick={disconnect} disabled={Boolean(connectingIp)}>断开连接</GlowBtn>
           )}
         </div>
+
+        {message && (
+          <GlassCard className="p-4 text-xs text-amber-200">
+            {message}
+          </GlassCard>
+        )}
 
         {connectedDevice && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -81,7 +153,9 @@ export function GoProScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-white">{connectedDevice.name} (已连接)</div>
-                  <div className="text-xs text-emerald-400/80">IP: {connectedDevice.ip} | {connectedDevice.model}</div>
+                  <div className="text-xs text-emerald-400/80">
+                    IP: {connectedDevice.ip_address} | {connectedDevice.model || "GoPro"}
+                  </div>
                 </div>
                 <GlowBtn size="sm" variant="primary" onClick={() => navigate("camera")}>
                   去拍照
@@ -93,39 +167,43 @@ export function GoProScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         <div className="space-y-3">
           <div className="text-sm font-semibold text-white/80">发现的设备</div>
-          {devices.map((device) => (
-            <GlassCard key={device.ip} className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  device.status === "online" ? "bg-emerald-400" :
-                  device.status === "connecting" ? "bg-yellow-400 animate-pulse" :
-                  "bg-white/20"
-                }`} />
-                <div>
-                  <div className="text-sm text-white">{device.name}</div>
-                  <div className="text-xs text-white/40">{device.model} - {device.ip}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${
-                  device.status === "online" ? "text-emerald-400" :
-                  device.status === "connecting" ? "text-yellow-400" :
-                  "text-white/30"
-                }`}>
-                  {device.status === "online" ? "在线" :
-                   device.status === "connecting" ? "连接中..." : "离线"}
-                </span>
-                <GlowBtn
-                  size="sm"
-                  variant={device.status === "online" ? "primary" : "outline"}
-                  disabled={device.status !== "online" || !!connectedDevice}
-                  onClick={() => connect(device)}
-                >
-                  连接
-                </GlowBtn>
+          {devices.length === 0 ? (
+            <GlassCard className="p-6 text-center">
+              <div className="text-sm font-semibold text-white">暂无已发现设备</div>
+              <div className="mt-2 text-xs leading-5 text-white/40">
+                点击扫描后只会显示后端实际发现的 GoPro，不再展示固定演示设备。
               </div>
             </GlassCard>
-          ))}
+          ) : (
+            devices.map((device) => {
+              const isConnected = connectedDevice?.ip_address === device.ip_address;
+              const isConnecting = connectingIp === device.ip_address || device.status === "connecting";
+              return (
+                <GlassCard key={deviceKey(device)} className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-emerald-400" : isConnecting ? "bg-yellow-400 animate-pulse" : "bg-white/30"}`} />
+                    <div>
+                      <div className="text-sm text-white">{device.name}</div>
+                      <div className="text-xs text-white/40">{device.model || "GoPro"} - {device.ip_address}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs ${isConnected ? "text-emerald-400" : isConnecting ? "text-yellow-400" : "text-white/40"}`}>
+                      {isConnected ? "已连接" : isConnecting ? "连接中..." : "已发现"}
+                    </span>
+                    <GlowBtn
+                      size="sm"
+                      variant={isConnected ? "outline" : "primary"}
+                      disabled={Boolean(connectedDevice) || isConnecting}
+                      onClick={() => connect(device)}
+                    >
+                      {isConnected ? "已连接" : "连接"}
+                    </GlowBtn>
+                  </div>
+                </GlassCard>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
