@@ -1,5 +1,7 @@
 import asyncio
 from io import BytesIO
+from pathlib import Path
+from uuid import uuid4
 
 import aioboto3
 import requests
@@ -132,6 +134,10 @@ def process_photo(self, photo_url: str, photo_id: str, operations: dict = None):
                 loop.close()
         else:
             logger.warning("S3 client not available, saving locally")
+            local_dir = Path("uploads/photos/processed")
+            local_dir.mkdir(parents=True, exist_ok=True)
+            local_path = local_dir / f"processed_{photo_id}.jpg"
+            local_path.write_bytes(processed_data)
             processed_url = f"/uploads/photos/processed/processed_{photo_id}.jpg"
 
         logger.info(f"Photo {photo_id} processed successfully")
@@ -198,8 +204,13 @@ def generate_collage(self, photo_urls: list, layout: str = "grid"):
             finally:
                 loop.close()
         else:
-            logger.warning("S3 client not available")
-            collage_url = "/uploads/photos/collages/collage.jpg"
+            logger.warning("S3 client not available, saving locally")
+            local_dir = Path("uploads/photos/collages")
+            local_dir.mkdir(parents=True, exist_ok=True)
+            collage_name = f"collage_{uuid4().hex}.jpg"
+            local_path = local_dir / collage_name
+            local_path.write_bytes(collage_data)
+            collage_url = f"/uploads/photos/collages/{collage_name}"
 
         logger.info("Collage generated successfully")
 
