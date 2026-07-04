@@ -10,15 +10,6 @@
 
 export const CAMERA_FILTERS = ["自然", "清新", "复古", "胶片", "韩系", "日系", "奶油", "糖果"] as const;
 
-export const RECENT_PHOTOS = [
-  "/images/scenes/wedding-couple-booth.webp",
-  "/images/scenes/birthday-party-fun.webp",
-  "/images/scenes/corporate-event-group.webp",
-  "/images/products/photo-prints-showcase.webp",
-  "/images/scenes/festival-outdoor-booth.webp",
-  "/images/products/polaroid-style-prints.webp",
-] as const;
-
 export const FORMAT_OPTIONS = ["4:3", "16:9", "1:1"] as const;
 
 // ─── Beauty Screen ───────────────────────────────────────────────────────────

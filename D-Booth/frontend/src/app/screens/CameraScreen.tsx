@@ -10,7 +10,7 @@ import { SliderControl } from "../components/SliderControl";
 import { GlowBtn } from "../components/GlowBtn";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import type { Screen } from "../types";
-import { CAMERA_FILTERS, RECENT_PHOTOS, FORMAT_OPTIONS } from "../constants";
+import { CAMERA_FILTERS, FORMAT_OPTIONS } from "../constants";
 import { attendantPlayer } from "../services/attendantPlayer";
 import { GifRecorder } from "../services/gifRecorder";
 import { VideoRecorder } from "../services/videoRecorder";
@@ -518,21 +518,28 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
       {/* Left strip - recent photos: 优先展示本次实际拍摄的照片 */}
       {isDesktop && (
         <nav className="w-20 border-r border-white/5 flex flex-col items-center gap-2 py-4 overflow-y-auto" aria-label="最近照片">
-          {(photos.length > 0 ? photos.map(p => p.url) : RECENT_PHOTOS).map((src, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setSelectedPhoto(i)}
-              aria-label={`选择照片 ${i + 1}`}
-              className={`w-14 h-14 rounded-xl overflow-hidden border cursor-pointer hover:border-violet-500/50 transition-colors flex-shrink-0 bg-transparent p-0 ${selectedPhoto === i ? "border-violet-500" : "border-white/10"}`}>
-              {photos[i]?.mediaType === "video" ? (
-                <video src={src} className="w-full h-full object-cover pointer-events-none" muted />
-              ) : (
-                <img src={src}
-                  alt={`最近拍摄 ${i + 1}`} className="w-full h-full object-cover pointer-events-none" loading="lazy" />
-              )}
-            </button>
-          ))}
+          {photos.length > 0 ? (
+            photos.map((photo, i) => (
+              <button
+                key={photo.id}
+                type="button"
+                onClick={() => setSelectedPhoto(i)}
+                aria-label={`选择照片 ${i + 1}`}
+                className={`w-14 h-14 rounded-xl overflow-hidden border cursor-pointer hover:border-violet-500/50 transition-colors flex-shrink-0 bg-transparent p-0 ${selectedPhoto === i ? "border-violet-500" : "border-white/10"}`}>
+                {photo.mediaType === "video" ? (
+                  <video src={photo.url} className="w-full h-full object-cover pointer-events-none" muted />
+                ) : (
+                  <img src={photo.url}
+                    alt={`最近拍摄 ${i + 1}`} className="w-full h-full object-cover pointer-events-none" loading="lazy" />
+                )}
+              </button>
+            ))
+          ) : (
+            <div className="mt-2 flex w-14 flex-col items-center gap-1 text-center text-[10px] leading-tight text-white/30">
+              <Camera size={18} />
+              暂无照片
+            </div>
+          )}
           {photos.length > 0 && !eventId && (
             <div className="text-[9px] text-amber-300/70 text-center px-1 leading-tight">演示模式</div>
           )}
