@@ -182,7 +182,7 @@ async def capture_photo(
     except Exception as e:
         logger.error(f"DSLR capture failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"拍摄失败: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="拍摄失败"
         )
 
 
