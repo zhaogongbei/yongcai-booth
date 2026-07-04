@@ -125,6 +125,7 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
             if not isinstance(template_data["elements"], list):
                 return False
 
+            has_visible_photo_frame = False
             for elem in template_data["elements"]:
                 elem_required = [
                     "id",
@@ -161,7 +162,17 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
                 if elem["type"] not in allowed_types:
                     return False
 
-            return True
+                if elem["type"] == "photo":
+                    props = elem.get("props")
+                    if not isinstance(props, dict):
+                        return False
+                    photo_number = props.get("photoNumber")
+                    if not isinstance(photo_number, int) or not 1 <= photo_number <= 4:
+                        return False
+                    if elem.get("visible") is not False:
+                        has_visible_photo_frame = True
+
+            return has_visible_photo_frame
         except Exception:
             return False
 

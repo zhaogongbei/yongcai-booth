@@ -90,3 +90,51 @@ async def test_create_template_returns_400_for_invalid_layers(authenticated_clie
 
     assert response.status_code == 400
     assert response.json()["error"]["message"] == "Invalid template structure"
+
+
+@pytest.mark.anyio
+async def test_create_template_requires_visible_photo_frame(authenticated_client: AsyncClient):
+    team_response = await authenticated_client.post(
+        "/api/v1/teams",
+        json={"name": "No Photo Frame Team", "slug": "no-photo-frame-team"},
+    )
+    assert team_response.status_code == 201
+
+    layers = _custom_template_layers()
+    layers["elements"] = []
+    response = await authenticated_client.post(
+        "/api/v1/templates",
+        json={
+            "team_id": team_response.json()["id"],
+            "name": "Background Only Template",
+            "layers": layers,
+            "is_public": False,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid template structure"
+
+
+@pytest.mark.anyio
+async def test_create_template_rejects_invalid_photo_number(authenticated_client: AsyncClient):
+    team_response = await authenticated_client.post(
+        "/api/v1/teams",
+        json={"name": "Invalid Photo Number Team", "slug": "invalid-photo-number-team"},
+    )
+    assert team_response.status_code == 201
+
+    layers = _custom_template_layers()
+    layers["elements"][0]["props"]["photoNumber"] = 99
+    response = await authenticated_client.post(
+        "/api/v1/templates",
+        json={
+            "team_id": team_response.json()["id"],
+            "name": "Invalid Photo Number Template",
+            "layers": layers,
+            "is_public": False,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid template structure"
