@@ -140,6 +140,7 @@ function createDefaultElement(type: TemplateElement['type']): TemplateElement {
 // 绘图缩放比例（将300DPI物理像素映射到屏幕上可显示的尺寸）
 const DISPLAY_SCALE = 0.45;
 const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
+const JUST_SAVED_TEMPLATE_SESSION_KEY = "aibooth.templates.justSavedTemplateId";
 
 function isTemplateLayout(value: unknown): value is TemplateLayout {
   if (!value || typeof value !== "object") return false;
@@ -632,6 +633,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
           name: saved.name,
         },
       });
+      sessionStorage.setItem(JUST_SAVED_TEMPLATE_SESSION_KEY, saved.id);
       showToast.success(savedTemplateId ? "模板已更新" : "模板已保存");
       navigate("templates");
     } catch (err) {

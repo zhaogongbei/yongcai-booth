@@ -13,6 +13,7 @@ import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
 
 const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
+const JUST_SAVED_TEMPLATE_SESSION_KEY = "aibooth.templates.justSavedTemplateId";
 
 function isTemplateLayout(value: unknown): value is TemplateLayout {
   const layout = value as Partial<TemplateLayout>;
@@ -51,6 +52,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [savedTemplatesError, setSavedTemplatesError] = useState<string | null>(null);
   const [operatingTemplateId, setOperatingTemplateId] = useState<string | null>(null);
   const [operatingLayoutId, setOperatingLayoutId] = useState<string | null>(null);
+  const [recentlySavedTemplateId, setRecentlySavedTemplateId] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
   const categoryCards = [
@@ -125,6 +127,16 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   useEffect(() => {
     loadSavedTemplates();
   }, [loadSavedTemplates]);
+
+  useEffect(() => {
+    const justSavedTemplateId = sessionStorage.getItem(JUST_SAVED_TEMPLATE_SESSION_KEY);
+    if (!justSavedTemplateId) {
+      return;
+    }
+
+    setRecentlySavedTemplateId(justSavedTemplateId);
+    sessionStorage.removeItem(JUST_SAVED_TEMPLATE_SESSION_KEY);
+  }, []);
 
   const filteredSavedTemplates = savedTemplates.filter(t => {
     if (searchTerm && !t.name.includes(searchTerm)) return false;
@@ -446,69 +458,78 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
             )}
 
             <div className="grid grid-cols-6 gap-4">
-              {filteredSavedTemplates.map(t => (
-                <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                  onClick={() => openTemplateEditor(t.id)}>
-                  <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-emerald-500/40 transition-all bg-white"
-                    style={getSavedTemplateBackgroundStyle(t)}>
-                    <div className="absolute inset-3 border border-black/10" />
-                    <div className="absolute left-[18%] top-[15%] w-[64%] h-[28%] rounded bg-black/10 border border-black/10" />
-                    <div className="absolute left-[18%] top-[50%] w-[64%] h-[8%] rounded bg-black/15" />
-                    <div className="absolute left-[24%] top-[64%] w-[52%] h-[6%] rounded bg-black/10" />
-                    <div className="absolute top-2 right-2">
-                      <NeonBadge color={activePrintTemplate?.id === t.id ? "purple" : "green"}>
-                        {activePrintTemplate?.id === t.id ? "使用中" : "已保存"}
-                      </NeonBadge>
-                    </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                      <div className="grid w-full grid-cols-2 gap-1.5">
-                        <GlowBtn
-                          size="sm"
-                          variant="primary"
-                          className="justify-center px-2"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            selectTemplateForPrint(t);
-                          }}
-                        >
-                          <Check size={12} />{selectTemplateButtonLabel}
-                        </GlowBtn>
-                        <GlowBtn size="sm" variant="ghost" className="justify-center px-2">编辑</GlowBtn>
+              {filteredSavedTemplates.map(t => {
+                const isRecentlySavedTemplate = recentlySavedTemplateId === t.id;
+
+                return (
+                  <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+                    onClick={() => openTemplateEditor(t.id)}>
+                    <div className={`relative rounded-xl overflow-hidden aspect-[2/5] border transition-all bg-white ${isRecentlySavedTemplate ? "border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_0_24px_rgba(52,211,153,0.22)]" : "border-white/10 group-hover:border-emerald-500/40"}`}
+                      style={getSavedTemplateBackgroundStyle(t)}>
+                      {isRecentlySavedTemplate && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <NeonBadge color="green">刚保存</NeonBadge>
+                        </div>
+                      )}
+                      <div className="absolute inset-3 border border-black/10" />
+                      <div className="absolute left-[18%] top-[15%] w-[64%] h-[28%] rounded bg-black/10 border border-black/10" />
+                      <div className="absolute left-[18%] top-[50%] w-[64%] h-[8%] rounded bg-black/15" />
+                      <div className="absolute left-[24%] top-[64%] w-[52%] h-[6%] rounded bg-black/10" />
+                      <div className="absolute top-2 right-2">
+                        <NeonBadge color={activePrintTemplate?.id === t.id ? "purple" : "green"}>
+                          {activePrintTemplate?.id === t.id ? "使用中" : "已保存"}
+                        </NeonBadge>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                        <div className="grid w-full grid-cols-2 gap-1.5">
+                          <GlowBtn
+                            size="sm"
+                            variant="primary"
+                            className="justify-center px-2"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              selectTemplateForPrint(t);
+                            }}
+                          >
+                            <Check size={12} />{selectTemplateButtonLabel}
+                          </GlowBtn>
+                          <GlowBtn size="sm" variant="ghost" className="justify-center px-2">编辑</GlowBtn>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-xs font-medium text-white truncate">{t.name}</div>
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="text-[10px] text-white/40 truncate">{t.size || "自定义尺寸"}</div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          className="rounded p-1 text-white/35 hover:bg-white/10 hover:text-white/80 disabled:opacity-40"
-                          title="复制模板"
-                          disabled={operatingTemplateId === t.id}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void duplicateSavedTemplate(t);
-                          }}
-                        >
-                          <Copy size={11} />
-                        </button>
-                        <button
-                          className="rounded p-1 text-white/35 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
-                          title="删除模板"
-                          disabled={operatingTemplateId === t.id}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void deleteSavedTemplate(t);
-                          }}
-                        >
-                          <Trash2 size={11} />
-                        </button>
+                    <div className="mt-2">
+                      <div className="text-xs font-medium text-white truncate">{t.name}</div>
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="text-[10px] text-white/40 truncate">{t.size || "自定义尺寸"}</div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            className="rounded p-1 text-white/35 hover:bg-white/10 hover:text-white/80 disabled:opacity-40"
+                            title="复制模板"
+                            disabled={operatingTemplateId === t.id}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void duplicateSavedTemplate(t);
+                            }}
+                          >
+                            <Copy size={11} />
+                          </button>
+                          <button
+                            className="rounded p-1 text-white/35 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
+                            title="删除模板"
+                            disabled={operatingTemplateId === t.id}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void deleteSavedTemplate(t);
+                            }}
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         )}
