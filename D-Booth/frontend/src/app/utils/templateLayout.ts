@@ -6,7 +6,7 @@ export function hasPrintablePhotoFrame(layout: TemplateLayout | null | undefined
   return layout.elements.some(element => {
     if (!element.visible || element.type !== "photo") return false;
     const photoNumber = Number((element.props as Partial<PhotoElementProps>).photoNumber);
-    return Number.isFinite(photoNumber) && photoNumber >= 1;
+    return Number.isInteger(photoNumber) && photoNumber >= 1 && photoNumber <= 4;
   });
 }
 

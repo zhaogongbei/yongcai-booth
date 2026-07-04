@@ -28,6 +28,8 @@ const ZOOM_OPTIONS = [
 const MINIMUM_ELEMENT_SIZE = 60;
 const SNAP_THRESHOLD = 18;
 const BACKGROUND_LAYER_ID = '__template_background_layer__';
+const MIN_PHOTO_NUMBER = 1;
+const MAX_PHOTO_NUMBER = 4;
 
 type SnapGuide = {
   orientation: 'vertical' | 'horizontal';
@@ -73,6 +75,12 @@ function getNextZoomValue(currentZoom: number, direction: 'in' | 'out'): number 
     : Math.max(closestZoomOptionIndex - 1, 0);
 
   return ZOOM_OPTIONS[nextZoomOptionIndex]?.value ?? currentZoom;
+}
+
+function normalizePhotoNumber(value: string | number): number {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return MIN_PHOTO_NUMBER;
+  return clampValue(Math.round(numericValue), MIN_PHOTO_NUMBER, MAX_PHOTO_NUMBER);
 }
 
 function getResolvedBackgroundLayerZIndex(background: TemplateLayout['background'], elements: TemplateElement[]): number {
@@ -1911,7 +1919,8 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
                   <div className="border-t border-white/5 pt-2">
                     <div className="text-[10px] text-white/40 mb-2">照片框属性</div>
                     <PropertyRow label="照片号" value={(selectedElement.props as PhotoElementProps).photoNumber}
-                      onChange={v => updateProp('photoNumber', Number(v))} />
+                      min={MIN_PHOTO_NUMBER} max={MAX_PHOTO_NUMBER}
+                      onChange={v => updateProp('photoNumber', normalizePhotoNumber(v))} />
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-white/40">快速切换</span>
                       <div className="flex gap-1">
