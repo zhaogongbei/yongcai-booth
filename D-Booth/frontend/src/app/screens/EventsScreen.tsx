@@ -3,6 +3,7 @@ import { CalendarDays, TrendingUp, Camera, Printer, Filter, Plus, Search, Eye, R
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
 import { showToast } from "../stores/useToast";
+import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { createEvent, createPhotoSession, getEvents, getMyTeams, tokenStorage, type EventResponse } from "../../lib/api";
 import type { Screen } from "../types";
@@ -14,6 +15,7 @@ interface EventsScreenProps {
 interface EventRow {
   id: string;
   name: string;
+  teamId: string;
   date: string;
   status: string;
   photos: number;
@@ -31,6 +33,7 @@ function toRow(ev: EventResponse): EventRow {
   return {
     id: ev.id,
     name: ev.name,
+    teamId: ev.team_id,
     date: (ev.start_date || "").slice(0, 10),
     status: STATUS_LABEL[ev.status] ?? ev.status,
     photos: 0, prints: 0, guests: 0, revenue: "—",
@@ -57,6 +60,7 @@ function buildEventDateRange(dateValue: string) {
 }
 
 export function EventsScreen({ navigate }: EventsScreenProps) {
+  const { setCurrentEvent } = useSettings();
   const { setCaptureContext } = useCaptureFlow();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -159,6 +163,15 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
     if (!token) {
       showToast.error("请先登录后再进入拍照");
       return;
+    }
+
+    let teamId = events.find(event => event.id === eventId)?.teamId;
+    if (!teamId) {
+      const teams = await getMyTeams(token).catch(() => []);
+      teamId = teams[0]?.id;
+    }
+    if (teamId) {
+      setCurrentEvent({ id: eventId, name: eventName, teamId });
     }
 
     try {
