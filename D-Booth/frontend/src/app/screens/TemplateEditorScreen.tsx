@@ -261,6 +261,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const { currentEvent } = useSettings();
   const {
     authToken,
+    teamId: captureTeamId,
     setActivePrintTemplate,
     templateSelectionReturnScreen,
     setTemplateSelectionReturnScreen,
@@ -386,9 +387,10 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   const resolveTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
+    if (captureTeamId) return captureTeamId;
     const teams = await getMyTeams(authToken ?? undefined);
     return teams[0]?.id ?? null;
-  }, [authToken, currentEvent?.teamId]);
+  }, [authToken, captureTeamId, currentEvent?.teamId]);
 
   // ─── 布局修改辅助函数 ───
   const updateLayout = useCallback((updater: (draft: TemplateLayout) => void) => {

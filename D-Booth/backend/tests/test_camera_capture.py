@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from PIL import Image
 
 from app.api.v1 import camera as camera_api
+from app.services.camera_service import GPhoto2CameraController
 
 
 async def _create_event(client: AsyncClient, slug: str) -> dict:
@@ -43,6 +44,19 @@ class FakeDslrController:
 
     async def get_settings(self):
         return {"iso": 800, "shutter_speed": "1/125"}
+
+
+@pytest.mark.anyio
+async def test_gphoto2_settings_do_not_return_simulated_exposure_values():
+    controller = GPhoto2CameraController()
+    controller._connected = True
+
+    settings = await controller.get_settings()
+
+    assert settings["settings_available"] is False
+    assert settings["source"] == "gphoto2"
+    assert "iso" not in settings
+    assert "shutter_speed" not in settings
 
 
 @pytest.mark.anyio

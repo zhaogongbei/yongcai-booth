@@ -176,10 +176,10 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
 
     try {
       const session = await createPhotoSession({ eventId, token });
-      setCaptureContext({ eventId, sessionId: session.id, authToken: token });
+      setCaptureContext({ eventId, teamId, sessionId: session.id, authToken: token });
       showToast.success(`已进入「${eventName}」拍照模式`);
     } catch (err) {
-      setCaptureContext({ eventId, sessionId: null, authToken: token });
+      setCaptureContext({ eventId, teamId, sessionId: null, authToken: token });
       showToast.error(err instanceof Error ? err.message : "拍照会话创建失败");
     }
     navigate?.("camera");

@@ -90,6 +90,8 @@ class WebcamCameraController(CameraController):
     def __init__(self):
         self._connected = False
         self._settings = {
+            "settings_available": True,
+            "source": "webcam",
             "iso": 800,
             "shutter_speed": "1/125",
             "aperture": "f/4.0",
@@ -261,15 +263,10 @@ class GPhoto2CameraController(CameraController):
         if not self._connected:
             return {}
 
-        # TODO: 实际实现需要解析gphoto2 --get-config输出
-        # 这里返回模拟值，后续优化
         return {
-            "iso": 800,
-            "shutter_speed": "1/125",
-            "aperture": "f/4.0",
-            "white_balance": "自动",
-            "exposure_compensation": 0.0,
-            "focus_mode": "AF-C",
+            "settings_available": False,
+            "source": "gphoto2",
+            "message": "真实相机参数读取尚未接入，未返回模拟曝光值",
         }
 
     async def set_setting(self, key: str, value: Any) -> None:

@@ -36,6 +36,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const {
     activePrintTemplate,
     authToken,
+    teamId: captureTeamId,
     setActivePrintTemplate,
     templateSelectionReturnScreen,
     setTemplateSelectionReturnScreen,
@@ -105,6 +106,9 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     setSavedTemplatesLoading(true);
     try {
       let teamId = currentEvent?.teamId;
+      if (!teamId && captureTeamId) {
+        teamId = captureTeamId;
+      }
       if (!teamId) {
         const teams = await getMyTeams(authToken ?? undefined);
         teamId = teams[0]?.id;
@@ -123,7 +127,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     } finally {
       setSavedTemplatesLoading(false);
     }
-  }, [authToken, currentEvent?.teamId]);
+  }, [authToken, captureTeamId, currentEvent?.teamId]);
 
   useEffect(() => {
     loadSavedTemplates();
@@ -163,9 +167,10 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
 
   const resolveTemplateTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
+    if (captureTeamId) return captureTeamId;
     const teams = await getMyTeams(authToken ?? undefined);
     return teams[0]?.id;
-  }, [authToken, currentEvent?.teamId]);
+  }, [authToken, captureTeamId, currentEvent?.teamId]);
 
   const selectQuickLayoutForPrint = async (layoutId: string) => {
     const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === layoutId);

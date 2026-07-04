@@ -23,6 +23,7 @@ const FILTERS = CAMERA_FILTERS;
 
 // 拍摄模式类型
 type CaptureMode = "photo" | "gif" | "boomerang" | "video";
+type CameraSettingsStatus = "reported" | "local" | "unavailable";
 
 // 拍摄模式配置
 const CAPTURE_MODES: { mode: CaptureMode; label: string; icon: React.ReactNode }[] = [
@@ -74,6 +75,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     exposure_compensation: "+0.0",
     focus_mode: "AF-C",
   });
+  const [cameraSettingsStatus, setCameraSettingsStatus] = useState<CameraSettingsStatus>("local");
 
   const { addPhoto, removePhoto, photos, eventId, currentSessionId, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -206,14 +208,20 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     async function fetchCameraSettings() {
       try {
         const settings = await request<{
-          iso: number;
-          shutter_speed: string;
-          white_balance: string;
-          aperture: string;
-          exposure_compensation: number;
-          focus_mode: string;
+          settings_available?: boolean;
+          source?: string;
+          iso?: number;
+          shutter_speed?: string;
+          white_balance?: string;
+          aperture?: string;
+          exposure_compensation?: number;
+          focus_mode?: string;
         }>("/camera/settings");
         if (cancelled) return;
+        if (settings.settings_available === false) {
+          setCameraSettingsStatus("unavailable");
+          return;
+        }
         setCameraParams({
           iso: settings.iso ?? 800,
           shutter_speed: settings.shutter_speed ?? "1/125",
@@ -222,8 +230,9 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           exposure_compensation: String(settings.exposure_compensation ?? "+0.0"),
           focus_mode: settings.focus_mode ?? "AF-C",
         });
+        setCameraSettingsStatus(settings.source === "gphoto2" ? "reported" : "local");
       } catch {
-        // 后端不可用时使用默认值
+        setCameraSettingsStatus("unavailable");
       }
     }
 
@@ -265,8 +274,10 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           break;
       }
       await request("/camera/settings", { method: "PUT", body });
+      setCameraSettingsStatus("local");
     } catch {
       // 后端不可用时参数仅在前端生效
+      setCameraSettingsStatus("local");
     }
   }, []);
 
@@ -826,15 +837,23 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
           {/* Camera info overlay */}
           <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-6">
-            <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70 font-mono">
-              ISO {cameraParams.iso}
-            </div>
-            <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70 font-mono">
-              {cameraParams.shutter_speed}s
-            </div>
-            <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70 font-mono">
-              {cameraParams.white_balance}
-            </div>
+            {cameraSettingsStatus === "unavailable" ? (
+              <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-amber-200">
+                相机参数未读取
+              </div>
+            ) : (
+              <>
+                <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70 font-mono">
+                  ISO {cameraParams.iso}
+                </div>
+                <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70 font-mono">
+                  {cameraParams.shutter_speed}s
+                </div>
+                <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70 font-mono">
+                  {cameraParams.white_balance}
+                </div>
+              </>
+            )}
             <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-white/70">
               {cameraReady && videoRef.current?.videoWidth ? `${videoRef.current.videoWidth} × ${videoRef.current.videoHeight}` : "预览占位"}
             </div>
@@ -964,7 +983,22 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
       {/* Right panel - camera settings */}
       <GlassCard className="w-52 rounded-none border-l border-white/5 p-4 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">相机参数</span>
+          <div>
+            <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">相机参数</span>
+            <div className={`mt-1 text-[10px] ${
+              cameraSettingsStatus === "reported"
+                ? "text-emerald-300"
+                : cameraSettingsStatus === "unavailable"
+                  ? "text-amber-300"
+                  : "text-white/35"
+            }`}>
+              {cameraSettingsStatus === "reported"
+                ? "真实参数"
+                : cameraSettingsStatus === "unavailable"
+                  ? "参数未读取"
+                  : "本地参数"}
+            </div>
+          </div>
           <button
             onClick={() => navigate("camera-wizard")}
             className="p-1 rounded hover:bg-violet-500/20 transition-colors"

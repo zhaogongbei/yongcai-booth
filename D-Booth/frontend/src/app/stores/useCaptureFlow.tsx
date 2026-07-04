@@ -50,10 +50,11 @@ interface CaptureFlowContextType {
 
   // Event/session context for backend persistence
   eventId: string | null;
+  teamId: string | null;
   sessionId: string | null;
   currentSessionId: string | null;
   authToken: string | null;
-  setCaptureContext: (ctx: { eventId?: string | null; sessionId?: string | null; authToken?: string | null }) => void;
+  setCaptureContext: (ctx: { eventId?: string | null; teamId?: string | null; sessionId?: string | null; authToken?: string | null }) => void;
 }
 
 const CaptureFlowContext = createContext<CaptureFlowContextType | null>(null);
@@ -64,13 +65,15 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
   const [activePrintTemplate, setActivePrintTemplate] = useState<ActivePrintTemplate | null>(null);
   const [templateSelectionReturnScreen, setTemplateSelectionReturnScreen] = useState<Screen | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
+  const [teamId, setTeamId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
 
   const setCaptureContext = useCallback((ctx: {
-    eventId?: string | null; sessionId?: string | null; authToken?: string | null;
+    eventId?: string | null; teamId?: string | null; sessionId?: string | null; authToken?: string | null;
   }) => {
     if (ctx.eventId !== undefined) setEventId(ctx.eventId);
+    if (ctx.teamId !== undefined) setTeamId(ctx.teamId);
     if (ctx.sessionId !== undefined) setSessionId(ctx.sessionId);
     if (ctx.authToken !== undefined) setAuthToken(ctx.authToken);
   }, []);
@@ -139,7 +142,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
       photos, addPhoto, removePhoto, clearPhotos, selectedPhotoId, setSelectedPhotoId, selectedPhoto,
       activePrintTemplate, setActivePrintTemplate,
       templateSelectionReturnScreen, setTemplateSelectionReturnScreen,
-      eventId, sessionId, currentSessionId: sessionId, authToken, setCaptureContext,
+      eventId, teamId, sessionId, currentSessionId: sessionId, authToken, setCaptureContext,
     }}>
       {children}
     </CaptureFlowContext.Provider>
