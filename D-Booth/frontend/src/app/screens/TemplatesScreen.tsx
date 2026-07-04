@@ -1,12 +1,17 @@
-import { useState } from "react";
-import { Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
 import { GlowBtn } from "../components/GlowBtn";
+import { useSettings } from "../stores/useSettings";
+import { getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 
+const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
+
 export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void }) {
+  const { currentEvent } = useSettings();
   const [activeCategory, setActiveCategory] = useState("全部");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -15,6 +20,9 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [selectedRatio, setSelectedRatio] = useState("全部");
   const [selectedStyle, setSelectedStyle] = useState("全部");
   const [selectedScene, setSelectedScene] = useState("全部");
+  const [savedTemplates, setSavedTemplates] = useState<TemplateResponse[]>([]);
+  const [savedTemplatesLoading, setSavedTemplatesLoading] = useState(false);
+  const [savedTemplatesError, setSavedTemplatesError] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
   const categoryCards = [
@@ -40,6 +48,69 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     return true;
   });
 
+  const loadSavedTemplates = useCallback(async () => {
+    const token = tokenStorage.access;
+    if (!token) {
+      setSavedTemplates([]);
+      setSavedTemplatesError(null);
+      return;
+    }
+
+    setSavedTemplatesLoading(true);
+    try {
+      let teamId = currentEvent?.teamId;
+      if (!teamId) {
+        const teams = await getMyTeams(token);
+        teamId = teams[0]?.id;
+      }
+      if (!teamId) {
+        setSavedTemplates([]);
+        setSavedTemplatesError(null);
+        return;
+      }
+
+      const data = await getTemplates(teamId, token);
+      setSavedTemplates(data);
+      setSavedTemplatesError(null);
+    } catch {
+      setSavedTemplatesError("已保存模板加载失败");
+    } finally {
+      setSavedTemplatesLoading(false);
+    }
+  }, [currentEvent?.teamId]);
+
+  useEffect(() => {
+    loadSavedTemplates();
+  }, [loadSavedTemplates]);
+
+  const filteredSavedTemplates = savedTemplates.filter(t => {
+    if (searchTerm && !t.name.includes(searchTerm)) return false;
+    if (selectedCategory && selectedCategory !== "自定义") return false;
+    return true;
+  });
+
+  const openTemplateEditor = (templateId?: string) => {
+    if (templateId) {
+      sessionStorage.setItem(SELECTED_TEMPLATE_SESSION_KEY, templateId);
+    } else {
+      sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
+    }
+    navigate("template-editor");
+  };
+
+  const getSavedTemplateBackground = (template: TemplateResponse) => {
+    const background = template.layers?.background;
+    if (
+      background &&
+      typeof background === "object" &&
+      "value" in background &&
+      typeof background.value === "string"
+    ) {
+      return background.value;
+    }
+    return "#ffffff";
+  };
+
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Main content */}
@@ -55,6 +126,9 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           </div>
           <GlowBtn size="sm" variant="ghost" onClick={() => setShowFilters(f => !f)}>
             <Filter size={14} />筛选
+          </GlowBtn>
+          <GlowBtn size="sm" variant="primary" onClick={() => openTemplateEditor()}>
+            <Plus size={14} />新建
           </GlowBtn>
         </div>
 
@@ -83,6 +157,51 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           ))}
         </div>
 
+        {(savedTemplatesLoading || savedTemplatesError || filteredSavedTemplates.length > 0) && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-white">已保存模板</span>
+                <NeonBadge color="green">{filteredSavedTemplates.length}</NeonBadge>
+              </div>
+              <button className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                onClick={loadSavedTemplates}>
+                <RefreshCw size={12} className={savedTemplatesLoading ? "animate-spin" : ""} />
+                刷新
+              </button>
+            </div>
+
+            {savedTemplatesError && (
+              <GlassCard className="p-4 mb-3 text-xs text-amber-300">{savedTemplatesError}</GlassCard>
+            )}
+
+            <div className="grid grid-cols-6 gap-4">
+              {filteredSavedTemplates.map(t => (
+                <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+                  onClick={() => openTemplateEditor(t.id)}>
+                  <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-emerald-500/40 transition-all bg-white"
+                    style={{ background: getSavedTemplateBackground(t) }}>
+                    <div className="absolute inset-3 border border-black/10" />
+                    <div className="absolute left-[18%] top-[15%] w-[64%] h-[28%] rounded bg-black/10 border border-black/10" />
+                    <div className="absolute left-[18%] top-[50%] w-[64%] h-[8%] rounded bg-black/15" />
+                    <div className="absolute left-[24%] top-[64%] w-[52%] h-[6%] rounded bg-black/10" />
+                    <div className="absolute top-2 right-2">
+                      <NeonBadge color="green">已保存</NeonBadge>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <GlowBtn size="sm" variant="primary" className="w-full justify-center">编辑</GlowBtn>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-medium text-white truncate">{t.name}</div>
+                    <div className="text-[10px] text-white/40">{t.size || "自定义尺寸"}</div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Featured templates */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -95,7 +214,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <div className="grid grid-cols-6 gap-4">
             {filteredTemplates.map(t => (
               <motion.div key={t.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => navigate("template-editor")}>
+                onClick={() => openTemplateEditor()}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-violet-500/40 transition-all">
                   <img src={t.img}
                     alt={t.name} className="w-full h-full object-cover" loading="lazy" />
@@ -133,7 +252,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
               { img: '/images/scenes/brand-popup-mall.webp', label: '韩系' },
             ].map((item, i) => (
               <motion.div key={i} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => navigate("template-editor")}>
+                onClick={() => openTemplateEditor()}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-pink-500/40 transition-all">
                   <img src={item.img}
                     alt={`${item.label}模板`} className="w-full h-full object-cover" loading="lazy" />

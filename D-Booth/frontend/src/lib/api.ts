@@ -836,6 +836,10 @@ export async function getTemplates(teamId: string, token: string): Promise<Templ
   });
 }
 
+export async function getTemplate(templateId: string, token: string): Promise<TemplateResponse> {
+  return request<TemplateResponse>(`/templates/${templateId}`, { token });
+}
+
 export async function createTemplate(payload: TemplateCreatePayload, token: string): Promise<TemplateResponse> {
   return request<TemplateResponse>("/templates", {
     method: "POST",

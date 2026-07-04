@@ -9,7 +9,7 @@ import { useSettings } from "../stores/useSettings";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
-import { createTemplate, getMyTeams, tokenStorage, updateTemplate, validateTemplate } from "../../lib/api";
+import { createTemplate, getMyTeams, getTemplate, tokenStorage, updateTemplate, validateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
 
 const ZOOM_OPTIONS = [
@@ -75,6 +75,21 @@ function createDefaultElement(type: TemplateElement['type']): TemplateElement {
 
 // 绘图缩放比例（将300DPI物理像素映射到屏幕上可显示的尺寸）
 const DISPLAY_SCALE = 0.45;
+const SELECTED_TEMPLATE_SESSION_KEY = "aibooth.templateEditor.templateId";
+
+function isTemplateLayout(value: unknown): value is TemplateLayout {
+  if (!value || typeof value !== "object") return false;
+  const layout = value as Partial<TemplateLayout>;
+  return Boolean(
+    layout.paperSize &&
+    typeof layout.paperSize.width === "number" &&
+    typeof layout.paperSize.height === "number" &&
+    typeof layout.resolution === "number" &&
+    typeof layout.orientation === "string" &&
+    layout.background &&
+    Array.isArray(layout.elements)
+  );
+}
 
 export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => void }) {
   // ─── 状态 ───
@@ -102,6 +117,38 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   const zoomLabel = ZOOM_OPTIONS.find(z => z.value === zoom)?.label ?? "100%";
 
   const selectedElement = layout.elements.find(e => e.id === selectedIds[0]) || null;
+
+  useEffect(() => {
+    const templateId = sessionStorage.getItem(SELECTED_TEMPLATE_SESSION_KEY);
+    if (!templateId) return;
+    sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
+
+    const token = tokenStorage.access;
+    if (!token) {
+      showToast.error("请先登录后再打开模板");
+      return;
+    }
+
+    getTemplate(templateId, token)
+      .then(template => {
+        if (!isTemplateLayout(template.layers)) {
+          showToast.error("模板数据结构无效");
+          return;
+        }
+        const nextLayout = {
+          ...template.layers,
+          id: template.layers.id || template.id,
+          name: template.name,
+        };
+        undoRedo.reset(nextLayout);
+        setTemplateName(template.name);
+        setSavedTemplateId(template.id);
+        setSelectedIds([]);
+      })
+      .catch(err => {
+        showToast.error(err instanceof Error ? err.message : "模板加载失败");
+      });
+  }, []);
 
   // ─── 快捷键 ───
   useEffect(() => {
