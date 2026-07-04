@@ -57,12 +57,23 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     { label: "自定义模板", count: 256, icon: Grid3X3, color: "from-gray-600 to-slate-800", filter: "自定义" },
   ];
   const templates = [
-    { name: "花漾时光", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-couple-booth.webp' },
-    { name: "浪漫白花", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-guests-fun.webp' },
-    { name: "粉色心情", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/birthday-party-fun.webp' },
-    { name: "夏日派对", ratio: "2×6", type: "推荐", category: "节日", img: '/images/scenes/festival-outdoor-booth.webp' },
-    { name: "企业活动", ratio: "4×6", type: "推荐", category: "企业", img: '/images/scenes/corporate-event-group.webp' },
-    { name: "生日快乐", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/kids-birthday-booth.webp' },
+    { name: "花漾时光", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-couple-booth.webp', layoutId: "two-double-horizontal" },
+    { name: "浪漫白花", ratio: "2×6", type: "推荐", category: "婚礼", img: '/images/scenes/wedding-guests-fun.webp', layoutId: "four-double-vertical" },
+    { name: "粉色心情", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/birthday-party-fun.webp', layoutId: "one-large-three-small-horizontal" },
+    { name: "夏日派对", ratio: "2×6", type: "推荐", category: "节日", img: '/images/scenes/festival-outdoor-booth.webp', layoutId: "four-single-horizontal" },
+    { name: "企业活动", ratio: "4×6", type: "推荐", category: "企业", img: '/images/scenes/corporate-event-group.webp', layoutId: "one-single-horizontal" },
+    { name: "生日快乐", ratio: "2×6", type: "推荐", category: "生日", img: '/images/scenes/kids-birthday-booth.webp', layoutId: "one-single-vertical" },
+  ];
+
+  const hotTemplates = [
+    { img: '/images/products/photo-prints-showcase.webp', label: '高显', layoutId: 'one-single-vertical' },
+    { img: '/images/products/polaroid-style-prints.webp', label: '前途', layoutId: 'one-double-vertical' },
+    { img: '/images/scenes/conference-networking.webp', label: '复古怀旧', layoutId: 'two-double-horizontal' },
+    { img: '/images/backgrounds/attract-screen-corporate.webp', label: '清新淡雅', layoutId: 'four-single-horizontal' },
+    { img: '/images/backgrounds/attract-screen-elegant.webp', label: '新系图斯', layoutId: 'four-double-vertical' },
+    { img: '/images/backgrounds/attract-screen-01.webp', label: '日系小清新', layoutId: 'one-large-three-small-horizontal' },
+    { img: '/images/products/camera-equipment.webp', label: '多系', layoutId: 'three-double-vertical' },
+    { img: '/images/scenes/brand-popup-mall.webp', label: '韩系', layoutId: 'one-single-horizontal' },
   ];
 
   const filteredTemplates = templates.filter(t => {
@@ -386,7 +397,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-white">推荐模板</span>
+              <span className="text-sm font-semibold text-white">推荐版式</span>
               <span className="text-lg">🔥</span>
             </div>
             <button className="text-xs text-violet-400 hover:text-violet-300" onClick={() => setSelectedCategory(null)}>查看全部</button>
@@ -394,15 +405,15 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <div className="grid grid-cols-6 gap-4">
             {filteredTemplates.map(t => (
               <motion.div key={t.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => openTemplateEditor()}>
+                onClick={() => openTemplateEditorWithLayout(t.layoutId)}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-violet-500/40 transition-all">
                   <img src={t.img}
                     alt={t.name} className="w-full h-full object-cover" loading="lazy" />
                   <div className="absolute top-2 right-2">
-                    <NeonBadge color="purple">VIP</NeonBadge>
+                    <NeonBadge color="purple">可创建</NeonBadge>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                    <GlowBtn size="sm" variant="primary" className="w-full justify-center">使用</GlowBtn>
+                    <GlowBtn size="sm" variant="primary" className="w-full justify-center">用此版式创建</GlowBtn>
                   </div>
                 </div>
                 <div className="mt-2">
@@ -417,25 +428,19 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
         {/* Hot templates */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-semibold text-white">热门模板</span>
+            <span className="text-sm font-semibold text-white">热门版式</span>
             <NeonBadge color="pink">HOT</NeonBadge>
           </div>
           <div className="grid grid-cols-8 gap-3">
-            {[
-              { img: '/images/products/photo-prints-showcase.webp', label: '高显' },
-              { img: '/images/products/polaroid-style-prints.webp', label: '前途' },
-              { img: '/images/scenes/conference-networking.webp', label: '复古怀旧' },
-              { img: '/images/backgrounds/attract-screen-corporate.webp', label: '清新淡雅' },
-              { img: '/images/backgrounds/attract-screen-elegant.webp', label: '新系图斯' },
-              { img: '/images/backgrounds/attract-screen-01.webp', label: '日系小清新' },
-              { img: '/images/products/camera-equipment.webp', label: '多系' },
-              { img: '/images/scenes/brand-popup-mall.webp', label: '韩系' },
-            ].map((item, i) => (
+            {hotTemplates.map((item, i) => (
               <motion.div key={i} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => openTemplateEditor()}>
+                onClick={() => openTemplateEditorWithLayout(item.layoutId)}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-pink-500/40 transition-all">
                   <img src={item.img}
                     alt={`${item.label}模板`} className="w-full h-full object-cover" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
+                    <span className="rounded-lg bg-pink-500/90 px-2 py-1 text-[10px] font-medium text-white">创建</span>
+                  </div>
                 </div>
                 <div className="text-[10px] text-white/50 mt-1.5 text-center">{item.label}</div>
               </motion.div>
