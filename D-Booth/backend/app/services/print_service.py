@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import os
 import tempfile
@@ -79,7 +78,9 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
     @classmethod
     async def process_image_for_print(
         cls,
-        image_url: str, sharpen_profile: str = "medium", watermark_settings: Optional[dict] = None
+        image_url: str,
+        sharpen_profile: str = "medium",
+        watermark_settings: Optional[dict] = None,
     ) -> bytes:
         """Process image for printing: apply sharpening and watermark if configured."""
         image_bytes = await cls._load_image_bytes(image_url)
@@ -313,22 +314,16 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
                     if default_printer:
                         printer_name = default_printer.name
                     else:
-                        # 没有找到打印机，模拟打印
-                        await asyncio.sleep(2)  # 模拟打印延迟
-                        await self.complete_job(job_id)
-                        return True
+                        await self.fail_job(job_id, "No available printer found")
+                        return False
 
                 printer_status = await PrinterDriverService.get_printer_status(printer_name)
                 if printer_status not in [PrinterStatus.READY, PrinterStatus.INK_LOW]:
-                    # 打印机不可用，模拟打印（优雅降级）
-                    from app.core.logging import logger
-
-                    logger.warning(
-                        f"Printer {printer_name} is not available (status: {printer_status}), falling back to simulation"
+                    await self.fail_job(
+                        job_id,
+                        f"Printer {printer_name} is not available (status: {printer_status})",
                     )
-                    await asyncio.sleep(2)
-                    await self.complete_job(job_id)
-                    return True
+                    return False
 
                 # 发送到打印机
                 success = await PrinterDriverService.print_file(

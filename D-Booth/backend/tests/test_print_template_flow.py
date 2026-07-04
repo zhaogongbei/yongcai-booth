@@ -107,7 +107,9 @@ async def test_execute_print_job_renders_selected_template(db_session, monkeypat
     db_session.add_all([first, second, template])
     await db_session.flush()
 
-    job = PrintJob(photo_id=first.id, template_id=template.id, printer_name="Booth Printer", copies=1)
+    job = PrintJob(
+        photo_id=first.id, template_id=template.id, printer_name="Booth Printer", copies=1
+    )
     db_session.add(job)
     await db_session.commit()
 
@@ -136,6 +138,52 @@ async def test_execute_print_job_renders_selected_template(db_session, monkeypat
     assert rendered.getpixel((75, 50))[2] > rendered.getpixel((75, 50))[0]
 
     assert refreshed.status == PrintJobStatus.COMPLETED
+
+
+@pytest.mark.anyio
+async def test_execute_print_job_fails_when_no_printer_available(db_session, monkeypatch):
+    _, _, event = await _create_user_team_event(db_session, "print-no-printer@example.com")
+    photo = Photo(event_id=event.id, original_url=_image_data_url("red"))
+    db_session.add(photo)
+    await db_session.flush()
+    job = PrintJob(photo_id=photo.id, copies=1)
+    db_session.add(job)
+    await db_session.commit()
+
+    async def no_printers():
+        return []
+
+    monkeypatch.setattr(PrinterDriverService, "discover_printers", no_printers)
+
+    result = await PrintService(db_session).execute_print_job(job.id)
+    refreshed = await db_session.get(PrintJob, job.id)
+
+    assert result is False
+    assert refreshed.status == PrintJobStatus.FAILED
+    assert refreshed.error_message == "No available printer found"
+
+
+@pytest.mark.anyio
+async def test_execute_print_job_fails_when_printer_not_ready(db_session, monkeypatch):
+    _, _, event = await _create_user_team_event(db_session, "print-offline@example.com")
+    photo = Photo(event_id=event.id, original_url=_image_data_url("red"))
+    db_session.add(photo)
+    await db_session.flush()
+    job = PrintJob(photo_id=photo.id, printer_name="Offline Printer", copies=1)
+    db_session.add(job)
+    await db_session.commit()
+
+    async def offline(_printer_name):
+        return "offline"
+
+    monkeypatch.setattr(PrinterDriverService, "get_printer_status", offline)
+
+    result = await PrintService(db_session).execute_print_job(job.id)
+    refreshed = await db_session.get(PrintJob, job.id)
+
+    assert result is False
+    assert refreshed.status == PrintJobStatus.FAILED
+    assert "not available" in refreshed.error_message
 
 
 @pytest.mark.anyio
