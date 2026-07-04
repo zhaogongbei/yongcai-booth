@@ -1,4 +1,4 @@
-import { Camera, Printer, Cloud, Globe, Palette, Sun, Star, Sparkles, Lock, ChevronRight, Droplets, Zap, Volume2, Mic, Play, Square } from "lucide-react";
+import { Camera, Printer, Cloud, Globe, Palette, Sun, Star, Sparkles, Lock, Droplets, Zap, Volume2, Mic, Play, Square } from "lucide-react";
 import type { ElementType } from "react";
 import { useState, useCallback } from "react";
 import { GlassCard } from "../components/GlassCard";
@@ -76,30 +76,13 @@ interface BrightnessSliderItem {
   settingKey: "brightness";
 }
 
-interface ActionButtonItem {
+interface StaticInfoItem {
   label: string;
   desc: string;
   icon: ElementType;
-  action: string;
 }
 
-type SectionItem = DeviceToggleItem | LanguageSelectItem | BrightnessSliderItem | ActionButtonItem;
-
-function isDeviceToggle(item: SectionItem): item is DeviceToggleItem {
-  return "toggleKey" in item;
-}
-
-function isLanguageSelect(item: SectionItem): item is LanguageSelectItem {
-  return "settingKey" in item && item.settingKey === "language";
-}
-
-function isBrightnessSlider(item: SectionItem): item is BrightnessSliderItem {
-  return "settingKey" in item && item.settingKey === "brightness";
-}
-
-function isActionButton(item: SectionItem): item is ActionButtonItem {
-  return !("toggleKey" in item) && !("settingKey" in item);
-}
+type SectionItem = DeviceToggleItem | LanguageSelectItem | BrightnessSliderItem | StaticInfoItem;
 
 export function SettingsScreen() {
   const { settings, updateSettings } = useSettings();
@@ -217,15 +200,15 @@ export function SettingsScreen() {
     {
       title: "界面设置", items: [
         { label: "语言", desc: LANGUAGE_OPTIONS.find(o => o.value === ui.language)?.label ?? ui.language, icon: Globe, settingKey: "language" as const },
-        { label: "主题颜色", desc: "深空紫", icon: Palette, action: "主题设置功能开发中" },
+        { label: "主题颜色", desc: "深空紫", icon: Palette },
         { label: "屏幕亮度", desc: `${ui.brightness}%`, icon: Sun, settingKey: "brightness" as const },
       ]
     },
     {
       title: "账号与订阅", items: [
-        { label: "Pro 会员", desc: "有效期至 2025-12-31", icon: Star, action: "会员管理功能开发中" },
-        { label: "AI 积分", desc: "剩余 8,420 积分", icon: Sparkles, action: "积分管理功能开发中" },
-        { label: "账号安全", desc: "最后登录 2 小时前", icon: Lock, action: "账号安全功能开发中" },
+        { label: "Pro 会员", desc: "有效期至 2025-12-31", icon: Star },
+        { label: "AI 积分", desc: "剩余 8,420 积分", icon: Sparkles },
+        { label: "账号安全", desc: "最后登录 2 小时前", icon: Lock },
       ]
     },
   ];
@@ -284,11 +267,6 @@ export function SettingsScreen() {
                       </div>
                     )}
                   </div>
-                  {"toggleKey" in item ? null : (!("settingKey" in item) && (
-                    <button className="p-1 rounded-lg hover:bg-white/10 transition-colors" onClick={() => showToast.info(item.action)}>
-                      <ChevronRight size={16} className="text-white/30" />
-                    </button>
-                  ))}
                 </div>
               ))}
             </div>

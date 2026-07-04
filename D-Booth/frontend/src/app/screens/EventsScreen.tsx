@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CalendarDays, TrendingUp, Camera, Printer, Filter, Plus, Search, Eye, Settings, RefreshCw } from "lucide-react";
+import { CalendarDays, TrendingUp, Camera, Printer, Filter, Plus, Search, Eye, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
@@ -344,7 +344,6 @@ export function EventsScreen({ navigate }: EventsScreenProps) {
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-1">
                       <button className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70" onClick={() => setSelectedEvent(e.name)} title="查看详情"><Eye size={13} /></button>
-                      <button className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70" onClick={() => showToast.info(`${e.name} 设置`)} title="设置"><Settings size={13} /></button>
                       <button className="p-1.5 rounded-lg hover:bg-violet-500/20 text-white/40 hover:text-violet-400" onClick={() => enterCapture(e.id, e.name)} title="进入拍照"><Camera size={13} /></button>
                     </div>
                   </td>
