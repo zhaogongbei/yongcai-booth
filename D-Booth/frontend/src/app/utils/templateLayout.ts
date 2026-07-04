@@ -1,5 +1,15 @@
 import type { PhotoElementProps, TemplateLayout } from "../types/template";
 
+export function hasPrintablePhotoFrame(layout: TemplateLayout | null | undefined): boolean {
+  if (!layout) return false;
+
+  return layout.elements.some(element => {
+    if (!element.visible || element.type !== "photo") return false;
+    const photoNumber = Number((element.props as Partial<PhotoElementProps>).photoNumber);
+    return Number.isFinite(photoNumber) && photoNumber >= 1;
+  });
+}
+
 export function getRequiredTemplatePhotoCount(layout: TemplateLayout | null | undefined): number {
   if (!layout) return 0;
 

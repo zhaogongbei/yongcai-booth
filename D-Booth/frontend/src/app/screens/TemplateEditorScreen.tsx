@@ -12,6 +12,7 @@ import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY, TEMPLAT
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
 import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
+import { hasPrintablePhotoFrame } from "../utils/templateLayout";
 import { createTemplate, getMyTeams, getTemplate, updateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
 
@@ -597,6 +598,11 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
       const layers = snapshot as unknown as Record<string, unknown>;
       if (!isTemplateLayout(snapshot)) {
         showToast.error("模板结构校验失败");
+        return;
+      }
+      if (!hasPrintablePhotoFrame(snapshot)) {
+        setHighlightBackgroundUpload(true);
+        showToast.error("请先添加至少一个照片框，再保存模板");
         return;
       }
 
@@ -1314,7 +1320,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
 
   // ─── 排序后的元素列表 ───
   const sortedElements = [...renderedLayout.elements].sort((a, b) => a.zIndex - b.zIndex);
-  const hasPhotoFrameElements = renderedLayout.elements.some(element => element.type === 'photo');
+  const hasPhotoFrameElements = hasPrintablePhotoFrame(renderedLayout);
   const hasImageBackground = renderedLayout.background.type === 'image';
   const visibleLayerCount = renderedLayout.elements.length + (hasImageBackground ? 1 : 0);
   const resolvedBackgroundLayerZIndex = getResolvedBackgroundLayerZIndex(renderedLayout.background, renderedLayout.elements);
