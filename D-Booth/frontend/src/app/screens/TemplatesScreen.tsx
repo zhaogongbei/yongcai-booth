@@ -466,7 +466,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                 const isRecentlySavedTemplate = recentlySavedTemplateId === t.id;
 
                 return (
-              <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+                  <motion.div key={t.id} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
                     onClick={() => {
                       if (isTemplateSelectionMode) {
                         selectTemplateForPrint(t);
