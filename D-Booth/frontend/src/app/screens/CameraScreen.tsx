@@ -243,9 +243,8 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
       }>("/camera/capture", { method: "POST" });
 
       if (result.capture_method === "dslr" && result.local_path) {
-        // DSLR模式下照片已在后端保存,通过local_path获取
-        toast.success("DSLR拍摄成功");
-        return true;
+        toast.error("DSLR 已拍摄，但尚未接入当前打印照片流");
+        return false;
       }
       return false;
     } catch (error) {
@@ -254,20 +253,20 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
   }, []);
 
-  const captureFrame = useCallback(async () => {
+  const captureFrame = useCallback(async (): Promise<boolean> => {
     // 优先尝试DSLR拍摄
     if (cameraControllerType === "gphoto2") {
       const dslrSuccess = await captureDSLR();
       if (dslrSuccess) {
         // DSLR拍摄成功,照片已由后端处理
-        return;
+        return true;
       }
     }
 
     const video = videoRef.current;
     if (!video || !cameraReady || video.videoWidth === 0 || video.videoHeight === 0) {
-      addPhoto({ url: RECENT_PHOTOS[selectedPhoto ?? 0], filter: FILTERS[selectedFilter] });
-      return;
+      toast.error("相机未就绪，请开启权限或检查设备后再拍摄");
+      return false;
     }
 
     const canvas = document.createElement("canvas");
@@ -275,18 +274,21 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      addPhoto({ url: RECENT_PHOTOS[selectedPhoto ?? 0], filter: FILTERS[selectedFilter] });
-      return;
+      toast.error("无法读取相机画面，请重试");
+      return false;
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(blob => {
-      if (!blob) {
-        addPhoto({ url: RECENT_PHOTOS[selectedPhoto ?? 0], filter: FILTERS[selectedFilter] });
-        return;
-      }
-      addPhoto({ blob, filter: FILTERS[selectedFilter] });
-    }, "image/jpeg", 0.92);
-  }, [addPhoto, cameraReady, selectedFilter, selectedPhoto, cameraControllerType, captureDSLR]);
+    const blob = await new Promise<Blob | null>(resolve => {
+      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    });
+    if (!blob) {
+      toast.error("照片生成失败，请重试");
+      return false;
+    }
+
+    await addPhoto({ blob, filter: FILTERS[selectedFilter] });
+    return true;
+  }, [addPhoto, cameraReady, selectedFilter, cameraControllerType, captureDSLR]);
 
   // GIF拍摄逻辑
   const captureGif = useCallback(async (isBoomerang: boolean = false) => {
@@ -417,8 +419,13 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         switch (captureMode) {
           case "photo":
-            captureFrame();
-            window.setTimeout(() => setCaptured(false), 1200);
+            void captureFrame().then(success => {
+              if (success) {
+                window.setTimeout(() => setCaptured(false), 1200);
+              } else {
+                setCaptured(false);
+              }
+            });
             break;
           case "gif":
             captureGif(false);

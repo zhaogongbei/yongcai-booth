@@ -98,7 +98,7 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
           : p));
       }
     }
-    // No event context / no blob (demo fallback URL): stays local
+    // No event context: keep the captured media local and mark it unavailable for print.
   }, [eventId, sessionId, authToken]);
 
   const clearPhotos = useCallback(() => {

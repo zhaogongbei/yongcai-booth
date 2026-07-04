@@ -8,7 +8,7 @@ import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { createTemplateLayoutFromPrintPreset, FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
-import { deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
+import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
 
@@ -24,6 +24,10 @@ function isTemplateLayout(value: unknown): value is TemplateLayout {
     layout.background &&
     Array.isArray(layout.elements)
   );
+}
+
+function getTemplateSizeLabel(layout: TemplateLayout): string {
+  return `${layout.paperSize.width}x${layout.paperSize.height}mm`;
 }
 
 export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void }) {
@@ -46,6 +50,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [savedTemplatesLoading, setSavedTemplatesLoading] = useState(false);
   const [savedTemplatesError, setSavedTemplatesError] = useState<string | null>(null);
   const [operatingTemplateId, setOperatingTemplateId] = useState<string | null>(null);
+  const [operatingLayoutId, setOperatingLayoutId] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
   const categoryCards = [
@@ -143,20 +148,67 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     navigate("template-editor");
   };
 
-  const selectQuickLayoutForPrint = (layoutId: string) => {
+  const resolveTemplateTeamId = useCallback(async () => {
+    if (currentEvent?.teamId) return currentEvent.teamId;
+    const teams = await getMyTeams();
+    return teams[0]?.id;
+  }, [currentEvent?.teamId]);
+
+  const selectQuickLayoutForPrint = async (layoutId: string) => {
     const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === layoutId);
     if (!preset) {
       showToast.error("未找到该打印版式");
       return;
     }
 
-    const id = `quick-${preset.id}`;
+    setOperatingLayoutId(layoutId);
+    const temporaryId = `quick-${preset.id}`;
+    const layout = createTemplateLayoutFromPrintPreset(temporaryId, preset);
+    let templateId = temporaryId;
+    let templateName = preset.name;
+
+    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh);
+    if (hasStoredAuthSession) {
+      try {
+        const teamId = await resolveTemplateTeamId();
+        if (!teamId) {
+          showToast.error("未找到可保存模板的团队");
+          return;
+        }
+        const saved = await createTemplate({
+          team_id: teamId,
+          name: preset.name,
+          description: "由快速打印版式自动保存",
+          size: getTemplateSizeLabel(layout),
+          canvas_width: preset.canvasWidth,
+          canvas_height: preset.canvasHeight,
+          layers: layout as unknown as Record<string, unknown>,
+          is_public: false,
+        });
+        templateId = saved.id;
+        templateName = saved.name;
+        setSavedTemplates(prev => [saved, ...prev.filter(item => item.id !== saved.id)]);
+      } catch (err) {
+        showToast.error(err instanceof Error ? err.message : "快速版式保存失败");
+        return;
+      } finally {
+        setOperatingLayoutId(null);
+      }
+    }
+
     setActivePrintTemplate({
-      id,
-      name: preset.name,
-      layout: createTemplateLayoutFromPrintPreset(id, preset),
+      id: templateId,
+      name: templateName,
+      layout: {
+        ...layout,
+        id: templateId,
+        name: templateName,
+      },
     });
-    showToast.success(`已使用版式：${preset.name}`);
+    if (!hasStoredAuthSession) {
+      setOperatingLayoutId(null);
+    }
+    showToast.success(`已使用版式：${templateName}`);
     const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
     setTemplateSelectionReturnScreen(null);
     navigate(returnScreen);
@@ -164,7 +216,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
 
   const openOrSelectLayout = (layoutId: string) => {
     if (templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera") {
-      selectQuickLayoutForPrint(layoutId);
+      void selectQuickLayoutForPrint(layoutId);
       return;
     }
     openTemplateEditorWithLayout(layoutId);
@@ -319,15 +371,18 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                 type="button"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/15 p-3 text-left transition-colors"
+                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/15 p-3 text-left transition-colors disabled:cursor-wait disabled:opacity-60"
                 onClick={() => openOrSelectLayout(layout.id)}
+                disabled={operatingLayoutId === layout.id}
               >
                 <div className="flex items-center gap-2 text-xs font-medium text-emerald-300">
                   <LayoutTemplate size={14} />
                   <span className="truncate">{layout.name}</span>
                 </div>
                 <div className="mt-1 text-[10px] text-white/45">{layout.description}</div>
-                <div className="mt-2 text-[10px] text-emerald-200/80">{quickLayoutActionLabel}</div>
+                <div className="mt-2 text-[10px] text-emerald-200/80">
+                  {operatingLayoutId === layout.id ? "正在保存版式..." : quickLayoutActionLabel}
+                </div>
                 <div className="mt-3 relative h-16 rounded-lg bg-white/90 overflow-hidden">
                   {layout.frames.map((frame, index) => (
                     <div

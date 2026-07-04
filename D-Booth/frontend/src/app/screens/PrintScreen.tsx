@@ -65,6 +65,10 @@ function formatTemplatePaperSize(layout: { paperSize: { width: number; height: n
   return `${formatInches(layout.paperSize.width)}x${formatInches(layout.paperSize.height)} 英寸`;
 }
 
+function isBackendTemplateId(templateId: string | undefined): boolean {
+  return Boolean(templateId?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));
+}
+
 export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [printStatus, setPrintStatus] = useState<PrintRuntimeState>("idle");
@@ -95,9 +99,12 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (!printPhoto?.serverPhotoId) {
       return printPhoto?.uploadError ? "照片上传失败，无法打印" : "照片正在上传，完成后可打印";
     }
+    if (activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id)) {
+      return "当前模板尚未保存，无法真实打印";
+    }
     if (!selectedPrinter) return "请先选择打印机";
     return null;
-  }, [authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, selectedPrinter]);
+  }, [activePrintTemplate, authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, selectedPrinter]);
   const printButtonLabel = useMemo(() => {
     if (!printUnavailableReason) {
       return isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片";
@@ -106,8 +113,9 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (!authToken) return "无法打印";
     if (printPhoto?.uploadError) return "上传失败";
     if (!printPhoto?.serverPhotoId) return "等待上传";
+    if (activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id)) return "模板未保存";
     return "请选择打印机";
-  }, [authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, printStatus, printUnavailableReason]);
+  }, [activePrintTemplate, authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, printStatus, printUnavailableReason]);
   const paperSizeLabel = useMemo(
     () => formatTemplatePaperSize(activePrintTemplate?.layout ?? null),
     [activePrintTemplate?.layout],
