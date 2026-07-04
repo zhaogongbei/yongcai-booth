@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type React from "react";
-import { ArrowLeft, Printer, Check, Share2, RefreshCw, FileText, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Camera, Printer, Check, Share2, RefreshCw, FileText, LayoutTemplate } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
@@ -19,7 +19,7 @@ import {
   transitionPrintState,
   type PrintRuntimeState,
 } from "../services/printStateMachine";
-import { PRINT_PREVIEW_FALLBACKS, PRINT_HISTORY, MAX_PRINT_QTY } from "../constants";
+import { PRINT_HISTORY, MAX_PRINT_QTY } from "../constants";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
 
@@ -87,6 +87,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const { selectedPhoto, photos, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const pollTimerRef = useRef<number | null>(null);
+  const hasPrintablePhoto = photos.length > 0;
 
   // 手动刷新打印机列表
   const handleRefreshPrinters = useCallback(async () => {
@@ -137,6 +138,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   }, []);
 
   const handlePrint = useCallback(async () => {
+    if (!hasPrintablePhoto) {
+      toast.error("请先完成拍照，再进入打印");
+      return;
+    }
+
     if (!selectedPrinter) {
       toast.error("请先选择打印机");
       return;
@@ -192,7 +198,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       sendPrintEvent("FAIL");
       toast.error(err instanceof Error ? err.message : "提交打印任务失败");
     }
-  }, [activePrintTemplate?.id, authToken, qty, selectedPhoto, selectedPrinter, sendPrintEvent, stopPolling]);
+  }, [activePrintTemplate?.id, authToken, hasPrintablePhoto, qty, selectedPhoto, selectedPrinter, sendPrintEvent, stopPolling]);
 
   // 使用当前选中照片优先，其余照片按拍摄顺序补齐多照片框。
   const printPreviewImages = useMemo(() => {
@@ -202,7 +208,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (photos.length > 0) {
       return photos.map(photo => photo.url);
     }
-    return [...PRINT_PREVIEW_FALLBACKS];
+    return [];
   }, [photos, selectedPhoto]);
 
   const templatePreviewSize = useMemo(() => {
@@ -261,7 +267,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   photoUrls={printPreviewImages}
                 />
               </div>
-            ) : (
+            ) : hasPrintablePhoto ? (
               <div className="bg-white rounded-xl p-4 shadow-[0_0_60px_rgba(139,92,246,0.2)]" style={{ width: 260, height: 620 }}>
                 {printPreviewImages.map((src, i) => (
                   <div key={i} className="mb-3 rounded-lg overflow-hidden" style={{ height: selectedPhoto ? 560 : 175 }}>
@@ -276,6 +282,17 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   </div>
                 )}
               </div>
+            ) : (
+              <GlassCard className="w-[320px] p-6 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white/50">
+                  <Camera size={24} />
+                </div>
+                <div className="mt-4 text-sm font-semibold text-white">还没有可打印照片</div>
+                <div className="mt-2 text-xs leading-5 text-white/45">请先完成拍照，再选择模板和提交打印。</div>
+                <GlowBtn className="mt-5 w-full justify-center" size="sm" variant="primary" onClick={() => navigate("camera")}>
+                  <Camera size={14} />返回拍照
+                </GlowBtn>
+              </GlassCard>
             )}
             {activePrintTemplate && (
               <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-300">
@@ -481,12 +498,12 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           className="w-full py-4 rounded-2xl font-semibold text-white text-base disabled:opacity-50"
           style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)", boxShadow: "0 0 30px rgba(139,92,246,0.4)" }}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          disabled={isPrintBusy(printStatus) || !selectedPrinter}
+          disabled={isPrintBusy(printStatus) || !selectedPrinter || !hasPrintablePhoto}
           onClick={handlePrint}
         >
           <div className="flex items-center justify-center gap-2">
             <Printer size={20} />
-            {isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片"}
+            {!hasPrintablePhoto ? "请先拍照" : isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片"}
           </div>
         </motion.button>
       </GlassCard>

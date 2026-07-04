@@ -1,3 +1,5 @@
+import type { PhotoElementProps, TemplateLayout } from "../types/template";
+
 export type PrintLayoutFrame = {
   photoNumber: number;
   x: number;
@@ -149,3 +151,35 @@ export const QUICK_PRINT_LAYOUTS: PrintLayoutPreset[] = [
     ],
   },
 ];
+
+export function createTemplateLayoutFromPrintPreset(layoutId: string, preset: PrintLayoutPreset): TemplateLayout {
+  return {
+    id: layoutId,
+    name: preset.name,
+    paperSize: {
+      width: Number((preset.canvasWidth * 25.4 / 300).toFixed(1)),
+      height: Number((preset.canvasHeight * 25.4 / 300).toFixed(1)),
+    },
+    resolution: 300,
+    orientation: preset.canvasWidth > preset.canvasHeight ? "landscape" : "portrait",
+    background: { type: "color", value: "#ffffff" },
+    elements: preset.frames.map((frame, index) => ({
+      id: `${layoutId}_photo_${index + 1}`,
+      type: "photo",
+      x: frame.x,
+      y: frame.y,
+      width: frame.width,
+      height: frame.height,
+      rotation: 0,
+      opacity: 1,
+      zIndex: index,
+      locked: false,
+      visible: true,
+      props: {
+        photoNumber: frame.photoNumber,
+        cropMode: "stretch",
+        borderRadius: 0,
+      } as PhotoElementProps,
+    })),
+  };
+}

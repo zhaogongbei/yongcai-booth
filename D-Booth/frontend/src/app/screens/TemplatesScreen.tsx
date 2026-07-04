@@ -7,7 +7,7 @@ import { GlowBtn } from "../components/GlowBtn";
 import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
-import { FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
+import { createTemplateLayoutFromPrintPreset, FEATURED_QUICK_PRINT_LAYOUT_IDS, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
 import { deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
@@ -143,6 +143,33 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     navigate("template-editor");
   };
 
+  const selectQuickLayoutForPrint = (layoutId: string) => {
+    const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === layoutId);
+    if (!preset) {
+      showToast.error("未找到该打印版式");
+      return;
+    }
+
+    const id = `quick-${preset.id}`;
+    setActivePrintTemplate({
+      id,
+      name: preset.name,
+      layout: createTemplateLayoutFromPrintPreset(id, preset),
+    });
+    showToast.success(`已使用版式：${preset.name}`);
+    const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
+    setTemplateSelectionReturnScreen(null);
+    navigate(returnScreen);
+  };
+
+  const openOrSelectLayout = (layoutId: string) => {
+    if (templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera") {
+      selectQuickLayoutForPrint(layoutId);
+      return;
+    }
+    openTemplateEditorWithLayout(layoutId);
+  };
+
   const selectTemplateForPrint = (template: TemplateResponse) => {
     if (!isTemplateLayout(template.layers)) {
       showToast.error("该模板缺少可打印版式，请先打开编辑器保存一次");
@@ -164,7 +191,11 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     navigate(returnScreen);
   };
 
+  const isTemplateSelectionMode = templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera";
   const selectTemplateButtonLabel = templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用";
+  const quickLayoutActionLabel = isTemplateSelectionMode
+    ? (templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用并返回拍照")
+    : "用此版式创建";
 
   const duplicateSavedTemplate = async (template: TemplateResponse) => {
     setOperatingTemplateId(template.id);
@@ -256,13 +287,14 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/15 p-3 text-left transition-colors"
-                onClick={() => openTemplateEditorWithLayout(layout.id)}
+                onClick={() => openOrSelectLayout(layout.id)}
               >
                 <div className="flex items-center gap-2 text-xs font-medium text-emerald-300">
                   <LayoutTemplate size={14} />
                   <span className="truncate">{layout.name}</span>
                 </div>
                 <div className="mt-1 text-[10px] text-white/45">{layout.description}</div>
+                <div className="mt-2 text-[10px] text-emerald-200/80">{quickLayoutActionLabel}</div>
                 <div className="mt-3 relative h-16 rounded-lg bg-white/90 overflow-hidden">
                   {layout.frames.map((frame, index) => (
                     <div
@@ -405,7 +437,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <div className="grid grid-cols-6 gap-4">
             {filteredTemplates.map(t => (
               <motion.div key={t.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => openTemplateEditorWithLayout(t.layoutId)}>
+                onClick={() => openOrSelectLayout(t.layoutId)}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-violet-500/40 transition-all">
                   <img src={t.img}
                     alt={t.name} className="w-full h-full object-cover" loading="lazy" />
@@ -413,7 +445,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
                     <NeonBadge color="purple">可创建</NeonBadge>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                    <GlowBtn size="sm" variant="primary" className="w-full justify-center">用此版式创建</GlowBtn>
+                    <GlowBtn size="sm" variant="primary" className="w-full justify-center">{quickLayoutActionLabel}</GlowBtn>
                   </div>
                 </div>
                 <div className="mt-2">
@@ -434,12 +466,12 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <div className="grid grid-cols-8 gap-3">
             {hotTemplates.map((item, i) => (
               <motion.div key={i} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => openTemplateEditorWithLayout(item.layoutId)}>
+                onClick={() => openOrSelectLayout(item.layoutId)}>
                 <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-pink-500/40 transition-all">
                   <img src={item.img}
                     alt={`${item.label}模板`} className="w-full h-full object-cover" loading="lazy" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
-                    <span className="rounded-lg bg-pink-500/90 px-2 py-1 text-[10px] font-medium text-white">创建</span>
+                    <span className="rounded-lg bg-pink-500/90 px-2 py-1 text-[10px] font-medium text-white">{isTemplateSelectionMode ? "使用" : "创建"}</span>
                   </div>
                 </div>
                 <div className="text-[10px] text-white/50 mt-1.5 text-center">{item.label}</div>

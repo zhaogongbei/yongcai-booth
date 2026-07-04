@@ -9,7 +9,7 @@ import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { useUndoRedo } from "../hooks/useUndoRedo";
 import { TEMPLATE_PRESETS } from "../constants/templatePresets";
-import { QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
+import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, type PrintLayoutPreset } from "../constants/printLayoutPresets";
 import type { TemplateElement, ElementProps, TemplateLayout, PhotoElementProps, TextElementProps, ShapeElementProps, DateElementProps, QrCodeElementProps, ImageElementProps } from "../types/template";
 import { createTemplate, getMyTeams, getTemplate, tokenStorage, updateTemplate, validateTemplate } from "../../lib/api";
 import type { Screen } from "../types";
@@ -91,38 +91,6 @@ function isTemplateLayout(value: unknown): value is TemplateLayout {
     layout.background &&
     Array.isArray(layout.elements)
   );
-}
-
-function createLayoutFromPrintPreset(layoutId: string, preset: PrintLayoutPreset): TemplateLayout {
-  return {
-    id: layoutId,
-    name: preset.name,
-    paperSize: {
-      width: Number((preset.canvasWidth * 25.4 / 300).toFixed(1)),
-      height: Number((preset.canvasHeight * 25.4 / 300).toFixed(1)),
-    },
-    resolution: 300,
-    orientation: preset.canvasWidth > preset.canvasHeight ? 'landscape' : 'portrait',
-    background: { type: 'color', value: '#ffffff' },
-    elements: preset.frames.map((frame, index) => ({
-      id: generateId(),
-      type: 'photo',
-      x: frame.x,
-      y: frame.y,
-      width: frame.width,
-      height: frame.height,
-      rotation: 0,
-      opacity: 1,
-      zIndex: index,
-      locked: false,
-      visible: true,
-      props: {
-        photoNumber: frame.photoNumber,
-        cropMode: 'stretch',
-        borderRadius: 0,
-      } as PhotoElementProps,
-    })),
-  };
 }
 
 function parseLegacyArgbColor(value: string | null): string {
@@ -276,7 +244,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
         showToast.error("未找到所选版式");
         return;
       }
-      undoRedo.reset(createLayoutFromPrintPreset(layout.id, preset));
+      undoRedo.reset(createTemplateLayoutFromPrintPreset(layout.id, preset));
       setTemplateName(preset.name);
       setSavedTemplateId(null);
       setSelectedIds([]);
@@ -564,7 +532,7 @@ export function TemplateEditorScreen({ navigate }: { navigate: (s: Screen) => vo
   };
 
   const applyPrintLayout = (preset: PrintLayoutPreset) => {
-    undoRedo.set(createLayoutFromPrintPreset(layout.id, preset));
+    undoRedo.set(createTemplateLayoutFromPrintPreset(layout.id, preset));
     setTemplateName(preset.name);
     setSavedTemplateId(null);
     setSelectedIds([]);
