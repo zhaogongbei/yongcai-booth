@@ -211,6 +211,7 @@ async def preview_green_screen(
     settings: str = File(...),
     file: UploadFile = File(...),
     background_file: Optional[UploadFile] = File(None),
+    _current_user: User = Depends(get_current_active_user),
 ):
     """
     Preview green screen processing on a single image
@@ -480,6 +481,7 @@ async def delete_background(
 @router.post("/test-photo", response_model=BackgroundAnalysisResult)
 async def analyze_test_photo(
     file: UploadFile = File(...),
+    _current_user: User = Depends(get_current_active_user),
 ):
     """Analyze test photo and provide recommendations"""
     try:

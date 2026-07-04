@@ -120,8 +120,49 @@ async def test_get_green_screen_settings_returns_404_for_missing_event(
 
 
 @pytest.mark.anyio
-async def test_analyze_test_photo_rejects_empty_file_with_400(client: AsyncClient):
+async def test_green_screen_preview_requires_authentication(client: AsyncClient):
     response = await client.post(
+        "/api/v1/green-screen/preview",
+        files={
+            "settings": (None, '{"enabled": true}'),
+            "file": ("empty.png", b"", "image/png"),
+        },
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_analyze_test_photo_requires_authentication(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/green-screen/test-photo",
+        files={"file": ("empty.png", b"", "image/png")},
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_green_screen_preview_rejects_empty_file_with_400(
+    authenticated_client: AsyncClient,
+):
+    response = await authenticated_client.post(
+        "/api/v1/green-screen/preview",
+        files={
+            "settings": (None, '{"enabled": true}'),
+            "file": ("empty.png", b"", "image/png"),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Image file is empty"
+
+
+@pytest.mark.anyio
+async def test_analyze_test_photo_rejects_empty_file_with_400(
+    authenticated_client: AsyncClient,
+):
+    response = await authenticated_client.post(
         "/api/v1/green-screen/test-photo",
         files={"file": ("empty.png", b"", "image/png")},
     )

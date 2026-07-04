@@ -1057,9 +1057,13 @@ export async function previewGreenScreenImage(
   if (background) {
     formData.append("background_file", background, "background.jpg");
   }
+  const headers: Record<string, string> = {};
+  const token = tokenStorage.access;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(`${BASE_URL}/green-screen/preview`, {
     method: "POST",
+    headers,
     body: formData,
     credentials: "include",
     signal,
@@ -1078,9 +1082,13 @@ export async function analyzeGreenScreenTestPhoto(
 ): Promise<GreenScreenAnalysisResponse> {
   const formData = new FormData();
   formData.append("file", image, "test.jpg");
+  const headers: Record<string, string> = {};
+  const token = tokenStorage.access;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(`${BASE_URL}/green-screen/test-photo`, {
     method: "POST",
+    headers,
     body: formData,
     credentials: "include",
   });
