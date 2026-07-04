@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { QrCode, Bluetooth, Globe, Mail, Cloud, Plus, Camera, Copy, MessageCircle, Send, Wifi } from "lucide-react";
+import { QrCode, Mail, Plus, Camera, Copy, MessageCircle, Send, Wifi } from "lucide-react";
 import { motion } from "motion/react";
 import QRCodeLib from "qrcode";
 import { GlassCard } from "../components/GlassCard";
 import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { GlowBtn } from "../components/GlowBtn";
-import { SparkArea } from "../components/SparkArea";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { showToast } from "../stores/useToast";
 import { createShare, sendShareEmail, sendShareSMS, getShareSettings, type ShareSettings } from "../lib/api";
@@ -14,8 +13,6 @@ import type { Screen } from "../types";
 interface SharingScreenProps {
   navigate?: (s: Screen) => void;
 }
-
-const FALLBACK_IMAGE = "/images/scenes/wedding-couple-booth.webp";
 
 export function SharingScreen({ navigate }: SharingScreenProps) {
   const [shareLink, setShareLink] = useState("");
@@ -33,7 +30,19 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
   const [wifiQrCode, setWifiQrCode] = useState("");
 
   const { selectedPhoto, authToken, eventId } = useCaptureFlow();
-  const photoUrl = selectedPhoto?.url ?? FALLBACK_IMAGE;
+  const photoUrl = selectedPhoto?.url;
+  const shareUnavailableReason = !selectedPhoto
+    ? "请先完成拍照"
+    : !authToken
+      ? "请从真实活动进入拍照后再分享"
+      : !selectedPhoto.serverPhotoId
+        ? selectedPhoto.uploadError ? "照片上传失败，无法分享" : "照片正在上传，完成后可分享"
+        : null;
+
+  useEffect(() => {
+    setShareLink("");
+    setCopied(false);
+  }, [selectedPhoto?.id]);
 
   // Generate QR code when share link changes
   useEffect(() => {
@@ -81,26 +90,20 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
   }, [settings?.wifi]);
 
   const shareMethods = [
-    { icon: QrCode, label: "二维码下载", color: "from-violet-600 to-violet-800", channel: "qr" },
-    { icon: Bluetooth, label: "AirDrop", color: "from-blue-600 to-blue-800", channel: "airdrop" },
-    { icon: Globe, label: "微信分享", color: "from-emerald-600 to-emerald-800", channel: "wechat" },
-    { icon: Mail, label: "邮件发送", color: "from-orange-600 to-orange-800", channel: "email", action: () => setShowEmailDialog(true) },
-    { icon: MessageCircle, label: "短信发送", color: "from-blue-500 to-blue-700", channel: "sms", action: () => setShowPhoneDialog(true) },
-    { icon: Send, label: "WhatsApp", color: "from-green-500 to-green-700", channel: "whatsapp", action: () => handleWhatsAppShare() },
-    { icon: Wifi, label: "WiFi连接", color: "from-cyan-500 to-cyan-700", channel: "wifi", action: () => setShowWifiDialog(true) },
-    { icon: Cloud, label: "云端相册", color: "from-pink-600 to-pink-800", channel: "cloud" },
+    { icon: Mail, label: "邮件发送", color: "from-orange-600 to-orange-800", channel: "email", action: () => setShowEmailDialog(true), requiresShareLink: true },
+    { icon: MessageCircle, label: "短信发送", color: "from-blue-500 to-blue-700", channel: "sms", action: () => setShowPhoneDialog(true), requiresShareLink: true },
+    { icon: Send, label: "WhatsApp", color: "from-green-500 to-green-700", channel: "whatsapp", action: () => handleWhatsAppShare(), requiresShareLink: true },
+    { icon: Wifi, label: "WiFi连接", color: "from-cyan-500 to-cyan-700", channel: "wifi", action: () => setShowWifiDialog(true), requiresShareLink: false },
   ];
 
   // 真实创建分享短链（后端 POST /shares）
   const handleCreateLink = async () => {
     const photoId = selectedPhoto?.serverPhotoId;
-    if (!photoId || !authToken) {
-      const id = Math.random().toString(36).substring(2, 10);
-      setShareLink(`https://aibooth.app/s/${id}`);
-      setCopied(false);
-      showToast.info("演示模式：照片未上传云端，仅生成本地链接");
+    if (shareUnavailableReason) {
+      showToast.error(shareUnavailableReason);
       return;
     }
+    if (!photoId || !authToken) return;
     setCreating(true);
     try {
       const share = await createShare({ photoId, channel: "link", token: authToken });
@@ -122,10 +125,11 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
     }
 
     const photoId = selectedPhoto?.serverPhotoId;
-    if (!photoId || !authToken) {
-      showToast.success(`已通过${channel}分享（演示模式）`);
+    if (shareUnavailableReason) {
+      showToast.error(shareUnavailableReason);
       return;
     }
+    if (!photoId || !authToken) return;
     try {
       await createShare({ photoId, channel, token: authToken });
       showToast.success(`已通过${channel}分享`);
@@ -147,19 +151,21 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
 
     setSending(true);
     try {
-      if (!selectedPhoto?.serverPhotoId || !authToken) {
-        showToast.success("邮件已发送（演示模式）");
-        setShowEmailDialog(false);
-        setEmail("");
+      if (shareUnavailableReason) {
+        showToast.error(shareUnavailableReason);
+        return;
+      }
+      if (!eventId || !authToken || !selectedPhoto?.url) {
+        showToast.error("缺少分享信息，无法发送邮件");
         return;
       }
 
       await sendShareEmail({
         toEmail: email,
-        eventId: eventId!,
-        photoUrls: [photoUrl],
+        eventId,
+        photoUrls: [selectedPhoto.url],
         shareUrl: shareLink,
-        token: authToken
+        token: authToken,
       });
 
       showToast.success("邮件已发送");
@@ -185,19 +191,21 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
 
     setSending(true);
     try {
-      if (!selectedPhoto?.serverPhotoId || !authToken) {
-        showToast.success("短信已发送（演示模式）");
-        setShowPhoneDialog(false);
-        setPhone("");
+      if (shareUnavailableReason) {
+        showToast.error(shareUnavailableReason);
+        return;
+      }
+      if (!eventId || !authToken) {
+        showToast.error("缺少分享信息，无法发送短信");
         return;
       }
 
       await sendShareSMS({
         toPhone: phone,
-        eventId: eventId!,
+        eventId,
         shareUrl: shareLink,
         countryCode: countryCode,
-        token: authToken
+        token: authToken,
       });
 
       showToast.success("短信已发送");
@@ -214,6 +222,10 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
   const handleWhatsAppShare = () => {
     if (!shareLink) {
       showToast.error("请先创建分享链接");
+      return;
+    }
+    if (shareUnavailableReason) {
+      showToast.error(shareUnavailableReason);
       return;
     }
     const message = encodeURIComponent(`你好！这是您的照片：${shareLink}`);
@@ -241,25 +253,38 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
             <h2 className="text-lg font-bold text-white">分享中心</h2>
             <p className="text-xs text-white/40 mt-0.5">分享分数: 超级高 🔥</p>
           </div>
-          <GlowBtn size="sm" variant="primary" onClick={handleCreateLink} disabled={creating}><Plus size={14} />{creating ? "创建中…" : "创建分享链接"}</GlowBtn>
+          <GlowBtn size="sm" variant="primary" onClick={handleCreateLink} disabled={creating || Boolean(shareUnavailableReason)}><Plus size={14} />{creating ? "创建中…" : "创建分享链接"}</GlowBtn>
         </div>
+
+        {shareUnavailableReason && (
+          <GlassCard className="border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
+            {shareUnavailableReason}
+          </GlassCard>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           {/* Photo preview */}
           <GlassCard className="p-4">
             <div className="text-xs text-white/40 mb-3">最新照片</div>
             <div className="aspect-[3/4] rounded-xl overflow-hidden border border-white/10 mb-3">
-              <img src={photoUrl}
-                alt="latest photo" className="w-full h-full object-cover" loading="lazy" />
+              {photoUrl ? (
+                <img src={photoUrl}
+                  alt="latest photo" className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 bg-white/5 text-white/30">
+                  <Camera size={32} />
+                  <div className="text-xs">请先拍照</div>
+                </div>
+              )}
             </div>
             <div className="text-xs text-white/60">
-              {selectedPhoto ? `photo_${selectedPhoto.id}.jpg` : "IMG_20240610_0_123.jpg"}
+              {selectedPhoto ? `photo_${selectedPhoto.id}.jpg` : "暂无照片"}
             </div>
             <div className="text-[10px] text-white/30 mt-0.5">
-              拍摄时间：{selectedPhoto ? new Date(selectedPhoto.timestamp).toLocaleString() : "2024-06-10 19:76:44"}
+              拍摄时间：{selectedPhoto ? new Date(selectedPhoto.timestamp).toLocaleString() : "—"}
             </div>
             <div className="text-[10px] text-white/30">
-              滤镜：{selectedPhoto?.filter ?? "自然"}
+              滤镜：{selectedPhoto?.filter ?? "—"}
             </div>
           </GlassCard>
 
@@ -293,14 +318,18 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
         <GlassCard className="p-4">
           <div className="text-xs text-white/40 mb-3">快速分享</div>
           <div className="grid grid-cols-4 gap-3">
-            {shareMethods.map(m => (
-              <motion.button key={m.label} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            {shareMethods.map(m => {
+              const disabled = m.requiresShareLink && !shareLink;
+              return (
+              <motion.button key={m.label} whileHover={disabled ? undefined : { scale: 1.05 }} whileTap={disabled ? undefined : { scale: 0.95 }}
                 onClick={() => handleShare(m.channel, m.action)}
-                className={`flex flex-col items-center gap-2 px-2 py-3 rounded-xl bg-gradient-to-br ${m.color}`}>
+                disabled={disabled}
+                className={`flex flex-col items-center gap-2 px-2 py-3 rounded-xl bg-gradient-to-br ${m.color} disabled:cursor-not-allowed disabled:opacity-40`}>
                 <m.icon size={22} className="text-white" />
                 <span className="text-xs text-white/80">{m.label}</span>
               </motion.button>
-            ))}
+              );
+            })}
           </div>
         </GlassCard>
 
@@ -324,12 +353,16 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
           <div className="mx-auto w-36 relative">
             <div className="bg-gray-900 rounded-3xl border border-gray-700 p-2 shadow-2xl">
               <div className="bg-white rounded-2xl overflow-hidden aspect-[9/16]">
-                <img src={photoUrl}
-                  alt="mobile preview" className="w-full h-full object-cover" loading="lazy" />
+                {photoUrl ? (
+                  <img src={photoUrl}
+                    alt="mobile preview" className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-gray-100 text-[10px] text-gray-400">暂无照片</div>
+                )}
               </div>
             </div>
             <div className="mt-2 bg-gradient-to-r from-violet-600 to-pink-600 text-white text-center rounded-xl py-2 text-xs font-bold">
-              夏日派对 2026
+              照片下载页
             </div>
             <div className="mt-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-center rounded-xl py-2 text-xs">
               下载照片
@@ -339,23 +372,17 @@ export function SharingScreen({ navigate }: SharingScreenProps) {
 
         {/* Stats */}
         <GlassCard className="p-4 space-y-3">
-          <div className="text-xs text-white/60 font-semibold">分享数据统计</div>
+          <div className="text-xs text-white/60 font-semibold">当前分享状态</div>
           {[
-            { label: "二维码扫描", value: "128", trend: "+12%" },
-            { label: "照片下载", value: "56", trend: "+8%" },
-            { label: "分享次数", value: "42", trend: "+15%" },
+            { label: "分享链接", value: shareLink ? "已创建" : "未创建" },
+            { label: "二维码", value: qrCodeDataUrl ? "已生成" : "未生成" },
+            { label: "WiFi 信息", value: settings?.wifi.ssid ? "已配置" : "未配置" },
           ].map(s => (
             <div key={s.label} className="flex items-center justify-between">
               <span className="text-xs text-white/40">{s.label}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">{s.value}</span>
-                <span className="text-[10px] text-emerald-400">{s.trend}</span>
-              </div>
+              <span className="text-sm font-bold text-white">{s.value}</span>
             </div>
           ))}
-          <div className="pt-2 border-t border-white/5">
-            <SparkArea data={[12,18,14,22,18,28,24,36,28,42]} color="#8b5cf6" height={60} />
-          </div>
         </GlassCard>
       </div>
 
