@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image, Timer, Sliders, CircleDot, Grid3X3, Wand2, Printer,
   Sparkles, RotateCcw, Video, Film, Zap, Square, Play, Camera, Layers, Wrench, LayoutTemplate
@@ -16,6 +16,7 @@ import { GifRecorder } from "../services/gifRecorder";
 import { VideoRecorder } from "../services/videoRecorder";
 import { useResponsive } from "../hooks/useResponsive";
 import { request, type PhotoResponse } from "../../lib/api";
+import { getRequiredTemplatePhotoCount } from "../utils/templateLayout";
 
 const FILTERS = CAMERA_FILTERS;
 
@@ -82,6 +83,31 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     setTemplateSelectionReturnScreen("camera");
     navigate("templates");
   }, [navigate, setTemplateSelectionReturnScreen]);
+
+  const requiredTemplatePhotoCount = useMemo(
+    () => getRequiredTemplatePhotoCount(activePrintTemplate?.layout),
+    [activePrintTemplate?.layout],
+  );
+  const capturedTemplatePhotoCount = activePrintTemplate
+    ? Math.min(photos.length, Math.max(requiredTemplatePhotoCount, 1))
+    : photos.length;
+  const missingTemplatePhotoCount = activePrintTemplate
+    ? Math.max(0, requiredTemplatePhotoCount - photos.length)
+    : 0;
+
+  const openPrintPreview = useCallback(() => {
+    if (!activePrintTemplate) {
+      openTemplateSelectionForCamera();
+      return;
+    }
+
+    if (missingTemplatePhotoCount > 0) {
+      toast.info(`当前模板还差 ${missingTemplatePhotoCount} 张照片，请继续拍摄`);
+      return;
+    }
+
+    navigate("print");
+  }, [activePrintTemplate, missingTemplatePhotoCount, navigate, openTemplateSelectionForCamera]);
 
   useEffect(() => {
     let cancelled = false;
@@ -577,7 +603,9 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
             {activePrintTemplate && (
               <div className="mx-auto mt-2 flex max-w-72 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/20 px-2 py-1 text-[10px] text-emerald-200 backdrop-blur-sm">
                 <LayoutTemplate size={11} />
-                <span className="truncate">{activePrintTemplate.name}</span>
+                <span className="truncate">
+                  {activePrintTemplate.name} · 已拍 {capturedTemplatePhotoCount}/{Math.max(requiredTemplatePhotoCount, 1)}
+                </span>
               </div>
             )}
           </div>
@@ -699,8 +727,8 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <GlowBtn onClick={openTemplateSelectionForCamera} variant="ghost" size="lg">
                   <LayoutTemplate size={16} /> {activePrintTemplate ? "更换模板" : "选择模板"}
                 </GlowBtn>
-                <GlowBtn onClick={() => navigate("print")} variant="accent" size="lg">
-                  <Printer size={16} /> 打印预览
+                <GlowBtn onClick={openPrintPreview} variant="accent" size="lg">
+                  <Printer size={16} /> {missingTemplatePhotoCount > 0 ? `还差 ${missingTemplatePhotoCount} 张` : "打印预览"}
                 </GlowBtn>
                 <GlowBtn onClick={() => setCaptured(false)} variant="ghost" size="lg">
                   <RotateCcw size={16} /> 重拍
@@ -723,8 +751,8 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <GlowBtn onClick={openTemplateSelectionForCamera} variant="ghost" size="lg">
                   <LayoutTemplate size={16} /> {activePrintTemplate ? "更换模板" : "选择模板"}
                 </GlowBtn>
-                <GlowBtn onClick={() => navigate("print")} variant="accent" size="lg">
-                  <Printer size={16} /> 打印预览
+                <GlowBtn onClick={openPrintPreview} variant="accent" size="lg">
+                  <Printer size={16} /> {missingTemplatePhotoCount > 0 ? `还差 ${missingTemplatePhotoCount} 张` : "打印预览"}
                 </GlowBtn>
                 <GlowBtn onClick={() => {
                   setCaptured(false);
@@ -854,11 +882,20 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
               </div>
               <span className="text-[10px] text-white/40">AI美颜</span>
             </button>
-            <button className="flex flex-col items-center gap-1" onClick={() => navigate("print")}>
-              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
+            <button className="flex flex-col items-center gap-1" onClick={openPrintPreview}>
+              <div className={`relative w-11 h-11 rounded-xl flex items-center justify-center ${
+                activePrintTemplate && missingTemplatePhotoCount === 0 ? "bg-emerald-500/20 ring-1 ring-emerald-400/40" : "bg-white/10"
+              }`}>
                 <Printer size={18} className="text-white/70" />
+                {activePrintTemplate && missingTemplatePhotoCount > 0 && (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-amber-400 px-1 text-[9px] font-semibold text-black">
+                    -{missingTemplatePhotoCount}
+                  </span>
+                )}
               </div>
-              <span className="text-[10px] text-white/40">打印</span>
+              <span className={`text-[10px] ${activePrintTemplate && missingTemplatePhotoCount === 0 ? "text-emerald-300" : "text-white/40"}`}>
+                {!activePrintTemplate ? "选模板" : missingTemplatePhotoCount > 0 ? "补拍" : "打印"}
+              </span>
             </button>
           </div>
         </div>

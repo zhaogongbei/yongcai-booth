@@ -22,6 +22,7 @@ import {
 import { MAX_PRINT_QTY } from "../constants";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
+import { getRequiredTemplatePhotoCount } from "../utils/templateLayout";
 
 function printerStatusLabel(status: PrinterInfo["status"]): string {
   const map: Record<string, string> = {
@@ -93,29 +94,55 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const pollTimerRef = useRef<number | null>(null);
   const hasPrintablePhoto = photos.length > 0;
   const printPhoto = selectedPhoto ?? photos[0];
+  const orderedPrintPhotos = useMemo(() => {
+    if (activePrintTemplate) return photos;
+    if (printPhoto) {
+      return [printPhoto, ...photos.filter(photo => photo.id !== printPhoto.id)];
+    }
+    return [];
+  }, [activePrintTemplate, photos, printPhoto]);
+  const printPreviewImages = useMemo(() => orderedPrintPhotos.map(photo => photo.url), [orderedPrintPhotos]);
+  const requiredTemplatePhotoCount = useMemo(
+    () => getRequiredTemplatePhotoCount(activePrintTemplate?.layout),
+    [activePrintTemplate?.layout],
+  );
+  const templatePhotoRequirement = activePrintTemplate ? Math.max(requiredTemplatePhotoCount, 1) : 0;
+  const missingTemplatePhotoCount = activePrintTemplate
+    ? Math.max(0, templatePhotoRequirement - orderedPrintPhotos.length)
+    : 0;
+  const printJobPhotos = activePrintTemplate
+    ? orderedPrintPhotos.slice(0, templatePhotoRequirement)
+    : (printPhoto ? [printPhoto] : []);
+  const pendingUploadPhoto = printJobPhotos.find(photo => !photo.serverPhotoId);
   const printUnavailableReason = useMemo(() => {
     if (!hasPrintablePhoto) return "请先完成拍照";
     if (!authToken) return "请从真实活动进入拍照后再打印";
-    if (!printPhoto?.serverPhotoId) {
-      return printPhoto?.uploadError ? "照片上传失败，无法打印" : "照片正在上传，完成后可打印";
-    }
+    if (!activePrintTemplate) return "请先选择打印模板";
     if (activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id)) {
       return "当前模板尚未保存，无法真实打印";
     }
+    if (missingTemplatePhotoCount > 0) {
+      return `当前模板需要 ${templatePhotoRequirement} 张照片，还差 ${missingTemplatePhotoCount} 张`;
+    }
+    if (pendingUploadPhoto) {
+      return pendingUploadPhoto.uploadError ? "照片上传失败，无法打印" : "照片正在上传，完成后可打印";
+    }
     if (!selectedPrinter) return "请先选择打印机";
     return null;
-  }, [activePrintTemplate, authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, selectedPrinter]);
+  }, [activePrintTemplate, authToken, hasPrintablePhoto, missingTemplatePhotoCount, pendingUploadPhoto, selectedPrinter, templatePhotoRequirement]);
   const printButtonLabel = useMemo(() => {
     if (!printUnavailableReason) {
       return isPrintBusy(printStatus) || printStatus === "completed" ? printStateLabel(printStatus) : "打印照片";
     }
     if (!hasPrintablePhoto) return "请先拍照";
     if (!authToken) return "无法打印";
-    if (printPhoto?.uploadError) return "上传失败";
-    if (!printPhoto?.serverPhotoId) return "等待上传";
+    if (!activePrintTemplate) return "选择模板";
     if (activePrintTemplate && !isBackendTemplateId(activePrintTemplate.id)) return "模板未保存";
+    if (missingTemplatePhotoCount > 0) return "继续拍照";
+    if (pendingUploadPhoto?.uploadError) return "上传失败";
+    if (pendingUploadPhoto) return "等待上传";
     return "请选择打印机";
-  }, [activePrintTemplate, authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printPhoto?.uploadError, printStatus, printUnavailableReason]);
+  }, [activePrintTemplate, authToken, hasPrintablePhoto, missingTemplatePhotoCount, pendingUploadPhoto, printStatus, printUnavailableReason]);
   const paperSizeLabel = useMemo(
     () => formatTemplatePaperSize(activePrintTemplate?.layout ?? null),
     [activePrintTemplate?.layout],
@@ -180,7 +207,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       return;
     }
 
-    const photoId = printPhoto?.serverPhotoId;
+    const photoId = printJobPhotos[0]?.serverPhotoId;
     if (!photoId || !authToken) return;
 
     sendPrintEvent("SUBMIT");
@@ -222,18 +249,23 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       sendPrintEvent("FAIL");
       toast.error(err instanceof Error ? err.message : "提交打印任务失败");
     }
-  }, [activePrintTemplate?.id, authToken, hasPrintablePhoto, printPhoto?.serverPhotoId, printUnavailableReason, qty, selectedPrinter, sendPrintEvent, stopPolling]);
+  }, [activePrintTemplate?.id, authToken, hasPrintablePhoto, printJobPhotos, printUnavailableReason, qty, selectedPrinter, sendPrintEvent, stopPolling]);
 
-  // 使用当前选中照片优先，其余照片按拍摄顺序补齐多照片框。
-  const printPreviewImages = useMemo(() => {
-    if (printPhoto) {
-      return [printPhoto.url, ...photos.filter(photo => photo.id !== printPhoto.id).map(photo => photo.url)];
+  const handlePrimaryPrintAction = useCallback(() => {
+    if (!hasPrintablePhoto) {
+      navigate("camera");
+      return;
     }
-    if (photos.length > 0) {
-      return photos.map(photo => photo.url);
+    if (!activePrintTemplate) {
+      openTemplateSelectionForPrint();
+      return;
     }
-    return [];
-  }, [photos, printPhoto]);
+    if (missingTemplatePhotoCount > 0) {
+      navigate("camera");
+      return;
+    }
+    void handlePrint();
+  }, [activePrintTemplate, handlePrint, hasPrintablePhoto, missingTemplatePhotoCount, navigate, openTemplateSelectionForPrint]);
 
   const templatePreviewSize = useMemo(() => {
     if (!activePrintTemplate) return null;
@@ -329,7 +361,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
               }`}>
                 <div className="flex min-w-0 items-center gap-1.5">
                   <LayoutTemplate size={13} className="flex-shrink-0" />
-                  <span className="truncate">{activePrintTemplate?.name ?? "当前为未套模板预览"}</span>
+                  <span className="truncate">
+                    {activePrintTemplate
+                      ? `${activePrintTemplate.name} · 照片 ${Math.min(orderedPrintPhotos.length, templatePhotoRequirement)}/${templatePhotoRequirement}`
+                      : "当前未选择打印模板"}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -397,7 +433,10 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
             <LayoutTemplate size={14} className={activePrintTemplate ? "text-emerald-300" : "text-white/30"} />
             <span className="min-w-0 flex-1 truncate">{activePrintTemplate?.name ?? "未选择模板"}</span>
           </div>
-          <div className="mt-2 text-[10px] text-white/35">出纸尺寸：{paperSizeLabel}</div>
+          <div className="mt-2 text-[10px] text-white/35">
+            出纸尺寸：{paperSizeLabel}
+            {activePrintTemplate && ` · 照片 ${Math.min(orderedPrintPhotos.length, templatePhotoRequirement)}/${templatePhotoRequirement}`}
+          </div>
         </GlassCard>
         <GlassCard className="p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -534,8 +573,8 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           className="w-full py-4 rounded-2xl font-semibold text-white text-base disabled:opacity-50"
           style={{ background: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)", boxShadow: "0 0 30px rgba(139,92,246,0.4)" }}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          disabled={isPrintBusy(printStatus) || Boolean(printUnavailableReason)}
-          onClick={handlePrint}
+          disabled={isPrintBusy(printStatus)}
+          onClick={handlePrimaryPrintAction}
         >
           <div className="flex items-center justify-center gap-2">
             <Printer size={20} />

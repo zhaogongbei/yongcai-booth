@@ -15,13 +15,34 @@ from app.services.print_service import PrintService
 router = APIRouter()
 
 
+def _required_template_photo_count(template_layers: object) -> int:
+    if not isinstance(template_layers, dict):
+        return 0
+
+    required = 0
+    for element in template_layers.get("elements") or []:
+        if not isinstance(element, dict):
+            continue
+        if element.get("type") != "photo" or element.get("visible") is False:
+            continue
+        props = element.get("props") or {}
+        try:
+            photo_number = int(props.get("photoNumber") or 1)
+        except (TypeError, ValueError):
+            photo_number = 1
+        required = max(required, photo_number)
+    return required
+
+
 async def _get_photo_event(photo_id: UUID, db: AsyncSession) -> tuple[Photo, Event]:
     photo_result = await db.execute(select(Photo).where(Photo.id == photo_id).options(noload("*")))
     photo = photo_result.scalar_one_or_none()
     if not photo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
 
-    event_result = await db.execute(select(Event).where(Event.id == photo.event_id).options(noload("*")))
+    event_result = await db.execute(
+        select(Event).where(Event.id == photo.event_id).options(noload("*"))
+    )
     event = event_result.scalar_one_or_none()
     if not event:
         raise HTTPException(
@@ -40,9 +61,9 @@ async def _verify_photo_team_access(photo_id: Optional[UUID], current_user: User
 
 async def _verify_template_matches_photo_team(
     template_id: Optional[UUID], photo_id: UUID, current_user: User, db: AsyncSession
-):
+) -> Optional[Template]:
     if not template_id:
-        return
+        return None
 
     _, event = await _get_photo_event(photo_id, db)
     template_result = await db.execute(
@@ -57,6 +78,38 @@ async def _verify_template_matches_photo_team(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Template must belong to the same team as the photo event",
+        )
+    return template
+
+
+async def _verify_template_photo_count(
+    template: Optional[Template], photo_id: UUID, db: AsyncSession
+):
+    if not template:
+        return
+
+    required_count = _required_template_photo_count(template.layers)
+    if required_count <= 1:
+        return
+
+    photo, _ = await _get_photo_event(photo_id, db)
+    if not photo.session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Template requires {required_count} photos, but the print photo has no session",
+        )
+
+    result = await db.execute(
+        select(Photo)
+        .where(Photo.session_id == photo.session_id)
+        .options(noload("*"))
+        .order_by(Photo.created_at)
+    )
+    session_photo_count = len(result.scalars().all())
+    if session_photo_count < required_count:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Template requires {required_count} photos, but session has {session_photo_count}",
         )
 
 
@@ -99,7 +152,10 @@ async def create_print_job(
     """Create a new print job"""
     # IDOR guard: verify the photo belongs to user's team
     await _verify_photo_team_access(job_in.photo_id, current_user, db)
-    await _verify_template_matches_photo_team(job_in.template_id, job_in.photo_id, current_user, db)
+    template = await _verify_template_matches_photo_team(
+        job_in.template_id, job_in.photo_id, current_user, db
+    )
+    await _verify_template_photo_count(template, job_in.photo_id, db)
 
     print_service = PrintService(db)
 

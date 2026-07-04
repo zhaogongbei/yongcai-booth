@@ -34,7 +34,9 @@ class TemplateRenderService:
             else:
                 new_height = height
                 new_width = int(new_height * photo_aspect)
-            resized = photo.resize((max(1, new_width), max(1, new_height)), Image.Resampling.LANCZOS)
+            resized = photo.resize(
+                (max(1, new_width), max(1, new_height)), Image.Resampling.LANCZOS
+            )
             fitted.paste(resized, ((width - resized.width) // 2, (height - resized.height) // 2))
             return fitted
 
@@ -91,7 +93,9 @@ class TemplateRenderService:
         canvas_height = int(float(paper_size.get("height", 152.4)) * resolution / 25.4)
 
         background = template.get("background") or {}
-        background_value = background.get("value") if background.get("type") == "color" else "#FFFFFF"
+        background_value = (
+            background.get("value") if background.get("type") == "color" else "#FFFFFF"
+        )
         image = Image.new("RGB", (max(1, canvas_width), max(1, canvas_height)), background_value)
         draw = ImageDraw.Draw(image)
 
@@ -110,9 +114,13 @@ class TemplateRenderService:
             try:
                 if layer_type == "photo" and photos:
                     photo_number = max(1, int(props.get("photoNumber") or 1))
-                    photo_bytes = photos[photo_number - 1] if len(photos) >= photo_number else photos[0]
+                    if len(photos) < photo_number:
+                        continue
+                    photo_bytes = photos[photo_number - 1]
                     photo = TemplateRenderService._open_photo(photo_bytes)
-                    fitted = TemplateRenderService._fit_photo(photo, width, height, props.get("cropMode", "fill"))
+                    fitted = TemplateRenderService._fit_photo(
+                        photo, width, height, props.get("cropMode", "fill")
+                    )
                     image.paste(fitted, (x, y))
                 elif layer_type == "text":
                     TemplateRenderService._draw_frontend_text(draw, layer)
@@ -135,14 +143,20 @@ class TemplateRenderService:
                         )
                         qr.add_data(props.get("url", ""))
                         qr.make(fit=True)
-                        qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+                        qr_img = qr.make_image(fill_color="black", back_color="white").convert(
+                            "RGB"
+                        )
                         qr_img = qr_img.resize(
                             (max(1, width), max(1, height)), Image.Resampling.NEAREST
                         )
                         image.paste(qr_img, (x, y))
                     else:
-                        draw.rectangle([x, y, x + width, y + height], fill="#ffffff", outline="#111827")
-                        draw.text((x + width / 2, y + height / 2), "QR", fill="#111827", anchor="mm")
+                        draw.rectangle(
+                            [x, y, x + width, y + height], fill="#ffffff", outline="#111827"
+                        )
+                        draw.text(
+                            (x + width / 2, y + height / 2), "QR", fill="#111827", anchor="mm"
+                        )
                 elif layer_type in {"date", "datetime"}:
                     date_layer = {
                         **layer,
@@ -156,7 +170,9 @@ class TemplateRenderService:
                     TemplateRenderService._draw_frontend_text(draw, date_layer)
                 elif layer_type == "image":
                     draw.rectangle([x, y, x + width, y + height], fill="#f3f4f6", outline="#d1d5db")
-                    draw.text((x + width / 2, y + height / 2), "素材需替换", fill="#6b7280", anchor="mm")
+                    draw.text(
+                        (x + width / 2, y + height / 2), "素材需替换", fill="#6b7280", anchor="mm"
+                    )
             except Exception as e:
                 print(f"Error rendering frontend template layer: {e}")
 

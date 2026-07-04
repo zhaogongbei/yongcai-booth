@@ -206,9 +206,15 @@ async def test_create_print_job_accepts_same_team_template(
     )
     db_session.add(event)
     await db_session.flush()
-    photo = Photo(event_id=event.id, original_url=_image_data_url("red"))
+    session = PhotoSession(event_id=event.id)
+    db_session.add(session)
+    await db_session.flush()
+    photo = Photo(event_id=event.id, session_id=session.id, original_url=_image_data_url("red"))
+    second_photo = Photo(
+        event_id=event.id, session_id=session.id, original_url=_image_data_url("blue")
+    )
     template = Template(team_id=team.id, name="Two Up", layers=_template_layers())
-    db_session.add_all([photo, template])
+    db_session.add_all([photo, second_photo, template])
     await db_session.commit()
 
     async def noop(_job_id):
@@ -225,6 +231,48 @@ async def test_create_print_job_accepts_same_team_template(
     body = response.json()
     assert body["status"] == "queued"
     assert body["template_id"] == str(template.id)
+
+
+@pytest.mark.anyio
+async def test_create_print_job_rejects_template_when_session_has_too_few_photos(
+    authenticated_client, db_session, monkeypatch
+):
+    user = (
+        await db_session.execute(select(User).where(User.email == "test@example.com"))
+    ).scalar_one()
+    team = Team(name="Print Missing Photo Team", slug="print-missing-photo-team")
+    db_session.add(team)
+    await db_session.flush()
+    db_session.add(TeamMember(team_id=team.id, user_id=user.id, role=UserRole.OWNER))
+    event = Event(
+        team_id=team.id,
+        creator_id=user.id,
+        name="Print Missing Photo Event",
+        start_date=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        end_date=datetime(2026, 7, 2, tzinfo=timezone.utc),
+    )
+    db_session.add(event)
+    await db_session.flush()
+    session = PhotoSession(event_id=event.id)
+    db_session.add(session)
+    await db_session.flush()
+    photo = Photo(event_id=event.id, session_id=session.id, original_url=_image_data_url("red"))
+    template = Template(team_id=team.id, name="Two Up", layers=_template_layers())
+    db_session.add_all([photo, template])
+    await db_session.commit()
+
+    async def noop(_job_id):
+        return None
+
+    monkeypatch.setattr(print_jobs_api, "_execute_print_job_background", noop)
+
+    response = await authenticated_client.post(
+        "/api/v1/print-jobs",
+        json={"photo_id": str(photo.id), "template_id": str(template.id), "copies": 1},
+    )
+
+    assert response.status_code == 400
+    assert "requires 2 photos" in response.text
 
 
 @pytest.mark.anyio

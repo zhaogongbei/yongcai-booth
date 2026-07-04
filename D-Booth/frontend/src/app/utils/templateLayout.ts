@@ -1,0 +1,12 @@
+import type { PhotoElementProps, TemplateLayout } from "../types/template";
+
+export function getRequiredTemplatePhotoCount(layout: TemplateLayout | null | undefined): number {
+  if (!layout) return 0;
+
+  return layout.elements.reduce((required, element) => {
+    if (!element.visible || element.type !== "photo") return required;
+    const photoNumber = Number((element.props as Partial<PhotoElementProps>).photoNumber);
+    if (!Number.isFinite(photoNumber) || photoNumber < 1) return required;
+    return Math.max(required, Math.floor(photoNumber));
+  }, 0);
+}

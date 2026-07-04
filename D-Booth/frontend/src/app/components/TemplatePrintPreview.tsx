@@ -44,7 +44,7 @@ function renderElement(element: TemplateElement, photoUrls: string[]) {
 
   if (element.type === "photo") {
     const props = element.props as PhotoElementProps;
-    const photoUrl = photoUrls[props.photoNumber - 1] ?? photoUrls[0];
+    const photoUrl = photoUrls[props.photoNumber - 1];
 
     return (
       <div
@@ -62,7 +62,7 @@ function renderElement(element: TemplateElement, photoUrls: string[]) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[52px] font-semibold text-neutral-400">
-            PHOTO
+            PHOTO {props.photoNumber}
           </div>
         )}
       </div>
