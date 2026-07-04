@@ -72,12 +72,6 @@ export const PRINT_PREVIEW_FALLBACKS = [
   "/images/products/photo-prints-showcase.webp",
 ] as const;
 
-export const PRINT_HISTORY = [
-  { name: "DNP DS620", count: 89, status: "正常", ink: 68 },
-  { name: "DNP DS620", count: 67, status: "正常", ink: 45 },
-  { name: "Mitsubishi CP-D70", count: 0, status: "忙碌", ink: 92 },
-] as const;
-
 // ─── Sharing Screen ──────────────────────────────────────────────────────────
 
 export const SHARING_FALLBACK_IMAGE = "/images/scenes/wedding-couple-booth.webp";

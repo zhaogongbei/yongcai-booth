@@ -19,7 +19,7 @@ import {
   transitionPrintState,
   type PrintRuntimeState,
 } from "../services/printStateMachine";
-import { PRINT_HISTORY, MAX_PRINT_QTY } from "../constants";
+import { MAX_PRINT_QTY } from "../constants";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
 
@@ -352,31 +352,29 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </div>
         )}
 
-        {/* Print history */}
         <div className="border-t border-white/5 px-5 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-white/60">打印记录</span>
-            <span className="text-xs text-white/30">今日: 156 张</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-white/60">系统打印队列</span>
+            <span className="text-xs text-white/30">{selectedPrinter || "未选择打印机"}</span>
           </div>
-          <div className="flex gap-3 overflow-x-auto">
-            {PRINT_HISTORY.map((p, i) => (
-              <GlassCard key={i} className="flex-shrink-0 px-4 py-2.5 flex items-center gap-4">
-                <Printer size={18} className="text-violet-400" />
-                <div>
-                  <div className="text-xs text-white">{p.name}</div>
-                  <div className="text-[10px] text-white/40">已打印 {p.count} 张</div>
-                </div>
-                <div className="flex items-center gap-2 text-[10px]">
-                  <div className="flex gap-1">
-                    {["C", "M", "Y", "K"].map((c, j) => (
-                      <div key={c} className="w-3 h-3 rounded-full" style={{ background: ["#06b6d4", "#ec4899", "#f59e0b", "#1f2937"][j] }} />
-                    ))}
+          <div className="mt-2 flex gap-3 overflow-x-auto">
+            {boothHealth.printQueue.length === 0 ? (
+              <div className="rounded-xl border border-white/5 px-4 py-3 text-xs text-white/30">
+                当前没有系统队列任务
+              </div>
+            ) : (
+              boothHealth.printQueue.slice(0, 5).map((job) => (
+                <GlassCard key={job.job_id} className="flex-shrink-0 px-4 py-2.5 flex items-center gap-3">
+                  <Printer size={18} className="text-violet-400" />
+                  <div className="min-w-0">
+                    <div className="max-w-40 truncate text-xs text-white">{job.document || `任务 ${job.job_id}`}</div>
+                    <div className="text-[10px] text-white/40">
+                      {job.status} · {job.pages_printed}/{job.pages_total || 1} 页
+                    </div>
                   </div>
-                  <span className="text-white/40">墨水 {p.ink}%</span>
-                </div>
-                <div className={`w-2 h-2 rounded-full ${p.status === "正常" ? "bg-emerald-400" : "bg-yellow-400"}`} />
-              </GlassCard>
-            ))}
+                </GlassCard>
+              ))
+            )}
           </div>
         </div>
       </section>
