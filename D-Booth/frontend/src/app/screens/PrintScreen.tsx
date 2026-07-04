@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type React from "react";
-import { ArrowLeft, Printer, Check, Share2, RefreshCw, FileText, Settings2, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Printer, Check, Share2, RefreshCw, FileText, LayoutTemplate } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
-import { GLASS_SELECT_OPTION_CLASS_NAME, getGlassSelectClassName } from "../components/glassSelect";
 import { GlowBtn } from "../components/GlowBtn";
 import { TemplatePrintPreview, getTemplateCanvasSize } from "../components/TemplatePrintPreview";
-import { TopBar } from "../components/TopBar";
 import { StatusPill } from "../components/StatusPill";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { cancelPrintQueueJob, createPrintJob, getPrintJob, printTestPage } from "../lib/api";
@@ -21,9 +19,18 @@ import {
   transitionPrintState,
   type PrintRuntimeState,
 } from "../services/printStateMachine";
-import { PAPER_SIZES, COLOR_MODES, PRINT_PREVIEW_FALLBACKS, PRINT_HISTORY, MAX_PRINT_QTY } from "../constants";
+import { PRINT_PREVIEW_FALLBACKS, PRINT_HISTORY, MAX_PRINT_QTY } from "../constants";
 import type { Screen } from "../types";
 import type { PrinterInfo } from "../../lib/api";
+
+function formatTemplatePaperSize(layout: { paperSize: { width: number; height: number } } | null): string {
+  if (!layout) return "默认 2x6 英寸";
+  const formatInches = (mm: number) => {
+    const inches = mm / 25.4;
+    return Number.isInteger(inches) ? String(inches) : inches.toFixed(1);
+  };
+  return `${formatInches(layout.paperSize.width)}x${formatInches(layout.paperSize.height)} 英寸`;
+}
 
 function printerStatusLabel(status: PrinterInfo["status"]): string {
   const map: Record<string, string> = {
@@ -60,8 +67,6 @@ function printerStatusDot(status: PrinterInfo["status"]): string {
 
 export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [selectedPrinter, setSelectedPrinter] = useState("");
-  const [paperSize, setPaperSize] = useState("2x6 英寸");
-  const [colorMode, setColorMode] = useState("自动");
   const [printStatus, setPrintStatus] = useState<PrintRuntimeState>("idle");
   const [qty, setQty] = useState(1);
   const boothHealth = useBoothHealth(selectedPrinter);
@@ -82,12 +87,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const { selectedPhoto, photos, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const pollTimerRef = useRef<number | null>(null);
-
-  // 校准参数
-  const [calScale, setCalScale] = useState(100);
-  const [calOffsetX, setCalOffsetX] = useState(0);
-  const [calOffsetY, setCalOffsetY] = useState(0);
-  const [showCalibration, setShowCalibration] = useState(false);
 
   // 手动刷新打印机列表
   const handleRefreshPrinters = useCallback(async () => {
@@ -155,13 +154,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
 
     sendPrintEvent("SUBMIT");
-    // 将校准参数加入printerName（后端需要增强支持）
-    const calibratedPrinterName = selectedPrinter;
     try {
       const job = await createPrintJob({
         photoId,
         templateId: activePrintTemplate?.id,
-        printerName: calibratedPrinterName,
+        printerName: selectedPrinter,
         copies: qty,
         token: authToken,
       });
@@ -226,6 +223,11 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
     };
   }, [activePrintTemplate]);
 
+  const paperSizeLabel = useMemo(
+    () => formatTemplatePaperSize(activePrintTemplate?.layout ?? null),
+    [activePrintTemplate?.layout],
+  );
+
   return (
     <main className="flex-1 flex overflow-hidden">
       {/* Preview area */}
@@ -238,13 +240,8 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
             <span className="text-sm font-semibold text-white">打印预览</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-white/40">纸张大小：</span>
-            <select className={getGlassSelectClassName("rounded-lg px-2 py-1 text-xs")}
-              value={paperSize}
-              onChange={e => setPaperSize(e.target.value)}>
-              <option className={GLASS_SELECT_OPTION_CLASS_NAME}>2x6 英寸</option>
-              <option className={GLASS_SELECT_OPTION_CLASS_NAME}>4x6 英寸</option>
-            </select>
+            <span className="text-xs text-white/40">出纸尺寸：</span>
+            <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70">{paperSizeLabel}</span>
           </div>
         </div>
 
@@ -345,6 +342,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
             <LayoutTemplate size={14} className={activePrintTemplate ? "text-emerald-300" : "text-white/30"} />
             <span className="min-w-0 flex-1 truncate">{activePrintTemplate?.name ?? "未选择，使用默认预览"}</span>
           </div>
+          <div className="mt-2 text-[10px] text-white/35">出纸尺寸：{paperSizeLabel}</div>
           <button
             type="button"
             onClick={openTemplateSelectionForPrint}
@@ -429,20 +427,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           </div>
         </div>
 
-        {/* Paper size */}
-        <div className="space-y-2">
-          <div className="text-xs text-white/40">纸张大小</div>
-          <div className="grid grid-cols-2 gap-2">
-            {PAPER_SIZES.map(s => (
-              <button key={s}
-                className={`py-2 rounded-xl text-xs border transition-all ${paperSize === s ? "border-violet-500/50 bg-violet-500/10 text-violet-400" : "border-white/5 text-white/40 hover:border-white/20"}`}
-                onClick={() => setPaperSize(s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Quantity */}
         <div className="space-y-2">
           <div className="text-xs text-white/40">打印数量</div>
@@ -453,88 +437,6 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
               className="flex-1 text-center text-xl font-bold text-white bg-transparent outline-none" />
             <button onClick={() => setQty(Math.min(MAX_PRINT_QTY, qty + 1))} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 text-lg">+</button>
           </div>
-        </div>
-
-        {/* Color optimization */}
-        <div className="space-y-2">
-          <div className="text-xs text-white/40">色彩优化</div>
-          <div className="flex gap-2">
-            {COLOR_MODES.map(m => (
-              <button key={m}
-                className={`flex-1 py-1.5 rounded-lg text-xs ${colorMode === m ? "bg-violet-500/20 text-violet-400" : "bg-white/5 text-white/40"}`}
-                onClick={() => setColorMode(m)}>{m}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Calibration toggle */}
-        <div className="space-y-2">
-          <button
-            onClick={() => setShowCalibration(!showCalibration)}
-            className="flex items-center gap-2 text-xs text-white/40 hover:text-violet-400 transition-colors"
-          >
-            <Settings2 size={13} />
-            打印对齐校准
-          </button>
-
-          {showCalibration && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              className="space-y-3 pt-1"
-            >
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-white/40">缩放</span>
-                  <span className="text-white/60">{calScale}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={90}
-                  max={110}
-                  value={calScale}
-                  onChange={e => setCalScale(Number(e.target.value))}
-                  className="w-full accent-violet-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-white/40">水平偏移</span>
-                  <span className="text-white/60">{calOffsetX}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={-20}
-                  max={20}
-                  value={calOffsetX}
-                  onChange={e => setCalOffsetX(Number(e.target.value))}
-                  className="w-full accent-violet-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-white/40">垂直偏移</span>
-                  <span className="text-white/60">{calOffsetY}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={-20}
-                  max={20}
-                  value={calOffsetY}
-                  onChange={e => setCalOffsetY(Number(e.target.value))}
-                  className="w-full accent-violet-500"
-                />
-              </div>
-              {selectedPrinter && (
-                <button
-                  onClick={() => handlePrintTestPage(selectedPrinter)}
-                  className="w-full py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-xs text-violet-400 hover:bg-violet-500/20 transition-colors"
-                >
-                  打印校准测试页
-                </button>
-              )}
-            </motion.div>
-          )}
         </div>
 
         <div className="space-y-2">
