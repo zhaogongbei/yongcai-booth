@@ -47,6 +47,7 @@ BLOCKED_PATHS = {
     "CONTINUE_FROM_HERE.md",
     "D-Booth/backend/VERSION",
     "D-Booth/backend/app/services/VERSION",
+    "D-Booth/frontend/VERSION",
     "D-Booth/backend/.github/workflows/ci.yml",
     "D-Booth/backend/app/models/types.py",
     "FINAL_EXECUTION_REPORT.md",

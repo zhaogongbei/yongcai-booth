@@ -10,6 +10,7 @@
 ### 变更
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
 - 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
+- 移除冗余的前端 `VERSION` 文件，并让仓库卫生检查阻止额外版本源回归。
 
 ### 修复
 - 恢复后端服务层对旧 API 异常语义的兼容，确保 AI 任务与订阅配额错误继续按 `ValueError` 进入路由 400 处理。
