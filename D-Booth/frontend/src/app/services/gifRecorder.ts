@@ -92,32 +92,44 @@ export class GifRecorder {
     }
 
     // 加载所有帧图片
+    const objectUrls: string[] = [];
     const imagePromises = processFrames.map(blob => {
       return new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image();
+        const objectUrl = URL.createObjectURL(blob);
+        objectUrls.push(objectUrl);
         img.onload = () => resolve(img);
         img.onerror = reject;
-        img.src = URL.createObjectURL(blob);
+        img.src = objectUrl;
       });
     });
 
-    const images = await Promise.all(imagePromises);
+    let images: HTMLImageElement[];
+    try {
+      images = await Promise.all(imagePromises);
+    } catch (error) {
+      objectUrls.forEach(url => URL.revokeObjectURL(url));
+      throw error;
+    }
 
     // 添加帧到GIF
     images.forEach(img => {
       gif.addFrame(img, { delay: this.options.frameDelay });
     });
 
+    const cleanupObjectUrls = () => {
+      objectUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+
     // 渲染GIF
     return new Promise((resolve, reject) => {
       gif.on("finished", (blob: Blob) => {
-        // 清理临时URL
-        images.forEach(img => URL.revokeObjectURL(img.src));
+        cleanupObjectUrls();
         resolve(blob);
       });
 
       gif.on("error", (error: Error) => {
-        images.forEach(img => URL.revokeObjectURL(img.src));
+        cleanupObjectUrls();
         reject(error);
       });
 

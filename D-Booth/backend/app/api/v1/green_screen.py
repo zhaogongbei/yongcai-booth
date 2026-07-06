@@ -187,10 +187,10 @@ async def _get_or_create_settings_for_event(
     )
     db.add(settings)
     await db.commit()
-    created = await _get_settings_for_event(db, event_id)
-    if not created:
-        raise RuntimeError("Failed to create green screen settings")
-    return created
+    # Load the (empty) backgrounds relationship so response serialization
+    # can access settings.backgrounds without a sync lazy load in async context.
+    await db.refresh(settings, ["backgrounds"])
+    return settings
 
 
 @router.get("/assets/{event_id}/{folder}/{filename}", response_class=FileResponse)

@@ -5,21 +5,9 @@ import "./styles/index.css";
 // Register Service Worker for offline support
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-
-        // Listen for background sync events
-        registration.addEventListener('sync', (event: Event) => {
-          const syncEvent = event as Event & { tag?: string };
-          if (syncEvent.tag === 'sync-offline-photos') {
-            console.log('Syncing offline photos...');
-          }
-        });
-      })
-      .catch((err) => {
-        console.log('ServiceWorker registration failed: ', err);
-      });
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Offline support is optional; the app remains usable without registration.
+    });
   });
 
   // Listen for online/offline events

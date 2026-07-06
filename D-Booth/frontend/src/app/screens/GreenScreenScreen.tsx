@@ -224,7 +224,10 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       }
       console.error("Green screen processing failed:", error);
       toast.error("处理失败，请检查设置");
-      setProcessedImageUrl(null);
+      setProcessedImageUrl(currentUrl => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return null;
+      });
     } finally {
       setIsProcessing(false);
       abortControllerRef.current = null;

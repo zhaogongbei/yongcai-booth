@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
@@ -99,13 +99,10 @@ async def _verify_template_photo_count(
             detail=f"Template requires {required_count} photos, but the print photo has no session",
         )
 
-    result = await db.execute(
-        select(Photo)
-        .where(Photo.session_id == photo.session_id)
-        .options(noload("*"))
-        .order_by(Photo.created_at)
+    count_result = await db.execute(
+        select(func.count()).select_from(Photo).where(Photo.session_id == photo.session_id)
     )
-    session_photo_count = len(result.scalars().all())
+    session_photo_count = count_result.scalar_one()
     if session_photo_count < required_count:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

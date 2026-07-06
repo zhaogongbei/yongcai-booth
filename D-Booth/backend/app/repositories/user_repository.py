@@ -7,30 +7,29 @@ from sqlalchemy.orm import noload
 
 from app.models.models import User
 from app.repositories.base import BaseRepository, log_query_performance
-from app.repositories.cache_decorator import cached, invalidate_cache
 
 
 class UserRepository(BaseRepository[User]):
     """
-    Repository for User model with caching and performance optimizations.
+    Repository for User model.
 
     Provides methods for:
     - User lookup by ID, email, or active status
     - Email existence checks
     - Account verification and deactivation
-    - Cached queries for frequently accessed users
+
+    Note: read methods are intentionally uncached. The prior @cached layer
+    serialized ORM rows to dicts, which broke attribute access in callers
+    like get_current_user (user.is_active) on cache hits.
     """
 
     def __init__(self, db: AsyncSession):
         super().__init__(User, db)
 
     @log_query_performance(threshold_ms=50.0)
-    @cached(ttl=300, key_builder=lambda self, id: f"user:{id}")
     async def get(self, id: UUID) -> Optional[User]:
         """
         Get a user by ID without preloading relationship graphs.
-
-        Results are cached for 5 minutes.
 
         Args:
             id: User identifier
@@ -42,12 +41,9 @@ class UserRepository(BaseRepository[User]):
         return result.scalar_one_or_none()
 
     @log_query_performance(threshold_ms=50.0)
-    @cached(ttl=600, key_builder=lambda self, email: f"user:email:{email}")
     async def get_by_email(self, email: str) -> Optional[User]:
         """
         Get user by email address.
-
-        Results are cached for 10 minutes.
 
         Args:
             email: User email address
@@ -91,8 +87,6 @@ class UserRepository(BaseRepository[User]):
         return result.scalar_one_or_none() is not None
 
     @log_query_performance(threshold_ms=100.0)
-    @invalidate_cache("user:{user_id}")
-    @invalidate_cache("user:email:*")
     async def verify_email(self, user_id: UUID) -> bool:
         """
         Mark user email as verified and invalidate caches.
@@ -114,8 +108,6 @@ class UserRepository(BaseRepository[User]):
         return False
 
     @log_query_performance(threshold_ms=100.0)
-    @invalidate_cache("user:{user_id}")
-    @invalidate_cache("user:email:*")
     async def deactivate(self, user_id: UUID) -> bool:
         """
         Deactivate a user account and invalidate caches.
@@ -136,10 +128,9 @@ class UserRepository(BaseRepository[User]):
             return True
         return False
 
-    @invalidate_cache("user:*")
     async def create(self, obj_in: dict) -> User:
         """
-        Create a new user and invalidate all user caches.
+        Create a new user.
 
         Args:
             obj_in: User data dictionary
@@ -149,10 +140,9 @@ class UserRepository(BaseRepository[User]):
         """
         return await super().create(obj_in)
 
-    @invalidate_cache("user:*")
     async def update(self, id: UUID, obj_in: dict) -> Optional[User]:
         """
-        Update user and invalidate caches.
+        Update user.
 
         Args:
             id: User identifier

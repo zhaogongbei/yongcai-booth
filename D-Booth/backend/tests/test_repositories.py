@@ -528,47 +528,39 @@ class TestCacheDecorator:
     @pytest.mark.asyncio
     @patch("app.repositories.cache_decorator.RedisCache.get")
     @patch("app.repositories.cache_decorator.RedisCache.set")
-    async def test_cache_hit(self, mock_set, mock_get, user_repo):
-        """Test that cached results are returned on cache hit."""
-        # Mock cache hit
+    async def test_get_by_email_is_uncached(self, mock_set, mock_get, user_repo):
+        """UserRepository.get_by_email must NOT use the Redis cache.
+
+        The prior @cached layer serialized ORM rows to dicts, which broke
+        attribute access in callers like get_current_user (user.is_active)
+        on cache hits. These tests lock in the uncached behavior.
+        """
         mock_get.return_value = {
             "id": str(uuid.uuid4()),
             "email": "cached@example.com",
             "full_name": "Cached User",
         }
 
-        # This should return cached result
-        user = await user_repo.get_by_email("cached@example.com")
-
-        # Verify cache was checked
-        mock_get.assert_called()
-        # Verify cache set was not called (already cached)
-        assert mock_set.call_count == 0
-
-    @pytest.mark.asyncio
-    @patch("app.repositories.cache_decorator.RedisCache.get")
-    @patch("app.repositories.cache_decorator.RedisCache.set")
-    async def test_cache_miss(self, mock_set, mock_get, user_repo):
-        """Test that DB is queried on cache miss and result is cached."""
-        # Mock cache miss
-        mock_get.return_value = None
-
-        # Create actual user in DB
+        # Create a real user so the DB lookup returns a row.
         await user_repo.create(
             {
-                "email": "test@example.com",
+                "email": "real@example.com",
                 "hashed_password": "password",
-                "full_name": "Test User",
+                "full_name": "Real User",
             }
         )
 
-        # This should query DB and cache the result
-        user = await user_repo.get_by_email("test@example.com")
+        user = await user_repo.get_by_email("real@example.com")
 
-        # Verify cache was checked
-        mock_get.assert_called()
-        # Verify result was cached
-        mock_set.assert_called()
+        # Cache must not be consulted or written.
+        mock_get.assert_not_called()
+        mock_set.assert_not_called()
+
+        # Result must be a real ORM object (attribute access works),
+        # not the dict that the stale cache would have returned.
+        assert not isinstance(user, dict)
+        assert user.email == "real@example.com"
+        assert user.is_active is True
 
 
 if __name__ == "__main__":

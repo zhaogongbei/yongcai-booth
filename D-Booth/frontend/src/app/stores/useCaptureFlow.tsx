@@ -117,7 +117,8 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
           : p));
         if (savedUrl && localUrl.startsWith("blob:")) {
           URL.revokeObjectURL(localUrl);
-        }      } catch (err) {
+        }
+      } catch (err) {
         setPhotos(prev => prev.map(p => p.id === id
           ? { ...p, uploadError: err instanceof Error ? err.message : "上传失败" }
           : p));
