@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.api.v1 import auth as auth_api
+from app.core.cache import RedisCache
 
 
 async def _register_and_login(client: AsyncClient, user_data: dict) -> dict:
@@ -15,13 +16,14 @@ async def _register_and_login(client: AsyncClient, user_data: dict) -> dict:
 
 
 class FakeRedisClient:
+    """Mimics the subset of redis.asyncio.Redis used by auth revocation."""
+
     def __init__(self, fail_setex: bool = False, fail_exists: bool = False, exists_result: int = 0):
         self.fail_setex = fail_setex
         self.fail_exists = fail_exists
         self.exists_result = exists_result
         self.exists_calls: list[str] = []
         self.setex_calls: list[tuple[str, int, str]] = []
-        self.closed = False
 
     async def exists(self, key: str):
         if self.fail_exists:
@@ -34,8 +36,19 @@ class FakeRedisClient:
             raise RuntimeError("redis write failed")
         self.setex_calls.append((key, ttl, value))
 
-    async def aclose(self):
-        self.closed = True
+
+def _patch_redis_client(monkeypatch, client):
+    """Patch RedisCache.get_client to return ``client`` (or None when unavailable).
+
+    Auth reuses the shared RedisCache client instead of opening a per-call
+    connection, so tests patch the shared seam. The client is NOT closed by
+    auth (it is shared app-wide), so no closed assertion is needed.
+    """
+
+    async def fake_get_client():
+        return client
+
+    monkeypatch.setattr(RedisCache, "get_client", fake_get_client)
 
 
 @pytest.mark.anyio
@@ -100,11 +113,7 @@ async def test_refresh_fails_when_revocation_status_unavailable(
     client: AsyncClient, test_user_data, monkeypatch
 ):
     tokens = await _register_and_login(client, test_user_data)
-
-    async def get_unavailable_redis_client():
-        return None
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_unavailable_redis_client)
+    _patch_redis_client(monkeypatch, None)
 
     response = await client.post(
         "/api/v1/auth/refresh",
@@ -121,11 +130,7 @@ async def test_refresh_fails_when_revocation_check_fails(
 ):
     tokens = await _register_and_login(client, test_user_data)
     fake_client = FakeRedisClient(fail_exists=True)
-
-    async def get_failing_redis_client():
-        return fake_client
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_failing_redis_client)
+    _patch_redis_client(monkeypatch, fake_client)
 
     response = await client.post(
         "/api/v1/auth/refresh",
@@ -134,18 +139,13 @@ async def test_refresh_fails_when_revocation_check_fails(
 
     assert response.status_code == 503
     assert response.json()["error"]["message"] == "Refresh token revocation is unavailable"
-    assert fake_client.closed is True
 
 
 @pytest.mark.anyio
 async def test_refresh_rejects_revoked_token(client: AsyncClient, test_user_data, monkeypatch):
     tokens = await _register_and_login(client, test_user_data)
     fake_client = FakeRedisClient(exists_result=1)
-
-    async def get_fake_redis_client():
-        return fake_client
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_fake_redis_client)
+    _patch_redis_client(monkeypatch, fake_client)
 
     response = await client.post(
         "/api/v1/auth/refresh",
@@ -155,7 +155,6 @@ async def test_refresh_rejects_revoked_token(client: AsyncClient, test_user_data
     assert response.status_code == 401
     assert response.json()["error"]["message"] == "Token revoked"
     assert len(fake_client.exists_calls) == 1
-    assert fake_client.closed is True
 
 
 @pytest.mark.anyio
@@ -163,15 +162,8 @@ async def test_refresh_revokes_old_refresh_token(
     client: AsyncClient, test_user_data, monkeypatch
 ):
     tokens = await _register_and_login(client, test_user_data)
-    redis_clients = [FakeRedisClient(), FakeRedisClient()]
-    issued_clients: list[FakeRedisClient] = []
-
-    async def get_fake_redis_client():
-        client = redis_clients.pop(0)
-        issued_clients.append(client)
-        return client
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_fake_redis_client)
+    fake_client = FakeRedisClient()
+    _patch_redis_client(monkeypatch, fake_client)
 
     response = await client.post(
         "/api/v1/auth/refresh",
@@ -182,16 +174,14 @@ async def test_refresh_revokes_old_refresh_token(
     body = response.json()
     assert body["access_token"]
     assert body["refresh_token"] != tokens["refresh_token"]
-    assert len(issued_clients) == 2
-    revocation_check_client, revocation_write_client = issued_clients
-    assert len(revocation_check_client.exists_calls) == 1
-    assert revocation_check_client.closed is True
-    assert len(revocation_write_client.setex_calls) == 1
-    key, ttl, value = revocation_write_client.setex_calls[0]
-    assert key == revocation_check_client.exists_calls[0]
+    # Auth reuses the shared client for both the revocation check and the write.
+    assert len(fake_client.exists_calls) == 1
+    assert len(fake_client.setex_calls) == 1
+    check_key = fake_client.exists_calls[0]
+    key, ttl, value = fake_client.setex_calls[0]
+    assert key == check_key
     assert ttl > 0
     assert value == "1"
-    assert revocation_write_client.closed is True
 
 
 @pytest.mark.anyio
@@ -199,11 +189,7 @@ async def test_logout_fails_when_refresh_revocation_unavailable(
     client: AsyncClient, test_user_data, monkeypatch
 ):
     tokens = await _register_and_login(client, test_user_data)
-
-    async def get_unavailable_redis_client():
-        return None
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_unavailable_redis_client)
+    _patch_redis_client(monkeypatch, None)
 
     response = await client.post(
         "/api/v1/auth/logout",
@@ -221,11 +207,7 @@ async def test_logout_fails_when_refresh_revocation_write_fails(
 ):
     tokens = await _register_and_login(client, test_user_data)
     fake_client = FakeRedisClient(fail_setex=True)
-
-    async def get_failing_redis_client():
-        return fake_client
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_failing_redis_client)
+    _patch_redis_client(monkeypatch, fake_client)
 
     response = await client.post(
         "/api/v1/auth/logout",
@@ -235,7 +217,6 @@ async def test_logout_fails_when_refresh_revocation_write_fails(
 
     assert response.status_code == 503
     assert response.json()["error"]["message"] == "Refresh token revocation is unavailable"
-    assert fake_client.closed is True
 
 
 @pytest.mark.anyio
@@ -244,11 +225,7 @@ async def test_logout_revokes_refresh_token(
 ):
     tokens = await _register_and_login(client, test_user_data)
     fake_client = FakeRedisClient()
-
-    async def get_fake_redis_client():
-        return fake_client
-
-    monkeypatch.setattr(auth_api, "_get_redis_client", get_fake_redis_client)
+    _patch_redis_client(monkeypatch, fake_client)
 
     response = await client.post(
         "/api/v1/auth/logout",
@@ -262,4 +239,3 @@ async def test_logout_revokes_refresh_token(
     assert key.startswith("revoked_refresh:")
     assert ttl > 0
     assert value == "1"
-    assert fake_client.closed is True

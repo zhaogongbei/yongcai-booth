@@ -7,6 +7,7 @@ from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
+from app.core.cache import RedisCache
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.security import create_access_token, create_refresh_token
@@ -42,26 +43,13 @@ def _refresh_token_ttl(payload: dict) -> int:
     return int(payload["exp"] - datetime.now(timezone.utc).timestamp())
 
 
-async def _get_redis_client():
-    import redis.asyncio as redis
-
-    client = redis.from_url(
-        settings.REDIS_URL,
-        decode_responses=True,
-        socket_connect_timeout=2,
-        socket_timeout=2,
-    )
-    try:
-        await client.ping()
-    except Exception as e:
-        await client.aclose()
-        logger.warning(f"Redis unavailable for refresh token revocation: {e}")
-        return None
-    return client
-
-
 async def _is_refresh_token_revoked(payload: dict) -> bool:
-    client = await _get_redis_client()
+    """Fail closed: if Redis is unavailable, refuse the refresh (503).
+
+    Reuses the shared RedisCache client instead of opening a new connection
+    per call; the client is NOT closed here (it's shared app-wide).
+    """
+    client = await RedisCache.get_client()
     if client is None:
         logger.warning("Redis unavailable while checking refresh token revocation")
         raise HTTPException(
@@ -76,16 +64,18 @@ async def _is_refresh_token_revoked(payload: dict) -> bool:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=REFRESH_REVOCATION_UNAVAILABLE_DETAIL,
         )
-    finally:
-        await client.aclose()
 
 
 async def _revoke_refresh_payload(payload: dict, context: str, user_id: UUID) -> None:
+    """Fail closed: if the revocation cannot be persisted, refuse the request (503).
+
+    Reuses the shared RedisCache client; not closed here (shared app-wide).
+    """
     ttl = _refresh_token_ttl(payload)
     if ttl <= 0:
         return
 
-    client = await _get_redis_client()
+    client = await RedisCache.get_client()
     if client is None:
         logger.warning(
             f"Redis unavailable during {context} for user {user_id}. "
@@ -104,8 +94,6 @@ async def _revoke_refresh_payload(payload: dict, context: str, user_id: UUID) ->
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=REFRESH_REVOCATION_UNAVAILABLE_DETAIL,
         )
-    finally:
-        await client.aclose()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

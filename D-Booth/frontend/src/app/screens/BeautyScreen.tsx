@@ -204,13 +204,11 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       // Create object URL for processed image
       const objectUrl = URL.createObjectURL(processedBlob);
 
-      // Clean up previous object URL
-      if (processedImageUrl) {
-        URL.revokeObjectURL(processedImageUrl);
-      }
-
       setProcessedImageBlob(processedBlob);
-      setProcessedImageUrl(objectUrl);
+      setProcessedImageUrl(currentUrl => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return objectUrl;
+      });
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         // Request was cancelled, ignore
@@ -219,7 +217,10 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       console.error("Beauty processing failed:", error);
       // Fallback to original image on error
       setProcessedImageBlob(null);
-      setProcessedImageUrl(null);
+      setProcessedImageUrl(currentUrl => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return null;
+      });
     } finally {
       setIsProcessing(false);
       abortControllerRef.current = null;

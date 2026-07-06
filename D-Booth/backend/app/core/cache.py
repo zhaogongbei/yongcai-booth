@@ -93,15 +93,22 @@ class RedisCache:
 
     @classmethod
     async def delete_pattern(cls, pattern: str) -> None:
-        """Delete all keys matching pattern"""
+        """Delete all keys matching pattern.
+
+        Uses SCAN (non-blocking) instead of KEYS to avoid stalling the Redis
+        main thread on large keyspaces.
+        """
         client = await cls.get_client()
         if not client:
             return
 
         try:
-            keys = await client.keys(pattern)
-            if keys:
-                await client.delete(*keys)
+            deleted = 0
+            async for key in client.scan_iter(match=pattern):
+                await client.delete(key)
+                deleted += 1
+            if deleted:
+                logger.debug(f"Invalidated {deleted} cache keys matching {pattern}")
         except Exception as e:
             logger.warning(f"Redis delete pattern failed: {e}")
 

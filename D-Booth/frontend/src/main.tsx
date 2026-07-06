@@ -12,14 +12,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
   // Listen for online/offline events
   window.addEventListener('online', () => {
-    console.log('Network connection restored');
     // Notify application to sync offline data
     const event = new CustomEvent('network-restored');
     window.dispatchEvent(event);
   });
 
   window.addEventListener('offline', () => {
-    console.log('Network connection lost');
     const event = new CustomEvent('network-lost');
     window.dispatchEvent(event);
   });
