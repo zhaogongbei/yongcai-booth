@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import check_team_member, get_current_active_user, get_db
+from app.api.deps import check_team_member, get_current_active_user, get_db, verify_event_access
 from app.models.models import User
 from app.schemas.photo import (
     PhotoCreate,
@@ -14,7 +14,6 @@ from app.schemas.photo import (
     PhotoUpdate,
 )
 from app.services.beauty_service import BeautyParams
-from app.services.event_service import EventService
 from app.services.photo_service import PhotoService
 from app.services.subscription_service import SubscriptionService
 
@@ -32,25 +31,16 @@ async def get_photos(
 ):
     """Get photos with optional filters"""
     photo_service = PhotoService(db)
-    event_service = EventService(db)
 
     if event_id:
-        # Verify the event belongs to the user's team
-        event = await event_service.get_event(event_id)
-        if not event:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-        await check_team_member(event.team_id, current_user, db)
+        # Verify the event belongs to the user's team (single joined query)
+        await verify_event_access(event_id, current_user, db)
     elif session_id:
         # Trace session -> event -> team for permission check
         session = await photo_service.get_session(session_id)
         if not session:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-        event = await event_service.get_event(session.event_id)
-        if not event:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Event not found for session"
-            )
-        await check_team_member(event.team_id, current_user, db)
+        await verify_event_access(session.event_id, current_user, db)
     else:
         return await photo_service.photo_repo.get_visible_to_user(
             current_user.id, skip=skip, limit=limit
@@ -69,12 +59,8 @@ async def create_photo(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new photo record"""
-    # Verify event belongs to user's team
-    event_service = EventService(db)
-    event = await event_service.get_event(photo_in.event_id)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-    await check_team_member(event.team_id, current_user, db)
+    # Verify event belongs to user's team (single joined query)
+    event = await verify_event_access(photo_in.event_id, current_user, db)
 
     photo_service = PhotoService(db)
     subscription_service = SubscriptionService(db)
@@ -94,11 +80,7 @@ async def create_photo_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a photo session for an event."""
-    event_service = EventService(db)
-    event = await event_service.get_event(session_in.event_id)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-    await check_team_member(event.team_id, current_user, db)
+    await verify_event_access(session_in.event_id, current_user, db)
 
     photo_service = PhotoService(db)
     return await photo_service.create_session(session_in)
@@ -113,11 +95,7 @@ async def get_photo_sessions(
     db: AsyncSession = Depends(get_db),
 ):
     """Get photo sessions for an event."""
-    event_service = EventService(db)
-    event = await event_service.get_event(event_id)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-    await check_team_member(event.team_id, current_user, db)
+    await verify_event_access(event_id, current_user, db)
 
     photo_service = PhotoService(db)
     return await photo_service.get_sessions(event_id, skip, limit)
@@ -135,13 +113,7 @@ async def complete_photo_session(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-    event_service = EventService(db)
-    event = await event_service.get_event(session.event_id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Event not found for session"
-        )
-    await check_team_member(event.team_id, current_user, db)
+    await verify_event_access(session.event_id, current_user, db)
 
     completed = await photo_service.complete_session(session_id)
     if not completed:
@@ -167,12 +139,8 @@ async def upload_photo(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a photo file with optional built-in AI beauty processing."""
-    # Verify event belongs to user's team
-    event_service = EventService(db)
-    event = await event_service.get_event(event_id)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-    await check_team_member(event.team_id, current_user, db)
+    # Verify event belongs to user's team (single joined query)
+    event = await verify_event_access(event_id, current_user, db)
 
     photo_service = PhotoService(db)
     subscription_service = SubscriptionService(db)

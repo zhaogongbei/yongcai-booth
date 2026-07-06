@@ -1,21 +1,19 @@
-from typing import Generator, Optional
+from typing import Optional
 from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
-from app.core.database import async_session_maker
+from app.core.database import get_db
 from app.core.security import verify_token
-from app.models.models import Team, User
+from app.models.models import Event, Team, TeamMember, User
 from app.services.team_service import TeamService
 from app.services.user_service import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-
-
-# Database dependency (imported from core.database to avoid duplication)
-from app.core.database import get_db
 
 
 # Current user dependency
@@ -119,3 +117,37 @@ async def get_current_team(
             status_code=status.HTTP_404_NOT_FOUND, detail="No team found for current user"
         )
     return teams[0]
+
+
+async def verify_event_access(
+    event_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> Event:
+    """Resolve an event and verify the current user is a member of its team.
+
+    Replaces the repeated ``get_event → 404 → check_team_member`` prelude with
+    a single joined query on the happy path (event found AND user is a member).
+    Falls back to a second query only to distinguish 404 (not found) from 403
+    (not a member), preserving the original error semantics.
+
+    Matches ``TeamService.is_member`` exactly (no soft-delete filter) so the
+    access decision is unchanged.
+    """
+    result = await db.execute(
+        select(Event)
+        .options(noload("*"))
+        .join(TeamMember, TeamMember.team_id == Event.team_id)
+        .where(Event.id == event_id, TeamMember.user_id == current_user.id)
+    )
+    event = result.scalar_one_or_none()
+    if event is not None:
+        return event
+
+    # Distinguish 404 (event does not exist) from 403 (exists, not a member).
+    exists = await db.execute(select(Event.id).where(Event.id == event_id))
+    if exists.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail="You are not a member of this team"
+    )

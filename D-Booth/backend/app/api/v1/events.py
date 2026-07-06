@@ -4,8 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import check_team_member, get_current_active_user, get_db
-from app.models.models import User
+from app.api.deps import get_current_active_user, get_db, verify_event_access
+from app.models.models import Event, User
 from app.schemas.event import EventCreate, EventResponse, EventUpdate
 from app.services.event_service import EventService
 
@@ -58,21 +58,8 @@ async def create_event(
 
 
 @router.get("/{event_id}", response_model=EventResponse)
-async def get_event(
-    event_id: UUID,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def get_event(event: Event = Depends(verify_event_access)):
     """Get event by ID"""
-    event_service = EventService(db)
-
-    event = await event_service.get_event(event_id)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
-
-    # Verify team membership
-    await check_team_member(event.team_id, current_user, db)
-
     return event
 
 

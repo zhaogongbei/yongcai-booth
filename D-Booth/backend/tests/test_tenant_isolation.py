@@ -38,6 +38,7 @@ async def test_cannot_create_event_for_non_member_team(
         "/api/v1/auth/login",
         data={"username": other_user_data["email"], "password": other_user_data["password"]},
     )
+    assert login_response.status_code == 200
     other_token = login_response.json()["access_token"]
 
     # Create a new client with the other user's token
@@ -255,6 +256,62 @@ async def test_user_can_create_event_for_own_team(authenticated_client: AsyncCli
     assert event_response.status_code == 201
     assert event_response.json()["name"] == "My Event"
     assert event_response.json()["team_id"] == team_id
+
+
+@pytest.mark.anyio
+async def test_get_event_access_preserves_404_and_403(
+    authenticated_client: AsyncClient, test_user_data
+):
+    """Event detail access should distinguish not found from cross-team access."""
+    team_response = await authenticated_client.post(
+        "/api/v1/teams", json={"name": "Event Access Team", "slug": "event-access-team"}
+    )
+    assert team_response.status_code == 201
+    team_id = team_response.json()["id"]
+
+    event_response = await authenticated_client.post(
+        "/api/v1/events",
+        json={
+            "name": "Private Event",
+            "team_id": team_id,
+            "start_date": "2026-07-01T10:00:00Z",
+            "end_date": "2026-07-01T18:00:00Z",
+        },
+    )
+    assert event_response.status_code == 201
+    event_id = event_response.json()["id"]
+
+    owner_response = await authenticated_client.get(f"/api/v1/events/{event_id}")
+    assert owner_response.status_code == 200
+    assert owner_response.json()["id"] == event_id
+
+    missing_response = await authenticated_client.get(f"/api/v1/events/{uuid4()}")
+    assert missing_response.status_code == 404
+
+    other_user_data = {
+        "email": "event-viewer@example.com",
+        "password": "OtherPass123!@",
+        "full_name": "Other Viewer",
+    }
+    await authenticated_client.post("/api/v1/auth/register", json=other_user_data)
+    login_response = await authenticated_client.post(
+        "/api/v1/auth/login",
+        data={"username": other_user_data["email"], "password": other_user_data["password"]},
+    )
+    other_token = login_response.json()["access_token"]
+
+    from httpx import ASGITransport, AsyncClient
+
+    from app.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {other_token}"},
+    ) as other_client:
+        forbidden_response = await other_client.get(f"/api/v1/events/{event_id}")
+
+    assert forbidden_response.status_code == 403
 
 
 @pytest.mark.anyio
