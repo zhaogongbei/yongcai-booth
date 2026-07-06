@@ -1,3 +1,4 @@
+import asyncio
 import io
 import re
 from pathlib import Path
@@ -172,21 +173,12 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         if len(file_data) > self.MAX_FILE_SIZE:
             raise ValueError(f"File size exceeds maximum allowed size of {self.MAX_FILE_SIZE_MB}MB")
 
-        # Validate it's a valid image - verify FIRST, then open
+        # Validate it's a valid image - verify FIRST, then open. Pillow is
+        # CPU-bound (decode + EXIF + re-encode), so run it off the event loop.
         try:
-            img_verify = Image.open(io.BytesIO(file_data))
-            img_verify.verify()  # Verify first without decoding pixel data
-
-            # Re-open to normalize orientation and get dimensions (verify() invalidates the image object)
-            img_source = Image.open(io.BytesIO(file_data))
-            detected_content_type = self.IMAGE_FORMAT_TYPES.get(img_source.format or "")
-            if detected_content_type not in self.ALLOWED_TYPES:
-                raise ValueError("File content is not an allowed image type")
-            img_open = ImageOps.exif_transpose(img_source)
-            width, height = img_open.size
-            if width * height > self.MAX_IMAGE_PIXELS:
-                raise ValueError("Image dimensions exceed maximum allowed pixel count")
-            storage_data = self._encode_for_storage(img_open, detected_content_type)
+            storage_data, detected_content_type, width, height = await asyncio.to_thread(
+                self._decode_validate_encode, file_data
+            )
         except ValueError:
             raise
         except Exception as e:
@@ -240,8 +232,11 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             getattr(beauty_params, f, 0) > 0 for f in BeautyParams.model_fields
         ):
             try:
-                beauty_bytes = beauty_processor.process_image(
-                    file_data, beauty_params, quality="full"
+                beauty_bytes = await asyncio.to_thread(
+                    beauty_processor.process_image,
+                    file_data,
+                    beauty_params,
+                    quality="full",
                 )
                 beauty_name = f"beauty_{safe_filename}"
                 if r2_storage.is_available():
@@ -297,6 +292,28 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
             pass
 
     @staticmethod
+    def _decode_validate_encode(file_data: bytes) -> tuple[bytes, str, int, int]:
+        """Sync, CPU-bound: verify, EXIF-normalize, dimension-check, encode for storage.
+
+        Runs in a worker thread (see ``upload_photo_bytes``) so the event loop
+        is not blocked while Pillow decodes/re-encodes large images.
+        """
+        img_verify = Image.open(io.BytesIO(file_data))
+        img_verify.verify()  # Verify first without decoding pixel data
+
+        # Re-open to normalize orientation and get dimensions (verify() invalidates the image object)
+        img_source = Image.open(io.BytesIO(file_data))
+        detected_content_type = PhotoService.IMAGE_FORMAT_TYPES.get(img_source.format or "")
+        if detected_content_type not in PhotoService.ALLOWED_TYPES:
+            raise ValueError("File content is not an allowed image type")
+        img_open = ImageOps.exif_transpose(img_source)
+        width, height = img_open.size
+        if width * height > PhotoService.MAX_IMAGE_PIXELS:
+            raise ValueError("Image dimensions exceed maximum allowed pixel count")
+        storage_data = PhotoService._encode_for_storage(img_open, detected_content_type)
+        return storage_data, detected_content_type, width, height
+
+    @staticmethod
     def _encode_for_storage(image: Image.Image, content_type: str) -> bytes:
         """Encode an already-validated image after EXIF orientation normalization."""
         output = io.BytesIO()
@@ -321,94 +338,101 @@ class PhotoService(BaseService[Photo, PhotoCreate, PhotoUpdate]):
         target_path.write_bytes(file_data)
         return f"/uploads/{safe_folder}/{filename}"
 
+    @staticmethod
+    def _render_thumbnail_bytes(file_data: bytes) -> "dict[str, bytes]":
+        """Sync, CPU-bound: render each thumbnail size to JPEG bytes."""
+        thumbnails: dict = {}
+        image = Image.open(io.BytesIO(file_data)).convert("RGB")
+
+        for size_name, (target_width, target_height) in PhotoService.THUMBNAIL_SIZES.items():
+            # Create copy of original image for resizing
+            img = image.copy()
+
+            # Resize and crop to exact dimensions
+            img.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
+
+            # Center crop if aspect ratio differs
+            width, height = img.size
+            left = (width - target_width) / 2
+            top = (height - target_height) / 2
+            right = (width + target_width) / 2
+            bottom = (height + target_height) / 2
+            img = img.crop((left, top, right, bottom))
+
+            # Save thumbnail to bytes
+            thumb_io = io.BytesIO()
+            img.save(thumb_io, format="JPEG", quality=85)
+            thumbnails[size_name] = thumb_io.getvalue()
+        return thumbnails
+
     async def _generate_all_thumbnails(
         self, file_data: bytes, filename: str, event_id: UUID, content_type: str
     ) -> dict:
-        """Generate all thumbnail sizes and upload"""
-        thumbnails = {}
+        """Generate all thumbnail sizes and upload.
+
+        CPU-bound rendering runs in a worker thread; uploads stay on the loop.
+        """
         base_filename = Path(filename).stem
+        folder = f"thumbnails/{event_id}"
 
         try:
-            image = Image.open(io.BytesIO(file_data)).convert("RGB")
-
-            for size_name, (target_width, target_height) in self.THUMBNAIL_SIZES.items():
-                # Create copy of original image for resizing
-                img = image.copy()
-
-                # Resize and crop to exact dimensions
-                img.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
-
-                # Center crop if aspect ratio differs
-                width, height = img.size
-                left = (width - target_width) / 2
-                top = (height - target_height) / 2
-                right = (width + target_width) / 2
-                bottom = (height + target_height) / 2
-                img = img.crop((left, top, right, bottom))
-
-                # Save thumbnail to bytes
-                thumb_io = io.BytesIO()
-                img.save(thumb_io, format="JPEG", quality=85)
-                thumb_data = thumb_io.getvalue()
-
-                # Upload thumbnail
-                thumb_filename = f"{base_filename}_{size_name}.jpg"
-                folder = f"thumbnails/{event_id}"
-
-                if r2_storage.is_available():
-                    thumb_url = await r2_storage.upload_file(
-                        file_data=thumb_data,
-                        filename=thumb_filename,
-                        content_type="image/jpeg",
-                        folder=folder,
-                    )
-                else:
-                    thumb_url = self._save_local_file(
-                        thumb_data,
-                        thumb_filename,
-                        folder=folder,
-                    )
-
-                thumbnails[size_name] = thumb_url
-
-            return thumbnails
-
+            rendered = await asyncio.to_thread(self._render_thumbnail_bytes, file_data)
         except Exception as e:
             logger.error(f"Failed to generate thumbnails: {e}")
             return {}
 
-    async def _transcode_to_webp(
-        self, file_data: bytes, filename: str, event_id: UUID
-    ) -> Optional[str]:
-        """Transcode image to WebP format"""
-        try:
-            image = Image.open(io.BytesIO(file_data)).convert("RGB")
-
-            # Save as WebP
-            webp_io = io.BytesIO()
-            image.save(webp_io, format="WEBP", quality=self.WEBP_QUALITY, method=6)
-            webp_data = webp_io.getvalue()
-
-            webp_filename = f"{Path(filename).stem}.webp"
-            folder = f"photos/webp/{event_id}"
+        thumbnails: dict = {}
+        for size_name, thumb_data in rendered.items():
+            thumb_filename = f"{base_filename}_{size_name}.jpg"
 
             if r2_storage.is_available():
-                return await r2_storage.upload_file(
-                    file_data=webp_data,
-                    filename=webp_filename,
-                    content_type="image/webp",
+                thumb_url = await r2_storage.upload_file(
+                    file_data=thumb_data,
+                    filename=thumb_filename,
+                    content_type="image/jpeg",
                     folder=folder,
                 )
             else:
-                return self._save_local_file(
-                    webp_data,
-                    webp_filename,
-                    folder=folder,
-                )
+                thumb_url = self._save_local_file(thumb_data, thumb_filename, folder=folder)
 
+            thumbnails[size_name] = thumb_url
+
+        return thumbnails
+
+    @staticmethod
+    def _render_webp_bytes(file_data: bytes) -> bytes:
+        """Sync, CPU-bound: transcode image bytes to WebP."""
+        image = Image.open(io.BytesIO(file_data)).convert("RGB")
+        webp_io = io.BytesIO()
+        image.save(webp_io, format="WEBP", quality=PhotoService.WEBP_QUALITY, method=6)
+        return webp_io.getvalue()
+
+    async def _transcode_to_webp(
+        self, file_data: bytes, filename: str, event_id: UUID
+    ) -> Optional[str]:
+        """Transcode image to WebP format. CPU-bound encoding runs in a worker thread."""
+        try:
+            webp_data = await asyncio.to_thread(self._render_webp_bytes, file_data)
         except Exception as e:
             logger.error(f"Failed to transcode to WebP: {e}")
             return None
+
+        webp_filename = f"{Path(filename).stem}.webp"
+        folder = f"photos/webp/{event_id}"
+
+        if r2_storage.is_available():
+            return await r2_storage.upload_file(
+                file_data=webp_data,
+                filename=webp_filename,
+                content_type="image/webp",
+                folder=folder,
+            )
+        else:
+            return self._save_local_file(
+                webp_data,
+                webp_filename,
+                folder=folder,
+            )
 
     async def _generate_thumbnail(
         self, file_data: bytes, filename: str, event_id: UUID, thumbnail_size: tuple = (300, 300)

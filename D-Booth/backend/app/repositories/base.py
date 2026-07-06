@@ -293,9 +293,18 @@ class BaseRepository(Generic[ModelType]):
 
             await self.db.commit()
 
-            # Refresh all objects to get DB-generated values
-            for obj in created_objects:
-                await self.db.refresh(obj)
+            # Load DB-generated columns (server defaults like created_at) for all
+            # created objects in ONE round-trip. The objects are already in the
+            # session identity map, so populate_existing refreshes their attribute
+            # state from these rows instead of creating new instances — replacing
+            # the previous N per-object db.refresh() calls.
+            if created_objects:
+                created_ids = [obj.id for obj in created_objects]
+                await self.db.execute(
+                    select(self.model)
+                    .where(self.model.id.in_(created_ids))
+                    .execution_options(populate_existing=True)
+                )
 
             logger.info(
                 f"Bulk created {len(created_objects)} {self._model_name} records "

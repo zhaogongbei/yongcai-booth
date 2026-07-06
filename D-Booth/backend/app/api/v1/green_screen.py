@@ -2,6 +2,7 @@
 Green Screen API Endpoints
 """
 
+import asyncio
 import json
 from pathlib import Path
 from typing import List, Optional
@@ -206,6 +207,31 @@ async def serve_local_green_screen_asset(event_id: UUID, folder: str, filename: 
     return FileResponse(target)
 
 
+def _process_green_screen_image(
+    image_bytes: bytes,
+    settings_obj: GreenScreenSettingsUpdate,
+    background_bytes: Optional[bytes],
+) -> bytes:
+    """Sync, CPU-bound OpenCV work for green screen preview.
+
+    Runs in a worker thread (see ``preview_green_screen``) so the event loop
+    is not blocked while decoding/encoding large images.
+    """
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError("Invalid image file")
+
+    background = None
+    if background_bytes:
+        bg_nparr = np.frombuffer(background_bytes, np.uint8)
+        background = cv2.imdecode(bg_nparr, cv2.IMREAD_COLOR)
+
+    result = green_screen_service.process_image(image, settings_obj, background)
+    _, encoded = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    return encoded.tobytes()
+
+
 @router.post("/preview", response_class=Response)
 async def preview_green_screen(
     settings: str = File(...),
@@ -234,37 +260,35 @@ async def preview_green_screen(
             logger.warning("OpenCV not available, returning original image")
             return Response(content=image_bytes, media_type="image/jpeg")
 
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if image is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file"
-            )
-
         # Read background if provided
-        background = None
+        background_bytes: Optional[bytes] = None
         if background_file:
             bg_bytes = await background_file.read()
             if bg_bytes:
-                bg_nparr = np.frombuffer(bg_bytes, np.uint8)
-                background = cv2.imdecode(bg_nparr, cv2.IMREAD_COLOR)
+                background_bytes = bg_bytes
 
-        # Process image
-        result = green_screen_service.process_image(image, settings_obj, background)
-
-        # Encode result
-        _, encoded = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        result_bytes = encoded.tobytes()
+        # CPU-bound OpenCV decode/process/encode runs off the event loop.
+        result_bytes = await asyncio.to_thread(
+            _process_green_screen_image, image_bytes, settings_obj, background_bytes
+        )
 
         return Response(content=result_bytes, media_type="image/jpeg")
 
     except json.JSONDecodeError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid settings JSON")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid settings JSON"
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file"
+        )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Green screen preview failed: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Processing failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Processing failed"
+        )
 
 
 @router.post("/process")

@@ -261,6 +261,29 @@ class TestBulkOperations:
         assert created_users[9].email == "user9@example.com"
 
     @pytest.mark.asyncio
+    async def test_bulk_create_populates_server_defaults(self, user_repo):
+        """bulk_create must load server-generated columns (e.g. created_at).
+
+        Locks in the populate_existing-based batch refresh: accessing
+        created_at must not require a per-object refresh or trigger a sync
+        lazy load (which would raise in async context).
+        """
+        users_data = [
+            {
+                "email": f"sd{i}@example.com",
+                "hashed_password": "password",
+                "full_name": f"SD {i}",
+            }
+            for i in range(3)
+        ]
+
+        created_users = await user_repo.bulk_create(users_data, batch_size=2)
+
+        assert len(created_users) == 3
+        # created_at is a server_default; it must be populated by bulk_create.
+        assert all(user.created_at is not None for user in created_users)
+
+    @pytest.mark.asyncio
     async def test_bulk_create_empty_list(self, user_repo):
         """Test bulk create with empty list returns empty list."""
         result = await user_repo.bulk_create([])
