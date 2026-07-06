@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "AI Booth API"
-    VERSION: str = "1.0.8"
+    VERSION: str = "1.0.12"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
 
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000"
     CORS_CREDENTIALS: bool = True
     CORS_METHODS: str = "GET,POST,PUT,DELETE,PATCH"
-    CORS_HEADERS: str = "Content-Type,Authorization,X-Request-ID"
+    CORS_HEADERS: str = "Content-Type,Authorization,X-Request-ID,X-CSRF-Token"
 
     # CSRF Protection
     CSRF_SECRET_KEY: str = ""  # Will default to SECRET_KEY if not set

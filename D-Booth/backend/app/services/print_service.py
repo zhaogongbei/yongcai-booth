@@ -13,7 +13,7 @@ from app.models.models import Photo, PrintJob, PrintJobStatus
 from app.repositories.print_job_repository import PrintJobRepository
 from app.schemas.print_job import BatchPrintRequest, PrintJobCreate, PrintJobUpdate
 from app.schemas.printer import PrinterStatus
-from app.services.base_service import BaseService, BusinessRuleError, ValidationError
+from app.services.base_service import BaseService, BusinessRuleError
 from app.services.printer_driver_service import PrinterDriverService
 from app.services.sharpen_service import SharpenService
 from app.services.template_render_service import TemplateRenderService
@@ -341,7 +341,7 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
                 # 清理临时文件
                 try:
                     os.unlink(temp_path)
-                except:
+                except OSError:
                     pass
 
         except Exception as e:
@@ -350,6 +350,6 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
             logger.error(f"Error executing print job {job_id}: {str(e)}")
             try:
                 await self.fail_job(job_id, str(e))
-            except:
+            except Exception:
                 pass
             return False

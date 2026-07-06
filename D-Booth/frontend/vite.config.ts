@@ -40,6 +40,9 @@ export default defineConfig({
 
   // Exclude user data directories from Vite processing
   build: {
+    // Modern-browser target (the booth runs on current Chromium); lets Vite
+    // emit smaller/faster output without transpiling modern syntax down.
+    target: 'es2022',
     rollupOptions: {
       external: [/src\/imports\/.*/],
       output: {

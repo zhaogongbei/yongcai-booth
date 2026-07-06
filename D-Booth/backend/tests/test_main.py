@@ -56,3 +56,20 @@ async def test_security_headers(client: AsyncClient):
     assert response.headers["Permissions-Policy"] == settings.PERMISSIONS_POLICY
     assert "default-src 'self'" in response.headers["Content-Security-Policy"]
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
+@pytest.mark.asyncio
+async def test_cors_preflight_allows_csrf_header(client: AsyncClient):
+    """Browser preflight should allow the frontend CSRF header."""
+    response = await client.options(
+        "/api/v1/events",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,authorization,x-csrf-token",
+        },
+    )
+
+    assert response.status_code == 200
+    allowed_headers = response.headers["access-control-allow-headers"].lower()
+    assert "x-csrf-token" in allowed_headers

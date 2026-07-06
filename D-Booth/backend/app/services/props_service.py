@@ -1,14 +1,12 @@
-import os
 import uuid
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import UploadFile
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.models.models import Prop, PropCategory
 from app.repositories.prop_repository import PropRepository
 from app.schemas.prop import PropCreate, PropUpdate
@@ -183,8 +181,9 @@ class PropsService(BaseService[Prop, PropCreate, PropUpdate]):
 
                     # 应用透明度
                     if applied_prop.opacity < 1.0:
+                        opacity = applied_prop.opacity
                         alpha = prop_img.split()[3]
-                        alpha = alpha.point(lambda p: p * applied_prop.opacity)
+                        alpha = alpha.point(lambda p, opacity=opacity: p * opacity)
                         prop_img.putalpha(alpha)
 
                     # 计算位置（基于比例转换为像素坐标）

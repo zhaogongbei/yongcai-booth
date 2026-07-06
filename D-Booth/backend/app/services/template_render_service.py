@@ -1,6 +1,6 @@
 import io
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
@@ -267,7 +267,7 @@ class TemplateRenderService:
 
                     try:
                         font = ImageFont.truetype(font_family, font_size)
-                    except:
+                    except Exception:
                         font = ImageFont.load_default(font_size)
 
                     draw.text((x, y), text, font=font, fill=font_color)
