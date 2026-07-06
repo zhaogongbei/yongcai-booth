@@ -1,4 +1,4 @@
-import { useState, createContext, useContext, useCallback } from "react";
+import { useState, createContext, useContext, useCallback, useEffect, useRef } from "react";
 import { resolveBackendUrl, uploadPhoto, type PhotoResponse } from "../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
@@ -61,6 +61,7 @@ const CaptureFlowContext = createContext<CaptureFlowContextType | null>(null);
 
 export function CaptureFlowProvider({ children }: { children: React.ReactNode }) {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
+  const photosRef = useRef<CapturedPhoto[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [activePrintTemplate, setActivePrintTemplate] = useState<ActivePrintTemplate | null>(null);
   const [templateSelectionReturnScreen, setTemplateSelectionReturnScreen] = useState<Screen | null>(null);
@@ -76,6 +77,19 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
     if (ctx.teamId !== undefined) setTeamId(ctx.teamId);
     if (ctx.sessionId !== undefined) setSessionId(ctx.sessionId);
     if (ctx.authToken !== undefined) setAuthToken(ctx.authToken);
+  }, []);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
+  useEffect(() => {
+    return () => {
+      for (const photo of photosRef.current) {
+        if (photo.url.startsWith("blob:")) {
+          URL.revokeObjectURL(photo.url);
+        }
+      }
+    };
   }, []);
 
   const addPhoto = useCallback(async ({ blob, url, filter, mediaType = "photo", serverPhotoId, uploaded }: { blob?: Blob; url?: string; filter: string; mediaType?: MediaType; serverPhotoId?: string; uploaded?: boolean }) => {
@@ -97,14 +111,13 @@ export function CaptureFlowProvider({ children }: { children: React.ReactNode })
     if (blob && eventId && authToken) {
       try {
         const saved: PhotoResponse = await uploadPhoto({ eventId, sessionId: sessionId ?? undefined, file: blob, token: authToken });
+        const savedUrl = saved.original_url ? resolveBackendUrl(saved.original_url) : null;
         setPhotos(prev => prev.map(p => p.id === id
-          ? { ...p, serverPhotoId: saved.id, url: saved.original_url ? resolveBackendUrl(saved.original_url) : localUrl, uploaded: true }
+          ? { ...p, serverPhotoId: saved.id, url: savedUrl ?? localUrl, uploaded: true }
           : p));
-        // Revoke blob URL after upload (no longer needed)
-        if (localUrl.startsWith("blob:")) {
+        if (savedUrl && localUrl.startsWith("blob:")) {
           URL.revokeObjectURL(localUrl);
-        }
-      } catch (err) {
+        }      } catch (err) {
         setPhotos(prev => prev.map(p => p.id === id
           ? { ...p, uploadError: err instanceof Error ? err.message : "上传失败" }
           : p));
