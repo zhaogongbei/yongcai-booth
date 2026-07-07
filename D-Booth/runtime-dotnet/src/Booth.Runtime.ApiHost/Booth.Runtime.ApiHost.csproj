@@ -9,9 +9,12 @@
     <ProjectReference Include="..\Booth.Runtime.SessionApp\Booth.Runtime.SessionApp.csproj" />
     <ProjectReference Include="..\Booth.Infra.Storage.Sqlite\Booth.Infra.Storage.Sqlite.csproj" />
     <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\Booth.Runtime.Licensing\Booth.Runtime.Licensing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 </Project>
+
+

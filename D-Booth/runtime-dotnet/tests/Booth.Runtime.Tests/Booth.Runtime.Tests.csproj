@@ -21,5 +21,7 @@
     <ProjectReference Include="..\..\src\Booth.Runtime.SessionApp\Booth.Runtime.SessionApp.csproj" />
     <ProjectReference Include="..\..\src\Booth.Runtime.JobApp\Booth.Runtime.JobApp.csproj" />
     <ProjectReference Include="..\..\src\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Booth.Runtime.Licensing\Booth.Runtime.Licensing.csproj" />
   </ItemGroup>
 </Project>
+

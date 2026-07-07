@@ -1,5 +1,6 @@
 using Booth.Infra.Storage.Sqlite;
 using Booth.Runtime.JobApp;
+using Booth.Runtime.Licensing;
 using Booth.Runtime.SessionApp;
 using Booth.Shared.Contracts;
 
@@ -10,6 +11,7 @@ var dataDir = builder.Configuration["Runtime:DataDirectory"]
 var databasePath = Path.Combine(dataDir, "runtime.db");
 var outputsRoot = Path.Combine(dataDir, "outputs");
 var capturesRoot = Path.Combine(dataDir, "captures");
+var licenseRoot = Path.Combine(dataDir, ".license");
 
 builder.Services.AddSingleton(new SqliteSessionRepository(databasePath));
 builder.Services.AddSingleton(new SqliteShotRepository(databasePath));
@@ -20,6 +22,13 @@ builder.Services.AddSingleton<SessionApplicationService>(sp =>
         sp.GetRequiredService<SqliteSessionRepository>(),
         sp.GetRequiredService<SqliteShotRepository>(),
         capturesRoot));
+builder.Services.AddSingleton(sp =>
+    new LicenseService(
+        licenseRoot,
+        builder.Configuration["Runtime:License:PublicKeyPem"] ?? string.Empty,
+        string.IsNullOrWhiteSpace(builder.Configuration["Runtime:License:FingerprintOverride"])
+            ? null
+            : () => builder.Configuration["Runtime:License:FingerprintOverride"]!));
 builder.Services.AddSingleton<IJobExecutor, PrintJobExecutor>();
 builder.Services.AddSingleton<IJobExecutor, ShareJobExecutor>();
 builder.Services.AddSingleton(sp =>
@@ -40,6 +49,18 @@ app.MapGet("/v1/health", () =>
     Results.Ok(new HealthCheckResponse("healthy", "1.0.0-dev")))
     .WithTags("Health");
 
+app.MapGet("/v1/license/status", (LicenseService license) =>
+    Results.Ok(license.GetStatus()))
+    .WithTags("License");
+
+app.MapPost("/v1/license/activate", (ActivateLicenseRequest request, LicenseService license) =>
+{
+    var result = license.Activate(request.Code);
+    return result.IsActivated
+        ? Results.Ok(result)
+        : Results.BadRequest(result);
+})
+    .WithTags("License");
 app.MapPost("/v1/session/start", async (SessionStartApiRequest request, SessionApplicationService service, CancellationToken cancellationToken) =>
 {
     var session = await service.StartAsync(
@@ -144,8 +165,14 @@ app.MapGet("/v1/sessions/{sessionId}/shots", async (string sessionId, SessionApp
 })
     .WithTags("Shots");
 
-app.MapPost("/v1/print/jobs", async (PrintJobApiRequest request, SessionApplicationService sessionService, SqliteJobRepository repository, CancellationToken cancellationToken) =>
+app.MapPost("/v1/print/jobs", async (PrintJobApiRequest request, SessionApplicationService sessionService, SqliteJobRepository repository, LicenseService license, CancellationToken cancellationToken) =>
 {
+    var licenseStatus = license.GetStatus();
+    if (!licenseStatus.IsActivated)
+    {
+        return Results.Forbid();
+    }
+
     var session = await sessionService.GetAsync(request.SessionId, cancellationToken);
     if (session is null)
     {
@@ -164,8 +191,14 @@ app.MapPost("/v1/print/jobs", async (PrintJobApiRequest request, SessionApplicat
 })
     .WithTags("Jobs");
 
-app.MapPost("/v1/share/jobs", async (ShareJobApiRequest request, SessionApplicationService sessionService, SqliteJobRepository repository, CancellationToken cancellationToken) =>
+app.MapPost("/v1/share/jobs", async (ShareJobApiRequest request, SessionApplicationService sessionService, SqliteJobRepository repository, LicenseService license, CancellationToken cancellationToken) =>
 {
+    var licenseStatus = license.GetStatus();
+    if (!licenseStatus.IsActivated)
+    {
+        return Results.Forbid();
+    }
+
     var session = await sessionService.GetAsync(request.SessionId, cancellationToken);
     if (session is null)
     {
@@ -239,3 +272,4 @@ app.MapDelete("/v1/assets/{assetId}", async (string assetId, SqliteOutputAssetRe
     .WithTags("Assets");
 
 app.Run();
+

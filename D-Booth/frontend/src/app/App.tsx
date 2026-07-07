@@ -40,6 +40,7 @@ const GoProScreen = React.lazy(() => import("./screens/GoProScreen").then(m => (
 
 import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ActivationGate } from "./components/ActivationGate";
 
 import { useBreakpoint } from "./components/ui/use-mobile";
 import type { NavItem, Screen } from "./types";
@@ -201,7 +202,8 @@ function AppInner() {
   const isFullscreen = screen === "attract";
 
   return (
-    <CaptureFlowProvider>
+    <ActivationGate>
+      <CaptureFlowProvider>
       <div>
       {screen === "splash" ? (
         <div className="w-full h-screen-fix" style={{ fontFamily: "'Inter', 'Noto Sans SC', system-ui, sans-serif", filter: `brightness(${settings.ui.brightness / 100})` }}>
@@ -282,6 +284,8 @@ function AppInner() {
           style: { background: '#1a1a2e', color: '#fff', border: '1px solid rgba(139,92,246,0.2)' }
         }}
       />
-    </CaptureFlowProvider>
+      </CaptureFlowProvider>
+    </ActivationGate>
   );
 }
+
