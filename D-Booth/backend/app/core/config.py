@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "AI Booth API"
-    VERSION: str = "1.0.12"
+    VERSION: str = "1.0.13"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
 
