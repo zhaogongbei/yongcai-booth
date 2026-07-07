@@ -86,6 +86,7 @@
 - 清理前端常量文件中已无引用的演示活动、假统计、假分享方式、假打印机和打印预览占位数据，降低后续误用风险。
 
 ### 修复
+- 修复 Runtime ApiHost 集成测试硬编码 Debug DLL 的问题，Release 测试现在会启动对应 Release ApiHost 产物。
 - 移除 Runtime App 入口硬编码 demo 会话，缺少真实 session/event/device 参数时拒绝启动，避免现场写入假会话数据。
 - 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.15，修复仓库卫生门禁中的版本漂移。
 - 恢复后端服务层对旧 API 异常语义的兼容，确保 AI 任务与订阅配额错误继续按 `ValueError` 进入路由 400 处理。

@@ -135,6 +135,8 @@
 
 ## 近期完成
 
+- 已修复 Runtime ApiHost 集成测试硬编码 Debug DLL 的门禁盲点，测试会按当前构建配置启动对应 ApiHost 产物，避免 Release CI 被本地 Debug 产物掩盖。
+
 - 已移除 Runtime App 入口硬编码 demo 会话，现场启动必须传入真实 session/event/device 参数，缺失时拒绝写入本地会话库。
 
 - 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.15，恢复仓库卫生门禁并继续保持根 VERSION 单一版本源。

@@ -1,7 +1,10 @@
+using Booth.Runtime.Licensing;
 using Booth.Shared.Contracts;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Diagnostics;
 using Xunit;
 
@@ -16,6 +19,8 @@ public sealed class ApiHostIntegrationTests
 
         await using var host = await BoothApiHost.StartAsync(tempRoot);
         using var client = new HttpClient { BaseAddress = host.BaseAddress };
+
+        await ActivateRuntimeLicenseAsync(client, host.SigningKey);
 
         var startResponse = await client.PostAsJsonAsync("/v1/session/start", new SessionStartApiRequest(
             "ses_http_flow_001",
@@ -77,6 +82,28 @@ public sealed class ApiHostIntegrationTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+
+    private static async Task ActivateRuntimeLicenseAsync(HttpClient client, RSA signingKey)
+    {
+        var payload = new LicensePayload(
+            Version: 1,
+            Product: LicenseService.ProductName,
+            LicenseId: "LIC-RUNTIME-TEST",
+            DeviceFingerprint: BoothApiHost.TestFingerprint,
+            ExpiresAtUtc: DateTimeOffset.UtcNow.AddDays(30),
+            Features: new[] { "export", "print", "share" });
+
+        var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload);
+        var signature = signingKey.SignData(payloadBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var envelope = new SignedLicenseEnvelope(
+            Convert.ToBase64String(payloadBytes),
+            Convert.ToBase64String(signature));
+        var code = ActivationCodeCodec.Encode(JsonSerializer.SerializeToUtf8Bytes(envelope));
+
+        var response = await client.PostAsJsonAsync("/v1/license/activate", new ActivateLicenseRequest(code));
+        response.EnsureSuccessStatusCode();
+    }
+
     private static string CreateTempRoot()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"booth-runtime-api-{Guid.NewGuid():N}");
@@ -90,17 +117,23 @@ public sealed class ApiHostIntegrationTests
         private readonly Process _process;
         private readonly string _stdoutPath;
         private readonly string _stderrPath;
+        private readonly RSA _signingKey;
 
-        private BoothApiHost(string tempRoot, Process process, Uri baseAddress, string stdoutPath, string stderrPath)
+        private BoothApiHost(string tempRoot, Process process, Uri baseAddress, string stdoutPath, string stderrPath, RSA signingKey)
         {
             _tempRoot = tempRoot;
             _process = process;
             BaseAddress = baseAddress;
             _stdoutPath = stdoutPath;
             _stderrPath = stderrPath;
+            _signingKey = signingKey;
         }
 
+        public const string TestFingerprint = "runtime-test-fingerprint";
+
         public Uri BaseAddress { get; }
+
+        public RSA SigningKey => _signingKey;
 
         public static async Task<BoothApiHost> StartAsync(string tempRoot)
         {
@@ -116,11 +149,13 @@ public sealed class ApiHostIntegrationTests
                 "src",
                 "Booth.Runtime.ApiHost",
                 "bin",
-                "Debug",
+                GetBuildConfiguration(),
                 "net8.0-windows",
                 "Booth.Runtime.ApiHost.dll"));
             var stdoutPath = Path.Combine(tempRoot, "apihost.stdout.log");
             var stderrPath = Path.Combine(tempRoot, "apihost.stderr.log");
+
+            var signingKey = RSA.Create(2048);
 
             var startInfo = new ProcessStartInfo
             {
@@ -133,6 +168,8 @@ public sealed class ApiHostIntegrationTests
             };
             startInfo.Environment["DOTNET_ROLL_FORWARD"] = "Major";
             startInfo.Environment["Runtime__DataDirectory"] = tempRoot;
+            startInfo.Environment["Runtime__License__PublicKeyPem"] = signingKey.ExportSubjectPublicKeyInfoPem();
+            startInfo.Environment["Runtime__License__FingerprintOverride"] = TestFingerprint;
             startInfo.Environment["ASPNETCORE_URLS"] = baseAddress.ToString();
 
             var process = Process.Start(startInfo)
@@ -147,7 +184,7 @@ public sealed class ApiHostIntegrationTests
                 await File.WriteAllTextAsync(stderrPath, task.Result);
             }).Unwrap();
 
-            var host = new BoothApiHost(tempRoot, process, baseAddress, stdoutPath, stderrPath);
+            var host = new BoothApiHost(tempRoot, process, baseAddress, stdoutPath, stderrPath, signingKey);
             await host.WaitUntilHealthyAsync();
             return host;
         }
@@ -181,6 +218,12 @@ public sealed class ApiHostIntegrationTests
             }
         }
 
+
+        private static string GetBuildConfiguration()
+        {
+            var baseDirectory = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            return baseDirectory.Parent?.Name ?? "Release";
+        }
         private async Task WaitUntilHealthyAsync()
         {
             using var client = new HttpClient();
