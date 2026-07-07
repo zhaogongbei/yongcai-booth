@@ -135,6 +135,8 @@
 
 ## 近期完成
 
+- 已移除 Runtime App 入口硬编码 demo 会话，现场启动必须传入真实 session/event/device 参数，缺失时拒绝写入本地会话库。
+
 - 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.15，恢复仓库卫生门禁并继续保持根 VERSION 单一版本源。
 
 - 外部版本报告提交带回旧 Safety、pnpm、全量 mypy、旧 release action 和生成报告入库后，已恢复 CI/CD、文档、版本源和仓库卫生门禁。
