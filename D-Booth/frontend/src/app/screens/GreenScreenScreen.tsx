@@ -119,7 +119,7 @@ function debounce<T extends (...args: any[]) => any>(
 }
 
 export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void }) {
-  const { eventId } = useCaptureFlow();
+  const { eventId, selectedPhoto } = useCaptureFlow();
   const [settings, setSettings] = useState<GreenScreenSettings>(defaultSettings);
   const [compareMode, setCompareMode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -129,8 +129,6 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
   const [testPhotoAnalysis, setTestPhotoAnalysis] = useState<any>(null);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
 
-  // Using a sample test photo for preview
-  const testPhotoUrl = "/images/scenes/wedding-guests-fun.webp";
   const abortControllerRef = useRef<AbortController | null>(null);
   const previousParamsRef = useRef<string | null>(null);
 
@@ -187,8 +185,19 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      // Fetch test image
-      const response = await fetch(testPhotoUrl);
+      if (!selectedPhoto?.url) {
+        setProcessedImageUrl(currentUrl => {
+          if (currentUrl) URL.revokeObjectURL(currentUrl);
+          return null;
+        });
+        return;
+      }
+
+      // Fetch the current captured photo; never use a fixed bundled image for operational preview.
+      const response = await fetch(selectedPhoto.url);
+      if (!response.ok) {
+        throw new Error("Current photo failed to load");
+      }
       const imageBlob = await response.blob();
 
       // Add background if exists
@@ -232,7 +241,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
       setIsProcessing(false);
       abortControllerRef.current = null;
     }
-  }, [processedImageUrl, testPhotoUrl]);
+  }, [processedImageUrl, selectedPhoto?.url]);
 
   // Debounced version
   const debouncedFetch = useMemo(
@@ -242,10 +251,16 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
 
   // Trigger processing when settings change
   useEffect(() => {
-    if (settings.enabled) {
+    if (settings.enabled && selectedPhoto?.url) {
       debouncedFetch(settings);
+      return;
     }
-  }, [settings, debouncedFetch]);
+
+    setProcessedImageUrl(currentUrl => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return null;
+    });
+  }, [settings, debouncedFetch, selectedPhoto?.url]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -259,17 +274,26 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
     };
   }, [processedImageUrl]);
 
-  // Take test photo
+  // Analyze the current captured photo.
   const takeTestPhoto = useCallback(async () => {
+    if (!selectedPhoto?.url) {
+      setProcessedImageUrl(currentUrl => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return null;
+      });
+      toast.error("请先完成真实拍照，再分析绿幕效果");
+      return;
+    }
+
     try {
       setIsProcessing(true);
-      toast.info("正在拍摄测试照片...");
+      toast.info("正在分析当前照片...");
 
-      // Simulate camera capture
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Fetch test image
-      const response = await fetch(testPhotoUrl);
+      // Fetch the current captured photo; never use a fixed bundled image for operational preview.
+      const response = await fetch(selectedPhoto.url);
+      if (!response.ok) {
+        throw new Error("Current photo failed to load");
+      }
       const imageBlob = await response.blob();
 
       const analysis = await analyzeGreenScreenTestPhoto(imageBlob);
@@ -282,14 +306,14 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
         sensitivity: analysis.suggested_sensitivity,
       }));
 
-      toast.success("测试照片分析完成");
+      toast.success("当前照片分析完成");
     } catch (error) {
       console.error("Test photo analysis failed:", error);
       toast.error("测试照片分析失败");
     } finally {
       setIsProcessing(false);
     }
-  }, [testPhotoUrl]);
+  }, [selectedPhoto?.url]);
 
   // Upload background
   const uploadBackground = useCallback(async () => {
@@ -365,7 +389,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
     }
   }, [eventId, settings]);
 
-  const displayedImageUrl = processedImageUrl || testPhotoUrl;
+  const displayedImageUrl = processedImageUrl || selectedPhoto?.url || null;
 
   const modeOptions = [
     { value: "auto" as GreenScreenMode, label: "自动模式", description: "根据背景自动选择最佳算法" },
@@ -444,7 +468,7 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
             className="w-full"
           >
             <Camera size={14} />
-            拍摄测试照片
+            分析当前照片
           </GlowBtn>
 
           {/* Analysis results */}
@@ -503,10 +527,10 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
               </div>
             )}
 
-            {compareMode ? (
+            {compareMode && displayedImageUrl && selectedPhoto?.url ? (
               <div className="relative w-full h-full">
                 <img
-                  src={testPhotoUrl}
+                  src={selectedPhoto?.url}
                   alt="original"
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ clipPath: "inset(0 50% 0 0)" }}
@@ -523,13 +547,22 @@ export function GreenScreenScreen({ navigate }: { navigate: (s: Screen) => void 
                 <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-0.5 rounded">原图</div>
                 <div className="absolute top-3 right-3 bg-violet-500/80 text-white text-xs px-2 py-0.5 rounded">处理后</div>
               </div>
-            ) : (
+            ) : displayedImageUrl ? (
               <img
                 src={displayedImageUrl}
                 alt="green screen preview"
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+                <Camera size={32} className="text-white/25" />
+                <div className="mt-3 text-sm font-semibold text-white/70">暂无真实拍摄照片</div>
+                <div className="mt-2 text-xs leading-5 text-white/40">绿幕预览和分析只使用当前活动的真实照片，不再使用内置样张。</div>
+                <GlowBtn className="mt-4" size="sm" variant="primary" onClick={() => navigate("camera")}>
+                  <Camera size={13} />返回拍照
+                </GlowBtn>
+              </div>
             )}
           </div>
         </div>

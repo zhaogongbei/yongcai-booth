@@ -135,6 +135,8 @@
 
 ## 近期完成
 
+- 已移除前端绿幕设置页固定样张和模拟测试拍摄路径，预览和分析只使用当前真实拍摄照片；没有照片时显示空状态并引导返回拍照。
+
 - 已修复 Runtime ApiHost 集成测试硬编码 Debug DLL 的门禁盲点，测试会按当前构建配置启动对应 ApiHost 产物，避免 Release CI 被本地 Debug 产物掩盖。
 
 - 已移除 Runtime App 入口硬编码 demo 会话，现场启动必须传入真实 session/event/device 参数，缺失时拒绝写入本地会话库。

@@ -86,6 +86,7 @@
 - 清理前端常量文件中已无引用的演示活动、假统计、假分享方式、假打印机和打印预览占位数据，降低后续误用风险。
 
 ### 修复
+- 移除绿幕设置页固定样张和模拟测试拍摄路径，绿幕预览与分析现在只基于当前真实拍摄照片。
 - 修复 Runtime ApiHost 集成测试硬编码 Debug DLL 的问题，Release 测试现在会启动对应 Release ApiHost 产物。
 - 移除 Runtime App 入口硬编码 demo 会话，缺少真实 session/event/device 参数时拒绝启动，避免现场写入假会话数据。
 - 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.15，修复仓库卫生门禁中的版本漂移。

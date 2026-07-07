@@ -1,6 +1,6 @@
 # 咏彩Booth (D-Booth) - 下一代智能拍照亭系统
 
-[![Version](https://img.shields.io/badge/version-1.0.17-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.0.18-blue.svg)](./VERSION)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](./LICENSE)
 
 > 基于 AI 的全能拍照亭解决方案，集成云端管理、现场运行时、智能美颜、实时打印与社交分享。
