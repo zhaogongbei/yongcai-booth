@@ -1,7 +1,7 @@
 {
   "name": "dbooth-frontend",
   "private": true,
-  "version": "1.0.13",
+  "version": "1.0.15",
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
