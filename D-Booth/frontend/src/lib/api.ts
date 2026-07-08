@@ -713,6 +713,49 @@ export async function createShare(params: ShareCreateParams): Promise<ShareRespo
   });
 }
 
+// ─── Trigger Configs ─────────────────────────────────────────────────────────
+
+export interface TriggerConfigResponse {
+  id: string;
+  event_id: string;
+  event_type: string;
+  enabled: boolean;
+  action_type: "http_callback";
+  target: string;
+  payload_template: Record<string, unknown>;
+  timeout: number;
+  retry: number;
+}
+
+export interface TriggerConfigUpdatePayload {
+  event_type: string;
+  enabled: boolean;
+  action_type: "http_callback";
+  target: string;
+  payload_template: Record<string, unknown>;
+  timeout: number;
+  retry: number;
+}
+
+export async function getTriggerConfigs(
+  eventId: string,
+  token: string,
+): Promise<TriggerConfigResponse[]> {
+  return request<TriggerConfigResponse[]>(`/triggers/${eventId}`, { token });
+}
+
+export async function updateTriggerConfigs(
+  eventId: string,
+  token: string,
+  configs: TriggerConfigUpdatePayload[],
+): Promise<TriggerConfigResponse[]> {
+  return request<TriggerConfigResponse[]>(`/triggers/${eventId}`, {
+    method: "PUT",
+    token,
+    body: configs,
+  });
+}
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export interface AnalyticsOverview {

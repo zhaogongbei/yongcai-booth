@@ -175,7 +175,7 @@ app.include_router(printers.router, prefix="/api/v1/printers", tags=["Printers"]
 app.include_router(camera.router, prefix="/api/v1/camera", tags=["Camera"])
 app.include_router(booths.router, prefix="/api/v1", tags=["Booths"])
 app.include_router(sync.router, prefix="/api/v1", tags=["Sync"])
-app.include_router(triggers.router, prefix="/api/v1", tags=["Triggers"])
+app.include_router(triggers.router, prefix="/api/v1/triggers", tags=["Triggers"])
 app.include_router(gopro.router, prefix="/api/v1/gopro", tags=["GoPro"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
 app.include_router(booth_health.router, prefix="/api/v1/booth", tags=["Booth Health"])

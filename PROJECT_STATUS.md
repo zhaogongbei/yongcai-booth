@@ -128,12 +128,15 @@
 - 模板编辑器从普通管理入口保存成功后应回到模板中心并高亮刚保存的模板，方便顾客继续选择、复制、删除或进入拍摄使用。
 - 模板编辑器底图作为模板 layout 的背景层时可保存可选 `background.zIndex`，用于和普通元素统一排序；相关类型契约必须同步更新。
 - Webhook 配置和发送日志属于团队管理数据；创建、列表、删除和日志读取必须验证当前用户已认证，删除和日志读取必须校验 webhook 所属团队成员身份。
+- 外部触发器只允许 HTTP callback；本地程序执行动作不得暴露给 SaaS 用户，HTTP callback 目标必须拒绝 localhost、私有网段、链路本地、保留/未指定地址和不可解析主机。
 - Stripe webhook 是公开入口，但必须配置 `STRIPE_WEBHOOK_SECRET` 并通过 Stripe 签名校验；缺少 webhook secret 时必须 fail closed。
 - 后端 service 类默认按实例使用；路由不得把实例方法当静态方法调用。
 - 登出 refresh token 撤销必须 fail closed；Redis 不可用或撤销写入失败时 `/auth/logout` 必须返回 503，不得报告成功后让 refresh token 继续有效。
 - refresh token 刷新必须先确认旧 token 未被撤销；撤销状态不可确认时必须返回 503，刷新成功前必须撤销旧 refresh token，避免旧 token 重放。
 
 ## 近期完成
+
+- 已收敛外部触发器安全边界：禁用本地程序执行动作，HTTP 回调保存、测试和执行前都会拒绝 localhost/私有网段等 SSRF 目标，并让批量更新先校验后替换以避免无效配置删除既有触发器。
 
 - 已移除前端绿幕设置页固定样张和模拟测试拍摄路径，预览和分析只使用当前真实拍摄照片；没有照片时显示空状态并引导返回拍照。
 

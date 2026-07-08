@@ -9,6 +9,7 @@ from app.core.logging import logger
 from app.models.models import TriggerConfig as TriggerConfigModel
 from app.models.models import TriggerLog as TriggerLogModel
 from app.models.models import User
+from app.services.base_service import ValidationError
 from app.services.event_service import EventService
 from app.services.trigger_service import TriggerService
 
@@ -75,7 +76,7 @@ async def update_trigger_configs(
         "session_end",
         "printing",
     }
-    valid_actions = {"http_callback", "app_execute"}
+    valid_actions = {"http_callback"}
 
     for cfg in configs:
         if cfg.get("event_type") not in valid_event_types:
@@ -83,15 +84,9 @@ async def update_trigger_configs(
                 status_code=400, detail=f"Invalid event_type: {cfg.get('event_type')}"
             )
         if cfg.get("action_type") not in valid_actions:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid action_type: {cfg.get('action_type')}"
-            )
+            raise HTTPException(status_code=400, detail="Only HTTP callback triggers are supported")
         if not cfg.get("target"):
             raise HTTPException(status_code=400, detail="target is required")
-        if cfg["action_type"] == "http_callback" and not cfg["target"].startswith(
-            ("http://", "https://")
-        ):
-            raise HTTPException(status_code=400, detail="HTTP callback target must be a valid URL")
 
     trigger_service = TriggerService(db)
     try:
@@ -114,6 +109,8 @@ async def update_trigger_configs(
             }
             for c in created
         ]
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to update trigger configs: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -140,8 +137,17 @@ async def test_trigger(
     except (ValueError, KeyError, TypeError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event_id")
 
-    event_type = TriggerType(config.get("event_type", "session_start"))
-    action_type = TriggerAction(config.get("action_type", "http_callback"))
+    try:
+        event_type = TriggerType(config.get("event_type", "session_start"))
+        action_type = TriggerAction(config.get("action_type", "http_callback"))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid trigger type")
+
+    if action_type != TriggerAction.HTTP_CALLBACK:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only HTTP callback triggers are supported",
+        )
     temp_config = TriggerConfigModel(
         id=UUID("00000000-0000-0000-0000-000000000001"),
         event_id=event_id,
@@ -155,6 +161,7 @@ async def test_trigger(
     )
 
     try:
+        trigger_service._validate_http_callback_target(temp_config.target)
         log_entry = await trigger_service.test_trigger(temp_config)
         return {
             "success": log_entry.success,
@@ -163,6 +170,8 @@ async def test_trigger(
             "duration_ms": log_entry.duration_ms,
             "attempt_count": log_entry.attempt_count,
         }
+    except ValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Trigger test failed: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

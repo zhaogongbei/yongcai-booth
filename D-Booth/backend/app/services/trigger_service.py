@@ -3,10 +3,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import secrets
+import socket
 import time
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 import httpx
@@ -24,13 +27,88 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
     Service for executing event-driven triggers.
 
     This service manages trigger configurations and execution logs,
-    supporting HTTP callbacks and application execution triggers.
+    supporting HTTP callbacks only. Local application execution is intentionally
+    disabled for SaaS safety.
     """
+
+    ALLOWED_ACTION_TYPES = {TriggerAction.HTTP_CALLBACK}
 
     def __init__(self, db: AsyncSession):
         self.config_repo = TriggerConfigRepository(db)
         self.log_repo = TriggerLogRepository(db)
         super().__init__(self.config_repo, db)
+
+    @classmethod
+    def _validate_action_type(cls, action_type: TriggerAction) -> None:
+        if action_type not in cls.ALLOWED_ACTION_TYPES:
+            raise ValidationError("Only HTTP callback triggers are supported")
+
+    @staticmethod
+    def _is_forbidden_callback_ip(address: str) -> bool:
+        ip = ipaddress.ip_address(address)
+        return any(
+            (
+                ip.is_private,
+                ip.is_loopback,
+                ip.is_link_local,
+                ip.is_multicast,
+                ip.is_reserved,
+                ip.is_unspecified,
+            )
+        )
+
+    @classmethod
+    def _validate_http_callback_target(cls, target: str) -> None:
+        parsed = urlparse(target)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValidationError("HTTP callback target must be an absolute HTTP(S) URL")
+
+        hostname = parsed.hostname.strip().lower()
+        if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".localhost"):
+            raise ValidationError("HTTP callback target must not point to localhost")
+
+        try:
+            if cls._is_forbidden_callback_ip(hostname):
+                raise ValidationError(
+                    "HTTP callback target must not point to private network addresses"
+                )
+        except ValueError:
+            try:
+                resolved = socket.getaddrinfo(
+                    hostname, parsed.port or None, type=socket.SOCK_STREAM
+                )
+            except socket.gaierror as exc:
+                raise ValidationError("HTTP callback target host cannot be resolved") from exc
+
+            for result in resolved:
+                ip_address = result[4][0]
+                if cls._is_forbidden_callback_ip(ip_address):
+                    raise ValidationError(
+                        "HTTP callback target must not resolve to private network addresses"
+                    )
+
+    @classmethod
+    def _validate_config_data(cls, cfg_data: Dict[str, Any]) -> None:
+        try:
+            action_type = TriggerAction(cfg_data.get("action_type"))
+        except ValueError as exc:
+            raise ValidationError("Invalid action_type") from exc
+
+        cls._validate_action_type(action_type)
+        target = cfg_data.get("target")
+        if not target:
+            raise ValidationError("Trigger target cannot be empty")
+        if action_type == TriggerAction.HTTP_CALLBACK:
+            cls._validate_http_callback_target(str(target))
+
+        timeout = cfg_data.get("timeout", 10)
+        retry = cfg_data.get("retry", 3)
+        if not isinstance(timeout, int) or not isinstance(retry, int):
+            raise ValidationError("Timeout and retry must be integers")
+        if timeout <= 0:
+            raise ValidationError("Timeout must be greater than 0")
+        if retry < 1:
+            raise ValidationError("Retry count must be at least 1")
 
     async def validate_create(self, obj_in: TriggerConfigCreate) -> None:
         """
@@ -43,12 +121,12 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
             ValidationError: If configuration is invalid
             BusinessRuleError: If business rules are violated
         """
+        self._validate_action_type(obj_in.action_type)
         if not obj_in.target:
             raise ValidationError("Trigger target cannot be empty")
 
         if obj_in.action_type == TriggerAction.HTTP_CALLBACK:
-            if not obj_in.target.startswith(("http://", "https://")):
-                raise ValidationError("HTTP callback target must be a valid URL")
+            self._validate_http_callback_target(obj_in.target)
 
         if obj_in.timeout <= 0:
             raise ValidationError("Timeout must be greater than 0")
@@ -71,9 +149,10 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
             if not obj_in.target:
                 raise ValidationError("Trigger target cannot be empty")
 
-            if obj_in.action_type == TriggerAction.HTTP_CALLBACK:
-                if not obj_in.target.startswith(("http://", "https://")):
-                    raise ValidationError("HTTP callback target must be a valid URL")
+            action_type = obj_in.action_type or existing.action_type
+            self._validate_action_type(action_type)
+            if action_type == TriggerAction.HTTP_CALLBACK:
+                self._validate_http_callback_target(obj_in.target)
 
         if obj_in.timeout is not None and obj_in.timeout <= 0:
             raise ValidationError("Timeout must be greater than 0")
@@ -157,7 +236,8 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
                 if config.action_type == TriggerAction.HTTP_CALLBACK:
                     last_status, last_error = await self._execute_url_callback(config, context)
                 elif config.action_type == TriggerAction.APP_EXECUTE:
-                    last_status, last_error = await self._execute_app_trigger(config, context)
+                    last_error = "Local app execution triggers are disabled"
+                    last_status = -1
                 else:
                     last_error = f"Unknown action type: {config.action_type}"
                     last_status = -1
@@ -207,6 +287,7 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         Returns:
             Tuple of (status_code, error_message) - error_message is None on success
         """
+        self._validate_http_callback_target(config.target)
         payload = self._build_payload(config, context)
         timeout = httpx.Timeout(config.timeout)
 
@@ -224,50 +305,6 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
             return None, f"Request timeout after {config.timeout}s"
         except httpx.ConnectError:
             return None, f"Connection refused: {config.target}"
-        except Exception as e:
-            return None, str(e)
-
-    async def _execute_app_trigger(self, config: TriggerConfig, context: Dict[str, Any]) -> tuple:
-        """
-        Execute a local executable/script.
-
-        Args:
-            config: Trigger configuration with executable path
-            context: Event context to pass as JSON payload
-
-        Returns:
-            Tuple of (exit_code, error_message) - error_message is None on success
-        """
-        payload_json = json.dumps(self._build_payload(config, context))
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                config.target,
-                "--payload",
-                payload_json,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=config.timeout
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                return None, f"App execution timeout after {config.timeout}s"
-
-            if process.returncode != 0:
-                error_msg = (
-                    stderr.decode("utf-8", errors="replace")[:500]
-                    if stderr
-                    else f"Exit code {process.returncode}"
-                )
-                return process.returncode, error_msg
-
-            return process.returncode, None
-        except FileNotFoundError:
-            return None, f"Executable not found: {config.target}"
         except Exception as e:
             return None, str(e)
 
@@ -342,15 +379,19 @@ class TriggerService(BaseService[TriggerConfig, TriggerConfigCreate, TriggerConf
         if not isinstance(configs, list):
             raise ValidationError("Configs must be a list")
 
+        for cfg_data in configs:
+            self._validate_config_data(cfg_data)
+
         existing = await self.config_repo.get_by_event_id(event_id)
         for cfg in existing:
             await self.config_repo.delete(cfg.id)
 
         created = []
         for cfg_data in configs:
-            cfg_data["id"] = uuid4()
-            cfg_data["event_id"] = event_id
-            cfg = await self.config_repo.create(cfg_data)
+            create_data = dict(cfg_data)
+            create_data["id"] = uuid4()
+            create_data["event_id"] = event_id
+            cfg = await self.config_repo.create(create_data)
             created.append(cfg)
 
         return created

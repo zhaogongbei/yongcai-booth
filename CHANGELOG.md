@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### 安全
+- 外部触发器禁用本地程序执行动作，HTTP 回调目标会拒绝 localhost、私有网段、链路本地、保留地址和不可解析主机，避免触发器被配置成 RCE 或 SSRF 通道。
+- 外部触发器批量更新会先完整校验新配置再替换旧配置，避免无效配置导致既有触发器被删除。
+
 ### 变更
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
 - 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
