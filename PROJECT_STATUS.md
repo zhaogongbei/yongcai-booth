@@ -140,7 +140,9 @@
 - 已将后端 JWT 依赖从 `python-jose` 迁移到 `PyJWT[crypto]`，并升级 MediaPipe 依赖以移除易受攻击的 `ecdsa` / `protobuf` 审计项，恢复 Python 依赖安全门禁。
 - 已收敛后端既有 black/isort 格式债务，当前后端全量 `black --check .` 和 `isort --check-only .` 可以通过。
 - 已为 Runtime ApiHost 前端开发 CORS 策略补充集成测试：允许本地/私网 `:5173` 前端访问，拒绝公网 origin。
-- 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.22。
+- 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.23。
+- 已将模板中心推荐/热门版式改为真实 `TemplateLayout` 缩略图渲染，并让搜索、分类、比例、风格、场景和颜色筛选覆盖官方版式目录与已保存模板。
+- Python 3.11 本地后端环境按 CI requirements 复现通过：`black --check .`、`isort --check-only .`、`ruff check app/ --select E9,F63,F7,F82` 和 220 个 pytest 均通过；远端 Backend Tests 失败日志因 GitHub 权限无法匿名读取，后续需在可读日志或 Linux runner 上继续定位。
 
 - 已禁用仓库内 Claude Stop hook 的自动递增版本、提交和 push 行为，并让仓库卫生检查阻止此类未验证自动提交配置回归。
 - 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.21，恢复根 VERSION 单一版本源一致性。
@@ -287,6 +289,6 @@
 ## 已知债务
 
 - 后端全量 mypy 仍存在真实类型债务，应按模块收敛，不应重新作为全量 CI 门禁。
-- 模板中心仍保留静态推荐/热门场景数据，但点击路径已能创建快速版式；后续应继续接入真实缩略图预览、完整筛选和市场模板数据。
+- 模板中心推荐/热门版式已改为真实 layout 缩略图和统一筛选；后续仍需接入后端/市场模板 API，替代当前前端内置官方版式目录。
 - 美颜页文字、裁剪、滤镜和调色工具暂不对顾客暴露；后续需要先实现真实预览与输出 Blob 合成，再重新开放入口。
 - 若干旧的后端模块级 summary 文件仍作为历史信息保留；当前状态以本文件和 `CHANGELOG.md` 为准。

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Copy, Heart, Star, Building, Trophy, Sparkles, Grid3X3, Search, Filter, Plus, RefreshCw, LayoutTemplate, Trash2, ImagePlus } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
@@ -13,6 +13,17 @@ import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDIT
 import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
+
+type CatalogTemplate = {
+  name: string;
+  ratio: string;
+  type: "推荐" | "热门";
+  category: string;
+  style: string;
+  scene: string;
+  accentColor: string;
+  layoutId: string;
+};
 
 function isTemplateLayout(value: unknown): value is TemplateLayout {
   const layout = value as Partial<TemplateLayout>;
@@ -56,54 +67,38 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [recentlySavedTemplateId, setRecentlySavedTemplateId] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
-  const categoryCards = [
-    { label: "婚礼模板", count: 128, icon: Heart, color: "from-pink-600 to-rose-800", filter: "婚礼" },
-    { label: "生日模板", count: 96, icon: Star, color: "from-yellow-600 to-orange-800", filter: "生日" },
-    { label: "企业模板", count: 88, icon: Building, color: "from-blue-600 to-indigo-800", filter: "企业" },
-    { label: "毕业模板", count: 74, icon: Trophy, color: "from-emerald-600 to-teal-800", filter: "毕业" },
-    { label: "节日模板", count: 112, icon: Sparkles, color: "from-violet-600 to-purple-800", filter: "节日" },
-    { label: "自定义模板", count: 256, icon: Grid3X3, color: "from-gray-600 to-slate-800", filter: "自定义" },
-  ];
-  const templates = [
-    { name: "花漾时光", ratio: "2×6", type: "推荐", category: "婚礼", style: "清新", scene: "户外", accentColor: "#ec4899", img: "/images/scenes/wedding-couple-booth.webp", layoutId: "two-double-horizontal" },
-    { name: "浪漫白花", ratio: "2×6", type: "推荐", category: "婚礼", style: "日系", scene: "室内", accentColor: "#fff", img: "/images/scenes/wedding-guests-fun.webp", layoutId: "four-double-vertical" },
-    { name: "粉色心情", ratio: "2×6", type: "推荐", category: "生日", style: "清新", scene: "工作室", accentColor: "#ec4899", img: "/images/scenes/birthday-party-fun.webp", layoutId: "one-large-three-small-horizontal" },
-    { name: "夏日派对", ratio: "2×6", type: "推荐", category: "节日", style: "欧美", scene: "户外", accentColor: "#f59e0b", img: "/images/scenes/festival-outdoor-booth.webp", layoutId: "four-single-horizontal" },
-    { name: "企业活动", ratio: "4×6", type: "推荐", category: "企业", style: "欧美", scene: "室内", accentColor: "#3b82f6", img: "/images/scenes/corporate-event-group.webp", layoutId: "one-single-horizontal" },
-    { name: "生日快乐", ratio: "2×6", type: "推荐", category: "生日", style: "清新", scene: "工作室", accentColor: "#22c55e", img: "/images/scenes/kids-birthday-booth.webp", layoutId: "one-single-vertical" },
-  ];
+  const catalogTemplates = useMemo<CatalogTemplate[]>(() => [
+    { name: "花漾双条", ratio: "2×6", type: "推荐", category: "婚礼", style: "清新", scene: "户外", accentColor: "#ec4899", layoutId: "two-double-horizontal" },
+    { name: "白花四连", ratio: "2×6", type: "推荐", category: "婚礼", style: "日系", scene: "室内", accentColor: "#f8fafc", layoutId: "four-double-vertical" },
+    { name: "生日主图", ratio: "2×6", type: "推荐", category: "生日", style: "清新", scene: "工作室", accentColor: "#ec4899", layoutId: "one-large-three-small-horizontal" },
+    { name: "夏日四宫格", ratio: "2×6", type: "推荐", category: "派对", style: "欧美", scene: "户外", accentColor: "#f59e0b", layoutId: "four-single-horizontal" },
+    { name: "企业横版", ratio: "4×6", type: "推荐", category: "企业", style: "欧美", scene: "室内", accentColor: "#3b82f6", layoutId: "one-single-horizontal" },
+    { name: "单张竖版", ratio: "4×6", type: "热门", category: "自定义", style: "清新", scene: "工作室", accentColor: "#22c55e", layoutId: "one-single-vertical" },
+    { name: "复古双联", ratio: "2×6", type: "热门", category: "节日", style: "复古", scene: "室内", accentColor: "#8b5cf6", layoutId: "one-double-vertical" },
+    { name: "三连双条", ratio: "2×6", type: "热门", category: "毕业", style: "国潮", scene: "工作室", accentColor: "#ef4444", layoutId: "three-double-vertical" },
+  ], []);
 
-  const hotTemplates = [
-    { img: "/images/products/photo-prints-showcase.webp", label: "高显", ratio: "4×6", style: "欧美", scene: "工作室", accentColor: "#f59e0b", layoutId: "one-single-vertical" },
-    { img: "/images/products/polaroid-style-prints.webp", label: "前途", ratio: "2×6", style: "复古", scene: "室内", accentColor: "#8b5cf6", layoutId: "one-double-vertical" },
-    { img: "/images/scenes/conference-networking.webp", label: "复古怀旧", ratio: "2×6", style: "复古", scene: "室内", accentColor: "#f97316", layoutId: "two-double-horizontal" },
-    { img: "/images/backgrounds/attract-screen-corporate.webp", label: "清新淡雅", ratio: "2×6", style: "清新", scene: "户外", accentColor: "#22c55e", layoutId: "four-single-horizontal" },
-    { img: "/images/backgrounds/attract-screen-elegant.webp", label: "新系图斯", ratio: "2×6", style: "欧美", scene: "室内", accentColor: "#3b82f6", layoutId: "four-double-vertical" },
-    { img: "/images/backgrounds/attract-screen-01.webp", label: "日系小清新", ratio: "2×6", style: "日系", scene: "工作室", accentColor: "#ec4899", layoutId: "one-large-three-small-horizontal" },
-    { img: "/images/products/camera-equipment.webp", label: "多系", ratio: "4×6", style: "国潮", scene: "工作室", accentColor: "#ef4444", layoutId: "three-double-vertical" },
-    { img: "/images/scenes/brand-popup-mall.webp", label: "韩系", ratio: "4×6", style: "清新", scene: "室内", accentColor: "#06b6d4", layoutId: "one-single-horizontal" },
-  ];
+  const layoutPreviewById = useMemo(() => {
+    return new Map(QUICK_PRINT_LAYOUTS.map(preset => [
+      preset.id,
+      createTemplateLayoutFromPrintPreset(`catalog-${preset.id}`, preset),
+    ]));
+  }, []);
 
-  const filteredTemplates = templates.filter(template => {
-    const searchableText = `${template.name}${template.style}${template.scene}${template.category}${template.ratio}`;
-    if (searchTerm && !searchableText.includes(searchTerm)) return false;
+  const filterCatalogTemplate = (template: CatalogTemplate) => {
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const searchableText = `${template.name}${template.style}${template.scene}${template.category}${template.ratio}`.toLowerCase();
+    if (normalizedSearchTerm && !searchableText.includes(normalizedSearchTerm)) return false;
     if (selectedCategory && template.category !== selectedCategory) return false;
     if (selectedRatio !== "全部" && template.ratio !== selectedRatio) return false;
     if (selectedStyle !== "全部" && template.style !== selectedStyle) return false;
     if (selectedScene !== "全部" && template.scene !== selectedScene) return false;
     if (selectedColor && template.accentColor !== selectedColor) return false;
     return true;
-  });
+  };
 
-  const filteredHotTemplates = hotTemplates.filter(template => {
-    const searchableText = `${template.label}${template.style}${template.scene}${template.ratio}`;
-    if (searchTerm && !searchableText.includes(searchTerm)) return false;
-    if (selectedRatio !== "全部" && template.ratio !== selectedRatio) return false;
-    if (selectedStyle !== "全部" && template.style !== selectedStyle) return false;
-    if (selectedScene !== "全部" && template.scene !== selectedScene) return false;
-    if (selectedColor && template.accentColor !== selectedColor) return false;
-    return true;
-  });
+  const filteredTemplates = catalogTemplates.filter(template => template.type === "推荐").filter(filterCatalogTemplate);
+  const filteredHotTemplates = catalogTemplates.filter(template => template.type === "热门").filter(filterCatalogTemplate);
 
   const loadSavedTemplates = useCallback(async () => {
     const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
@@ -154,10 +149,25 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   }, []);
 
   const filteredSavedTemplates = savedTemplates.filter(t => {
-    if (searchTerm && !t.name.includes(searchTerm)) return false;
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    if (normalizedSearchTerm && !t.name.toLowerCase().includes(normalizedSearchTerm)) return false;
     if (selectedCategory && selectedCategory !== "自定义") return false;
     return true;
   });
+
+  const categoryCards = [
+    { label: "婚礼模板", icon: Heart, color: "from-pink-600 to-rose-800", filter: "婚礼" },
+    { label: "生日模板", icon: Star, color: "from-yellow-600 to-orange-800", filter: "生日" },
+    { label: "企业模板", icon: Building, color: "from-blue-600 to-indigo-800", filter: "企业" },
+    { label: "毕业模板", icon: Trophy, color: "from-emerald-600 to-teal-800", filter: "毕业" },
+    { label: "节日模板", icon: Sparkles, color: "from-violet-600 to-purple-800", filter: "节日" },
+    { label: "自定义模板", icon: Grid3X3, color: "from-gray-600 to-slate-800", filter: "自定义" },
+  ].map(card => ({
+    ...card,
+    count: card.filter === "自定义"
+      ? savedTemplates.length + catalogTemplates.filter(template => template.category === card.filter).length
+      : catalogTemplates.filter(template => template.category === card.filter).length,
+  }));
 
   const openTemplateEditor = (templateId?: string) => {
     sessionStorage.removeItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY);
@@ -400,7 +410,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
             >
               <c.icon size={28} className="text-white mx-auto mb-2" />
               <div className="text-xs font-semibold text-white">{c.label}</div>
-              <div className="text-[10px] text-white/60 mt-0.5">{c.count} 套模板</div>
+              <div className="text-[10px] text-white/60 mt-0.5">{c.count} 套可用</div>
             </motion.div>
           ))}
         </div>
@@ -518,7 +528,7 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-white">推荐版式</span>
-              <span className="text-lg">🔥</span>
+              <NeonBadge color="purple">{filteredTemplates.length}</NeonBadge>
             </div>
             <button className="text-xs text-violet-400 hover:text-violet-300" onClick={clearVisualFilters}>查看全部</button>
           </div>
@@ -526,12 +536,12 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
             {filteredTemplates.map(t => (
               <motion.div key={t.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
                 onClick={() => openOrSelectLayout(t.layoutId)}>
-                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-violet-500/40 transition-all">
-                  <img src={t.img}
-                    alt={t.name} className="w-full h-full object-cover" loading="lazy" />
+                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 bg-white group-hover:border-violet-500/40 transition-all">
+                  <TemplateThumbnailPreview layout={layoutPreviewById.get(t.layoutId) ?? null} />
                   <div className="absolute top-2 right-2">
                     <NeonBadge color="purple">可创建</NeonBadge>
                   </div>
+                  <div className="absolute left-2 top-2 h-3 w-3 rounded-full border border-white/60" style={{ background: t.accentColor }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                     <GlowBtn size="sm" variant="primary" className="w-full justify-center">{quickLayoutActionLabel}</GlowBtn>
                   </div>
@@ -549,20 +559,20 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
         <div>
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-semibold text-white">热门版式</span>
-            <NeonBadge color="pink">HOT</NeonBadge>
+            <NeonBadge color="pink">{filteredHotTemplates.length}</NeonBadge>
           </div>
           <div className="grid grid-cols-8 gap-3">
-            {filteredHotTemplates.map((item, i) => (
-              <motion.div key={i} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
+            {filteredHotTemplates.map((item) => (
+              <motion.div key={item.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
                 onClick={() => openOrSelectLayout(item.layoutId)}>
-                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 group-hover:border-pink-500/40 transition-all">
-                  <img src={item.img}
-                    alt={`${item.label}模板`} className="w-full h-full object-cover" loading="lazy" />
+                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 bg-white group-hover:border-pink-500/40 transition-all">
+                  <TemplateThumbnailPreview layout={layoutPreviewById.get(item.layoutId) ?? null} />
+                  <div className="absolute left-2 top-2 h-3 w-3 rounded-full border border-white/60" style={{ background: item.accentColor }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
                     <span className="rounded-lg bg-pink-500/90 px-2 py-1 text-[10px] font-medium text-white">{isTemplateSelectionMode ? "使用" : "创建"}</span>
                   </div>
                 </div>
-                <div className="text-[10px] text-white/50 mt-1.5 text-center">{item.label}</div>
+                <div className="text-[10px] text-white/50 mt-1.5 text-center">{item.name}</div>
               </motion.div>
             ))}
           </div>
