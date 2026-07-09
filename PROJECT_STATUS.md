@@ -143,6 +143,7 @@
 - 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.23。
 - 已将模板中心推荐/热门版式改为真实 `TemplateLayout` 缩略图渲染，并让搜索、分类、比例、风格、场景和颜色筛选覆盖官方版式目录与已保存模板。
 - Python 3.11 本地后端环境按 CI requirements 复现通过：`black --check .`、`isort --check-only .`、`ruff check app/ --select E9,F63,F7,F82` 和 220 个 pytest 均通过；远端 Backend Tests 失败日志因 GitHub 权限无法匿名读取，后续需在可读日志或 Linux runner 上继续定位。
+- 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.24，并为后端 CI pytest 失败添加 GitHub annotation 摘要，便于在日志权限受限时定位远端失败。
 
 - 已禁用仓库内 Claude Stop hook 的自动递增版本、提交和 push 行为，并让仓库卫生检查阻止此类未验证自动提交配置回归。
 - 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.21，恢复根 VERSION 单一版本源一致性。

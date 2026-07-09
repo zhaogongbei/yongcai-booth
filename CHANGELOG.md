@@ -14,6 +14,7 @@
 - 外部触发器批量更新会先完整校验新配置再替换旧配置，避免无效配置导致既有触发器被删除。
 
 ### 变更
+- 后端 CI 测试步骤在 pytest 失败时会把失败摘要写入 GitHub annotation，避免日志权限受限时只能看到 exit code。
 - 模板中心推荐/热门版式改为使用真实 `TemplateLayout` 缩略图渲染，并让搜索、分类、比例、风格、场景和颜色筛选同时覆盖官方版式目录与已保存模板。
 - Runtime ApiHost 前端开发 CORS 策略允许本地/私网 `:5173` 前端访问，同时拒绝公网 origin，并补充集成测试。
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
@@ -94,6 +95,7 @@
 - 清理前端常量文件中已无引用的演示活动、假统计、假分享方式、假打印机和打印预览占位数据，降低后续误用风险。
 
 ### 修复
+- 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.24，保持版本源一致性。
 - 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.23，保持版本源一致性。
 - 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.22，保持版本源一致性。
 - 收敛后端 black/isort 格式门禁债务，恢复后端 CI 格式检查通过能力。
