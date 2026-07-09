@@ -147,6 +147,12 @@ BLOCKED_TEXT = {
         '"peerDependencies"',
         '"peerDependenciesMeta"',
     ],
+    ".claude/settings.json": [
+        "git add",
+        "git commit",
+        "git push",
+        "VERSION=$(cat VERSION",
+    ],
 }
 
 

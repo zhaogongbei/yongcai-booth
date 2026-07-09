@@ -1,14 +1,3 @@
 {
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "CHANGED=$(git status --porcelain | wc -l | tr -d ' '); if [ \"$CHANGED\" -eq 0 ]; then exit 0; fi; VERSION=$(cat VERSION 2>/dev/null || echo \"1.0.0\"); MAJOR=$(echo $VERSION | cut -d. -f1); MINOR=$(echo $VERSION | cut -d. -f2); PATCH=$(echo $VERSION | cut -d. -f3); NEW_VERSION=\"$MAJOR.$MINOR.$((PATCH + 1))\"; echo $NEW_VERSION > VERSION; FILES=$(git status --porcelain | head -5 | awk '{print $2}' | tr '\n' ' '); git add -A 2>/dev/null; git commit -m \"v$NEW_VERSION - $FILES...\" 2>&1 || true; git push 2>&1 || true; echo \"{\\\"systemMessage\\\": \\\"📦 Auto-committed v$NEW_VERSION (${CHANGED} files)\\\"}\""
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

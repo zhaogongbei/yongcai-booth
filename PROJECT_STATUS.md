@@ -19,6 +19,7 @@
 - 前端设置页“关于”信息必须展示真实前端版本，不得硬编码与根版本源冲突的构建号、设备 ID 或授权状态。
 - 不得新增 `D-Booth/backend/VERSION`、`D-Booth/backend/app/services/VERSION`、`D-Booth/frontend/VERSION` 或 `D-Booth/runtime-dotnet/VERSION` 等额外版本源。
 - 仓库卫生检查同时覆盖已跟踪和未跟踪的生成型报告/本地产物。
+- 仓库内 Claude 配置不得包含自动 `git add`、`git commit`、`git push` 或自动递增 `VERSION` 的 hook；提交和版本递增必须走已验证的显式流程。
 - 前端依赖管理使用 npm 和 `package-lock.json`。
 - 前端文档、部署示例和开发指南不得回退到 pnpm/yarn。
 - 前端是应用而不是库，`react` 和 `react-dom` 必须作为直接 runtime dependencies 声明。
@@ -135,6 +136,9 @@
 - refresh token 刷新必须先确认旧 token 未被撤销；撤销状态不可确认时必须返回 503，刷新成功前必须撤销旧 refresh token，避免旧 token 重放。
 
 ## 近期完成
+
+- 已禁用仓库内 Claude Stop hook 的自动递增版本、提交和 push 行为，并让仓库卫生检查阻止此类未验证自动提交配置回归。
+- 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.21，恢复根 VERSION 单一版本源一致性。
 
 - 已收敛外部触发器安全边界：禁用本地程序执行动作，HTTP 回调保存、测试和执行前都会拒绝 localhost/私有网段等 SSRF 目标，并让批量更新先校验后替换以避免无效配置删除既有触发器。
 
