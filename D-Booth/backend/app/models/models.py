@@ -1,9 +1,9 @@
 import enum
 import uuid
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float
+from sqlalchemy import JSON, Boolean, Column, DateTime
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 

@@ -137,6 +137,11 @@
 
 ## 近期完成
 
+- 已将后端 JWT 依赖从 `python-jose` 迁移到 `PyJWT[crypto]`，并升级 MediaPipe 依赖以移除易受攻击的 `ecdsa` / `protobuf` 审计项，恢复 Python 依赖安全门禁。
+- 已收敛后端既有 black/isort 格式债务，当前后端全量 `black --check .` 和 `isort --check-only .` 可以通过。
+- 已为 Runtime ApiHost 前端开发 CORS 策略补充集成测试：允许本地/私网 `:5173` 前端访问，拒绝公网 origin。
+- 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.22。
+
 - 已禁用仓库内 Claude Stop hook 的自动递增版本、提交和 push 行为，并让仓库卫生检查阻止此类未验证自动提交配置回归。
 - 已同步根 VERSION、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.21，恢复根 VERSION 单一版本源一致性。
 
@@ -282,7 +287,6 @@
 ## 已知债务
 
 - 后端全量 mypy 仍存在真实类型债务，应按模块收敛，不应重新作为全量 CI 门禁。
-- 后端全量 `black --check .` / `isort --check-only .` 仍存在既有格式债务；本轮新增或修改文件需保持格式化，不应在安全修复提交中批量格式化无关旧文件。
 - 模板中心仍保留静态推荐/热门场景数据，但点击路径已能创建快速版式；后续应继续接入真实缩略图预览、完整筛选和市场模板数据。
 - 美颜页文字、裁剪、滤镜和调色工具暂不对顾客暴露；后续需要先实现真实预览与输出 Blob 合成，再重新开放入口。
 - 若干旧的后端模块级 summary 文件仍作为历史信息保留；当前状态以本文件和 `CHANGELOG.md` 为准。

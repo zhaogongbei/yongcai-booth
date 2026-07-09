@@ -1,14 +1,12 @@
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.repositories.team_repository import TeamRepository
-from app.schemas.team import TeamCreate, TeamUpdate, TeamInvitation
+
 from app.models.models import Team, TeamMember, UserRole
-from app.services.base_service import (
-    BaseService,
-    BusinessRuleError,
-    ValidationError,
-)
+from app.repositories.team_repository import TeamRepository
+from app.schemas.team import TeamCreate, TeamInvitation, TeamUpdate
+from app.services.base_service import BaseService, BusinessRuleError, ValidationError
 
 
 class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
@@ -98,10 +96,7 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
     # Member management
 
     async def add_member(
-        self,
-        team_id: UUID,
-        user_id: UUID,
-        role: UserRole = UserRole.MEMBER
+        self, team_id: UUID, user_id: UUID, role: UserRole = UserRole.MEMBER
     ) -> TeamMember:
         """
         Add a member to team.
@@ -122,12 +117,7 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
 
         return await self.repository.add_member(team_id, user_id, role)
 
-    async def remove_member(
-        self,
-        team_id: UUID,
-        user_id: UUID,
-        requester_id: UUID
-    ) -> bool:
+    async def remove_member(self, team_id: UUID, user_id: UUID, requester_id: UUID) -> bool:
         """
         Remove a member from team.
 
@@ -154,11 +144,7 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         return await self.repository.remove_member(team_id, user_id)
 
     async def update_member_role(
-        self,
-        team_id: UUID,
-        user_id: UUID,
-        role: UserRole,
-        requester_id: UUID
+        self, team_id: UUID, user_id: UUID, role: UserRole, requester_id: UUID
     ) -> Optional[TeamMember]:
         """
         Update member role.
@@ -196,20 +182,11 @@ class TeamService(BaseService[Team, TeamCreate, TeamUpdate]):
         """Check if user is a team member."""
         return await self.repository.is_member(team_id, user_id)
 
-    async def get_member_role(
-        self,
-        team_id: UUID,
-        user_id: UUID
-    ) -> Optional[UserRole]:
+    async def get_member_role(self, team_id: UUID, user_id: UUID) -> Optional[UserRole]:
         """Get user's role in team."""
         return await self.repository.get_member_role(team_id, user_id)
 
-    async def has_permission(
-        self,
-        team_id: UUID,
-        user_id: UUID,
-        required_role: UserRole
-    ) -> bool:
+    async def has_permission(self, team_id: UUID, user_id: UUID, required_role: UserRole) -> bool:
         """
         Check if user has required permission level.
 

@@ -60,9 +60,7 @@ async def test_upload_background_saves_local_files(
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Stage Backdrop"
-    assert data["background_url"].startswith(
-        f"/api/v1/green-screen/assets/{event_id}/backgrounds/"
-    )
+    assert data["background_url"].startswith(f"/api/v1/green-screen/assets/{event_id}/backgrounds/")
     assert data["overlay_url"].startswith(f"/api/v1/green-screen/assets/{event_id}/overlays/")
 
     background_filename = data["background_url"].rsplit("/", 1)[-1]
@@ -206,9 +204,7 @@ async def test_delete_background_removes_persisted_background(
     assert response.json()["success"] is True
     assert not background_path.exists()
 
-    settings_response = await authenticated_client.get(
-        f"/api/v1/green-screen/settings/{event_id}"
-    )
+    settings_response = await authenticated_client.get(f"/api/v1/green-screen/settings/{event_id}")
     assert settings_response.status_code == 200
     assert settings_response.json()["backgrounds"] == []
 

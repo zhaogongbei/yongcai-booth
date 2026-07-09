@@ -82,6 +82,30 @@ public sealed class ApiHostIntegrationTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task FrontendCors_ShouldAllowLocalDevOrigin_AndRejectPublicOrigin()
+    {
+        var tempRoot = CreateTempRoot();
+
+        await using var host = await BoothApiHost.StartAsync(tempRoot);
+        using var client = new HttpClient { BaseAddress = host.BaseAddress };
+
+        using var allowedRequest = new HttpRequestMessage(HttpMethod.Get, "/v1/health");
+        allowedRequest.Headers.Add("Origin", "http://localhost:5173");
+        var allowedResponse = await client.SendAsync(allowedRequest);
+
+        allowedResponse.EnsureSuccessStatusCode();
+        Assert.True(allowedResponse.Headers.TryGetValues("Access-Control-Allow-Origin", out var allowedOrigins));
+        Assert.Contains("http://localhost:5173", allowedOrigins);
+
+        using var rejectedRequest = new HttpRequestMessage(HttpMethod.Get, "/v1/health");
+        rejectedRequest.Headers.Add("Origin", "https://example.com");
+        var rejectedResponse = await client.SendAsync(rejectedRequest);
+
+        rejectedResponse.EnsureSuccessStatusCode();
+        Assert.False(rejectedResponse.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
 
     private static async Task ActivateRuntimeLicenseAsync(HttpClient client, RSA signingKey)
     {

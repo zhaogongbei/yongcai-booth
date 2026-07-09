@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
-from jose import ExpiredSignatureError, JWTError, jwt
+import jwt
+from jwt import ExpiredSignatureError, InvalidTokenError
 
 from app.core.config import settings
 
@@ -171,7 +172,7 @@ def verify_token(token: str, expected_type: str = "access") -> Optional[UUID]:
     except ExpiredSignatureError:
         logger.debug(f"Token expired for type '{expected_type}'")
         return None
-    except JWTError as e:
+    except InvalidTokenError as e:
         logger.warning(f"JWT validation error: {e}")
         return None
     except ValueError as e:
@@ -208,7 +209,7 @@ def decode_token(token: str, verify: bool = True) -> Optional[Dict[str, Any]]:
     except ExpiredSignatureError:
         logger.debug("Token expired during decode")
         return None
-    except JWTError as e:
+    except InvalidTokenError as e:
         logger.warning(f"JWT decode error: {e}")
         return None
     except Exception as e:

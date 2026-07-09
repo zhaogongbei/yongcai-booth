@@ -158,9 +158,7 @@ async def test_refresh_rejects_revoked_token(client: AsyncClient, test_user_data
 
 
 @pytest.mark.anyio
-async def test_refresh_revokes_old_refresh_token(
-    client: AsyncClient, test_user_data, monkeypatch
-):
+async def test_refresh_revokes_old_refresh_token(client: AsyncClient, test_user_data, monkeypatch):
     tokens = await _register_and_login(client, test_user_data)
     fake_client = FakeRedisClient()
     _patch_redis_client(monkeypatch, fake_client)
@@ -220,9 +218,7 @@ async def test_logout_fails_when_refresh_revocation_write_fails(
 
 
 @pytest.mark.anyio
-async def test_logout_revokes_refresh_token(
-    client: AsyncClient, test_user_data, monkeypatch
-):
+async def test_logout_revokes_refresh_token(client: AsyncClient, test_user_data, monkeypatch):
     tokens = await _register_and_login(client, test_user_data)
     fake_client = FakeRedisClient()
     _patch_redis_client(monkeypatch, fake_client)

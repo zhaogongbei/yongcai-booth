@@ -63,7 +63,7 @@ async with AsyncSession(engine) as session:
 
 ### 认证与安全
 
-**python-jose 3.4+**
+**PyJWT 2.13+**
 - JWT 生成与验证
 - RSA/HMAC 签名算法
 

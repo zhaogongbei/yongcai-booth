@@ -129,9 +129,7 @@ async def submit_survey_response(
         if not survey_id:
             raise HTTPException(status_code=404, detail="该事件没有调查配置")
 
-        await _ensure_session_belongs_to_event(
-            db, answer_data.event_id, answer_data.session_id
-        )
+        await _ensure_session_belongs_to_event(db, answer_data.event_id, answer_data.session_id)
 
         existing = await db.execute(
             select(SurveyResponse.id)
@@ -204,9 +202,7 @@ async def export_survey_responses(
 
     try:
         # 获取调查配置
-        survey_result = await db.execute(
-            select(Survey).where(Survey.event_id == event_id)
-        )
+        survey_result = await db.execute(select(Survey).where(Survey.event_id == event_id))
         survey = survey_result.scalar_one_or_none()
 
         if not survey:

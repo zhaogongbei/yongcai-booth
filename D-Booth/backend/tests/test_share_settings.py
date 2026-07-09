@@ -14,7 +14,9 @@ class FakeEmailService:
         return True
 
 
-async def _create_event(authenticated_client: AsyncClient, slug: str, settings: dict | None = None) -> str:
+async def _create_event(
+    authenticated_client: AsyncClient, slug: str, settings: dict | None = None
+) -> str:
     team_response = await authenticated_client.post(
         "/api/v1/teams",
         json={"name": f"Share Settings {slug}", "slug": slug},

@@ -80,9 +80,7 @@ async def update_event_disclaimer(
     await _ensure_event_access(db, event_id, current_user)
 
     try:
-        result = await db.execute(
-            select(Disclaimer).where(Disclaimer.event_id == event_id)
-        )
+        result = await db.execute(select(Disclaimer).where(Disclaimer.event_id == event_id))
         disclaimer = result.scalar_one_or_none()
 
         if not disclaimer:

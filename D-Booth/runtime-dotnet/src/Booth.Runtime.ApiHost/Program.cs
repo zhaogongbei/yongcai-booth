@@ -3,8 +3,10 @@ using Booth.Runtime.JobApp;
 using Booth.Runtime.Licensing;
 using Booth.Runtime.SessionApp;
 using Booth.Shared.Contracts;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
+const string FrontendCorsPolicy = "FrontendDev";
 
 var dataDir = builder.Configuration["Runtime:DataDirectory"]
     ?? Path.Combine(AppContext.BaseDirectory, "data");
@@ -39,9 +41,18 @@ builder.Services.AddSingleton(sp =>
         outputsRoot));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+        policy
+            .SetIsOriginAllowed(IsFrontendDevOrigin)
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
 
 var app = builder.Build();
 
+app.UseCors(FrontendCorsPolicy);
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -272,4 +283,28 @@ app.MapDelete("/v1/assets/{assetId}", async (string assetId, SqliteOutputAssetRe
     .WithTags("Assets");
 
 app.Run();
+
+static bool IsFrontendDevOrigin(string origin)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.Port != 5173)
+    {
+        return false;
+    }
+
+    if (uri.IsLoopback)
+    {
+        return true;
+    }
+
+    if (!IPAddress.TryParse(uri.Host, out var address))
+    {
+        return false;
+    }
+
+    var bytes = address.GetAddressBytes();
+    return bytes.Length == 4
+        && (bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168));
+}
 

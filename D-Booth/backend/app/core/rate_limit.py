@@ -47,8 +47,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             forwarded = request.headers.get("X-Forwarded-For")
             if forwarded:
                 logger.warning(
-                    "Suspicious X-Forwarded-For header from untrusted client: "
-                    "client=%s xff=%s",
+                    "Suspicious X-Forwarded-For header from untrusted client: " "client=%s xff=%s",
                     request.client.host if request.client else "unknown",
                     forwarded,
                 )
@@ -58,9 +57,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _window_key(client_id: str, bucket: int, suffix: str) -> str:
         return f"rl:{client_id}:{suffix}:{bucket}"
 
-    async def _check_redis(
-        self, client_id: str, current_time: float
-    ) -> Optional[Tuple[int, int]]:
+    async def _check_redis(self, client_id: str, current_time: float) -> Optional[Tuple[int, int]]:
         """Redis-backed rate-limit check.
 
         Atomically increments fixed-window counters via INCR and sets a TTL on
@@ -109,9 +106,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         for client_id in expired_clients:
             del self.requests[client_id]
 
-    async def _check_in_memory(
-        self, client_id: str, current_time: float
-    ) -> Tuple[int, int]:
+    async def _check_in_memory(self, client_id: str, current_time: float) -> Tuple[int, int]:
         """In-process fallback (single-worker/dev only).
 
         Preserves the original check-then-record semantics: a request that is

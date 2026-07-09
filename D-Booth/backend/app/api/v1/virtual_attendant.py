@@ -94,9 +94,7 @@ async def preview_tts(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="TTS合成失败"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="TTS合成失败")
 
 
 @router.get("/tts/{timing}", response_class=Response)
@@ -135,6 +133,4 @@ async def get_tts_by_timing(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取TTS失败"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取TTS失败")

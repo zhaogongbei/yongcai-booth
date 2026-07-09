@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
+import jwt
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from jwt import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user, get_db
@@ -26,7 +27,7 @@ def _refresh_revocation_key(payload: dict) -> str:
 def _decode_refresh_payload(refresh_token: str) -> dict:
     try:
         payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )

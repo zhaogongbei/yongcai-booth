@@ -30,7 +30,9 @@ async def _create_team_owner(client: AsyncClient, email: str, slug: str) -> tupl
     """Register a user, log in, and create a team (caller becomes team owner)."""
     token = await _login(client, email)
     headers = {"Authorization": f"Bearer {token}"}
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers) as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=headers
+    ) as c:
         response = await c.post("/api/v1/teams", json={"name": f"Team {slug}", "slug": slug})
     assert response.status_code == 201, response.text
     return token, response.json()["id"]
@@ -54,7 +56,9 @@ async def test_member_can_read_subscription(client, db_session):
     subscription = await _attach_subscription(db_session, team_id)
 
     headers = {"Authorization": f"Bearer {token}"}
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers) as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=headers
+    ) as c:
         response = await c.get(f"/api/v1/subscriptions/{subscription.id}")
 
     assert response.status_code == 200
@@ -70,7 +74,9 @@ async def test_non_member_cannot_read_subscription(client, db_session):
     # Different user, never added to the owner's team.
     other_token = await _login(client, "sub-other-2@example.com")
     headers = {"Authorization": f"Bearer {other_token}"}
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers=headers) as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=headers
+    ) as c:
         response = await c.get(f"/api/v1/subscriptions/{subscription.id}")
 
     assert response.status_code == 403

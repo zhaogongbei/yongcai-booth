@@ -3,8 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
-from app.core.cache import RedisCache
 from app.core import rate_limit as rl_mod
+from app.core.cache import RedisCache
 
 
 class _FakeRateLimitRedis:

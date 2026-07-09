@@ -8,11 +8,13 @@
 ## [Unreleased]
 
 ### 安全
+- 后端 JWT 依赖从 `python-jose` 迁移到 `PyJWT[crypto]`，并升级 MediaPipe 依赖以消除 `ecdsa` / `protobuf` 安全审计阻断。
 - 禁用仓库内 Claude Stop hook 的自动版本递增、提交和 push 行为，并让仓库卫生检查阻止未验证自动提交配置回归。
 - 外部触发器禁用本地程序执行动作，HTTP 回调目标会拒绝 localhost、私有网段、链路本地、保留地址和不可解析主机，避免触发器被配置成 RCE 或 SSRF 通道。
 - 外部触发器批量更新会先完整校验新配置再替换旧配置，避免无效配置导致既有触发器被删除。
 
 ### 变更
+- Runtime ApiHost 前端开发 CORS 策略允许本地/私网 `:5173` 前端访问，同时拒绝公网 origin，并补充集成测试。
 - 前端本地工作流统一使用 `npm ci`、`npm run dev`、`npm run typecheck` 和 `npm run build`，与 CI 和 `package-lock.json` 保持一致。
 - 移除前端 pnpm workspace 配置，并让仓库卫生检查阻止 pnpm/yarn 锁文件回归。
 - 移除冗余的前端 `VERSION` 文件，并让仓库卫生检查阻止额外版本源回归。
@@ -91,6 +93,8 @@
 - 清理前端常量文件中已无引用的演示活动、假统计、假分享方式、假打印机和打印预览占位数据，降低后续误用风险。
 
 ### 修复
+- 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.22，保持版本源一致性。
+- 收敛后端 black/isort 格式门禁债务，恢复后端 CI 格式检查通过能力。
 - 同步根 `VERSION`、README 徽章、后端默认 API 版本和前端 package 元数据到 1.0.21，恢复版本源一致性。
 - 移除绿幕设置页固定样张和模拟测试拍摄路径，绿幕预览与分析现在只基于当前真实拍摄照片。
 - 修复 Runtime ApiHost 集成测试硬编码 Debug DLL 的问题，Release 测试现在会启动对应 Release ApiHost 产物。
