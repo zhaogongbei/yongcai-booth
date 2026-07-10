@@ -33,6 +33,7 @@
 - Runtime 拍照只有在已连接的相机插件真实写出捕获根目录内的有效 JPEG 后才能保存 Shot；未配置、插件伪成功、无效图片或越界路径必须故障封闭且不得改变会话状态。
 - Runtime 会话 ID 一经创建不得改写 event、mode 或 device 身份；重复启动只有身份完全一致时可幂等返回既有状态，否则必须以 `SES_CONFLICT` 故障封闭且不得重置会话。
 - Runtime Shot ID 在本地库中全局唯一，不得通过 upsert 跨会话重归属或覆盖既有捕获文件；冲突必须返回 `SHT_CONFLICT` 且保持原 Shot、文件和会话状态不变。
+- Runtime 同一会话在 Countdown/Capturing 状态下必须支持按序捕获多张 Shot；终态或渲染/打印/分享中的会话拍摄必须以 `SES_INVALID_STATE` 返回 409 故障封闭，不得触碰相机或产生文件。
 - GitHub Release 由 release job 使用 `gh release create` 创建，不使用旧 release action；没有真实部署脚本时，CI 不应声明 staging/production 部署成功。
 - CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
 - CI 安全扫描中的 Python 依赖审计必须使用项目声明的 `PYTHON_VERSION`，不能依赖 runner 默认 Python。
@@ -142,6 +143,7 @@
 
 ## 近期完成
 
+- 已同步版本到 1.0.36，并修复 Runtime 同一会话第二张拍摄被状态机拒绝导致 HTTP 500 的问题；多照片模板/GIF 所需的连拍现在按序成功（索引递增），终态会话拍摄以 `SES_INVALID_STATE` 稳定返回 409 且不触碰相机或文件。
 - 已同步版本到 1.0.35，并修复 Runtime 重复 sessionId/shotId 可覆盖身份和跨会话重归属的数据完整性问题；会话与 Shot 现使用原子插入、幂等身份校验和不可覆盖文件落盘，冲突稳定返回 HTTP 409。
 - 修复 Runtime 拍照把 JSON 文本写成 `.jpg` 并返回成功的问题；采集现复用 `ICameraPlugin`，要求真实 JPEG 产物后才持久化，未配置相机返回 `CAM_DEVICE_NOT_READY`，同时拒绝会话/Shot 标识导致的路径穿越写文件。
 - 修复 Runtime 打印/分享作业只写 JSON 却标记成功的伪执行：未配置真实适配器时现在持久化为失败并记录稳定错误码，不再创建假 `output_assets`；真实执行器成功产物路径也会被校验。

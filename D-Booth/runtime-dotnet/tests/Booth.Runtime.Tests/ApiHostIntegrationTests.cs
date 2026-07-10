@@ -87,6 +87,31 @@ public sealed class ApiHostIntegrationTests
     }
 
     [Fact]
+    public async Task CaptureShot_ShouldReturnConflict_WhenSessionIsAlreadyTerminal()
+    {
+        var tempRoot = CreateTempRoot();
+
+        await using var host = await BoothApiHost.StartAsync(tempRoot);
+        using var client = new HttpClient { BaseAddress = host.BaseAddress };
+        var startRequest = new SessionStartApiRequest(
+            "ses_http_terminal_capture",
+            "evt_http_terminal_capture",
+            SessionMode.Print,
+            "dev_http_terminal_capture");
+
+        (await client.PostAsJsonAsync("/v1/session/start", startRequest)).EnsureSuccessStatusCode();
+        (await client.PostAsync("/v1/session/ses_http_terminal_capture/cancel", content: null)).EnsureSuccessStatusCode();
+
+        var response = await client.PostAsJsonAsync(
+            "/v1/sessions/ses_http_terminal_capture/shots",
+            new CaptureShotApiRequest("shot_http_terminal_capture", "integration-test", null));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(ErrorCodes.SessionInvalidState, error.RootElement.GetProperty("errorCode").GetString());
+    }
+
+    [Fact]
     public async Task SessionDetails_ShouldPersistFailedPrintJob_WhenPrinterIsNotConfigured()
     {
         var tempRoot = CreateTempRoot();

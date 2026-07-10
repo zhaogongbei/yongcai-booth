@@ -78,6 +78,13 @@ public sealed class SessionApplicationService
             return null;
         }
 
+        if (session.Status is not (SessionStatus.Countdown or SessionStatus.Capturing))
+        {
+            throw new CaptureShotException(
+                ErrorCodes.SessionInvalidState,
+                $"Session in status '{session.Status}' cannot capture new shots.");
+        }
+
         var shotIndex = await _shotRepository.GetNextShotIndexAsync(request.SessionId, cancellationToken);
         var shotId = request.PreferredShotId ?? $"shot_{Guid.NewGuid():N}";
         var rawAssetPath = BuildCapturePath(request.SessionId, shotId);
@@ -96,7 +103,11 @@ public sealed class SessionApplicationService
                 "Runtime camera integration is not configured or connected.");
         }
 
-        session.BeginCapture();
+        if (session.Status == SessionStatus.Countdown)
+        {
+            session.BeginCapture();
+        }
+
         var captureTempPath = BuildCaptureTempPath(rawAssetPath);
 
         CaptureResult captureResult;

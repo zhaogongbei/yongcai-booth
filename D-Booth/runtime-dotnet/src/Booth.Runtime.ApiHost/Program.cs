@@ -161,6 +161,7 @@ app.MapPost("/v1/sessions/{sessionId}/shots", async (string sessionId, CaptureSh
         {
             ErrorCodes.ConfigurationInvalid => StatusCodes.Status400BadRequest,
             ErrorCodes.ShotConflict => StatusCodes.Status409Conflict,
+            ErrorCodes.SessionInvalidState => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status503ServiceUnavailable
         };
         return Results.Json(

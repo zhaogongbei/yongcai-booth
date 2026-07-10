@@ -140,6 +140,70 @@ public sealed class SessionCaptureFlowTests
         Assert.False(File.Exists(Path.Combine(context.CapturesRoot, "ses_shot_contender", "shot_shared.jpg")));
     }
 
+    [Fact]
+    public async Task CaptureShot_ShouldAllowSequentialShots_InTheSameSession()
+    {
+        var context = CreateContext(new TestCameraPlugin(async (config, cancellationToken) =>
+        {
+            await File.WriteAllBytesAsync(
+                config.OutputPath,
+                new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0xD9 },
+                cancellationToken);
+            return CaptureResult.Successful(config.OutputPath);
+        }));
+
+        await context.Service.StartAsync(
+            new SessionStartRequest("ses_multi_shot", "evt_multi_shot", SessionMode.Print, "dev_multi_shot"),
+            CancellationToken.None);
+
+        var first = await context.Service.CaptureShotAsync(
+            new CaptureShotRequest("ses_multi_shot", null, "unit-test", null),
+            CancellationToken.None);
+        var second = await context.Service.CaptureShotAsync(
+            new CaptureShotRequest("ses_multi_shot", null, "unit-test", null),
+            CancellationToken.None);
+        var third = await context.Service.CaptureShotAsync(
+            new CaptureShotRequest("ses_multi_shot", null, "unit-test", null),
+            CancellationToken.None);
+
+        var shots = await context.Service.ListShotsAsync("ses_multi_shot", CancellationToken.None);
+        var session = await context.Service.GetAsync("ses_multi_shot", CancellationToken.None);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.NotNull(third);
+        Assert.Equal(3, shots.Count);
+        Assert.Equal(new[] { 1, 2, 3 }, shots.Select(shot => shot.Index).OrderBy(index => index).ToArray());
+        Assert.All(shots, shot => Assert.True(File.Exists(shot.RawAssetPath)));
+        Assert.NotNull(session);
+        Assert.Equal(SessionStatus.Capturing, session!.Status);
+    }
+
+    [Fact]
+    public async Task CaptureShot_ShouldRejectTerminalSession_WithoutTouchingCameraOrFiles()
+    {
+        var camera = new TestCameraPlugin((config, cancellationToken) =>
+            Task.FromResult(CaptureResult.Successful(config.OutputPath)));
+        var context = CreateContext(camera);
+        await context.Service.StartAsync(
+            new SessionStartRequest("ses_terminal_capture", "evt_terminal_capture", SessionMode.Print, "dev_terminal_capture"),
+            CancellationToken.None);
+        await context.Service.CancelAsync("ses_terminal_capture", CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<CaptureShotException>(() => context.Service.CaptureShotAsync(
+            new CaptureShotRequest("ses_terminal_capture", "shot_terminal_capture", null, null),
+            CancellationToken.None));
+
+        var session = await context.Service.GetAsync("ses_terminal_capture", CancellationToken.None);
+
+        Assert.Equal(ErrorCodes.SessionInvalidState, exception.ErrorCode);
+        Assert.Equal(0, camera.CaptureCallCount);
+        Assert.Empty(await context.Service.ListShotsAsync("ses_terminal_capture", CancellationToken.None));
+        Assert.NotNull(session);
+        Assert.Equal(SessionStatus.Cancelled, session!.Status);
+        Assert.False(Directory.Exists(Path.Combine(context.CapturesRoot, "ses_terminal_capture")));
+    }
+
     private static TestContext CreateContext(ICameraPlugin? cameraPlugin)
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"booth-runtime-shot-{Guid.NewGuid():N}");

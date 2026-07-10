@@ -17,7 +17,7 @@ public interface IShotRepository
     /// </summary>
     /// <param name="sessionId">The session ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The next index to use (zero-based).</returns>
+    /// <returns>The next index to use (one-based).</returns>
     Task<int> GetNextShotIndexAsync(string sessionId, CancellationToken cancellationToken);
 
     /// <summary>

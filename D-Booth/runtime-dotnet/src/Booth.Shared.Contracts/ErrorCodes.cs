@@ -10,6 +10,7 @@ public static class ErrorCodes
     public const string ConfigurationInvalid = "CFG_INVALID";
     public const string SessionNotFound = "SES_NOT_FOUND";
     public const string SessionConflict = "SES_CONFLICT";
+    public const string SessionInvalidState = "SES_INVALID_STATE";
     public const string ShotConflict = "SHT_CONFLICT";
     public const string JobNotFound = "JOB_NOT_FOUND";
     public const string SecurityDenied = "SEC_DENIED";
