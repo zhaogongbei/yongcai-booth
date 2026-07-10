@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
-from app.models.models import Event, EventStatus, Photo, User
+from app.models.models import Event, EventStatus, Photo, Team, User
 from app.repositories.base import (
     DatabaseOperationError,
     DuplicateRecordError,
@@ -584,6 +584,67 @@ class TestCacheDecorator:
         assert not isinstance(user, dict)
         assert user.email == "real@example.com"
         assert user.is_active is True
+
+    @pytest.mark.asyncio
+    @patch("app.repositories.cache_decorator.RedisCache.get")
+    @patch("app.repositories.cache_decorator.RedisCache.set")
+    async def test_event_orm_queries_are_uncached(self, mock_set, mock_get, event_repo):
+        """Event queries must return ORM objects even when Redis is available."""
+        user = User(
+            email="uncached-event@example.com",
+            hashed_password="not-used",
+        )
+        team = Team(name="Uncached Event Team", slug="uncached-event-team")
+        event_repo.db.add_all([user, team])
+        await event_repo.db.flush()
+
+        event = Event(
+            team_id=team.id,
+            creator_id=user.id,
+            name="Uncached Event",
+            status=EventStatus.ACTIVE,
+            start_date=datetime(2026, 7, 10, tzinfo=timezone.utc),
+            end_date=datetime(2026, 7, 11, tzinfo=timezone.utc),
+        )
+        event_repo.db.add(event)
+        await event_repo.db.commit()
+        await event_repo.db.refresh(event)
+
+        mock_get.return_value = {"id": str(event.id), "name": "Cached Event"}
+
+        by_id = await event_repo.get(event.id)
+        by_team = await event_repo.get_by_team(event.team_id)
+        by_status = await event_repo.get_by_status(event.team_id, EventStatus.ACTIVE)
+        active = await event_repo.get_active_events(event.team_id)
+
+        mock_get.assert_not_called()
+        mock_set.assert_not_called()
+        assert isinstance(by_id, Event)
+        assert all(isinstance(item, Event) for item in by_team + by_status + active)
+
+    @pytest.mark.asyncio
+    @patch("app.repositories.cache_decorator.RedisCache.delete_pattern")
+    async def test_event_create_invalidates_count_cache(self, mock_delete, event_repo):
+        """Creating an event must invalidate cached subscription counts."""
+        user = User(
+            email="counted-event@example.com",
+            hashed_password="not-used",
+        )
+        team = Team(name="Counted Event Team", slug="counted-event-team")
+        event_repo.db.add_all([user, team])
+        await event_repo.db.flush()
+
+        await event_repo.create(
+            {
+                "team_id": team.id,
+                "creator_id": user.id,
+                "name": "Counted Event",
+                "start_date": datetime(2026, 7, 10, tzinfo=timezone.utc),
+                "end_date": datetime(2026, 7, 11, tzinfo=timezone.utc),
+            }
+        )
+
+        mock_delete.assert_any_await("team:*:event_count*")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -13,7 +13,7 @@ from app.repositories.cache_decorator import cached, invalidate_cache
 
 class EventRepository(BaseRepository[Event]):
     """
-    Repository for Event model with caching and performance optimizations.
+    Repository for Event model with aggregate caching and performance optimizations.
 
     Provides methods for:
     - Querying events by team, status, or date range
@@ -26,12 +26,12 @@ class EventRepository(BaseRepository[Event]):
         super().__init__(Event, db)
 
     @log_query_performance(threshold_ms=50.0)
-    @cached(ttl=300, key_builder=lambda self, id: f"event:{id}")
     async def get(self, id: UUID) -> Optional[Event]:
         """
         Get an event by ID without preloading relationship graphs.
 
-        Results are cached for 5 minutes.
+        ORM instances are intentionally uncached because the shared cache
+        deserializes model rows as dictionaries.
 
         Args:
             id: Event identifier
@@ -43,15 +43,9 @@ class EventRepository(BaseRepository[Event]):
         return result.scalar_one_or_none()
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(
-        ttl=300,
-        key_builder=lambda self, team_id, skip, limit: f"team:{team_id}:events:{skip}:{limit}",
-    )
     async def get_by_team(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Event]:
         """
         Get all events for a team.
-
-        Results are cached for 5 minutes.
 
         Args:
             team_id: Team identifier
@@ -71,10 +65,6 @@ class EventRepository(BaseRepository[Event]):
         return list(result.scalars().all())
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(
-        ttl=300,
-        key_builder=lambda self, team_id, status, skip, limit: f"team:{team_id}:events:status:{status}:{skip}:{limit}",
-    )
     async def get_by_status(
         self, team_id: UUID, status: EventStatus, skip: int = 0, limit: int = 100
     ) -> List[Event]:
@@ -100,12 +90,9 @@ class EventRepository(BaseRepository[Event]):
         return list(result.scalars().all())
 
     @log_query_performance(threshold_ms=100.0)
-    @cached(ttl=60, key_builder=lambda self, team_id: f"team:{team_id}:active_events")
     async def get_active_events(self, team_id: UUID) -> List[Event]:
         """
         Get all active events for a team.
-
-        Cached for 1 minute since active status changes frequently.
 
         Args:
             team_id: Team identifier
@@ -159,6 +146,7 @@ class EventRepository(BaseRepository[Event]):
     @invalidate_cache("event:*")
     @invalidate_cache("team:*:events:*")
     @invalidate_cache("team:*:active_events")
+    @invalidate_cache("team:*:event_count*")
     async def update_status(self, event_id: UUID, status: EventStatus) -> Optional[Event]:
         """
         Update event status and invalidate related caches.
@@ -175,7 +163,7 @@ class EventRepository(BaseRepository[Event]):
         event = result.scalar_one_or_none()
 
         if event:
-            event.status = status
+            setattr(event, "status", status)
             await self.db.commit()
             await self.db.refresh(event)
             return event
@@ -196,7 +184,7 @@ class EventRepository(BaseRepository[Event]):
         result = await self.db.execute(
             select(func.count()).select_from(Event).where(Event.team_id == team_id)
         )
-        return result.scalar_one()
+        return cast(int, result.scalar_one())
 
     @log_query_performance(threshold_ms=50.0)
     @cached(
@@ -219,11 +207,12 @@ class EventRepository(BaseRepository[Event]):
             .select_from(Event)
             .where(Event.team_id == team_id, Event.status == status)
         )
-        return result.scalar_one()
+        return cast(int, result.scalar_one())
 
     @invalidate_cache("event:*")
     @invalidate_cache("team:*:events:*")
     @invalidate_cache("team:*:active_events")
+    @invalidate_cache("team:*:event_count*")
     async def create(self, obj_in: dict) -> Event:
         """
         Create a new event and invalidate related caches.
@@ -234,11 +223,12 @@ class EventRepository(BaseRepository[Event]):
         Returns:
             Created Event instance
         """
-        return await super().create(obj_in)
+        return cast(Event, await super().create(obj_in))
 
     @invalidate_cache("event:*")
     @invalidate_cache("team:*:events:*")
     @invalidate_cache("team:*:active_events")
+    @invalidate_cache("team:*:event_count*")
     async def update(self, id: UUID, obj_in: dict) -> Optional[Event]:
         """
         Update event and invalidate related caches.
@@ -250,11 +240,12 @@ class EventRepository(BaseRepository[Event]):
         Returns:
             Updated Event instance, or None if not found
         """
-        return await super().update(id, obj_in)
+        return cast(Optional[Event], await super().update(id, obj_in))
 
     @invalidate_cache("event:*")
     @invalidate_cache("team:*:events:*")
     @invalidate_cache("team:*:active_events")
+    @invalidate_cache("team:*:event_count*")
     async def bulk_create(self, objects_in: List[dict], batch_size: int = 500) -> List[Event]:
         """
         Bulk create events with cache invalidation.
@@ -266,4 +257,12 @@ class EventRepository(BaseRepository[Event]):
         Returns:
             List of created Event instances
         """
-        return await super().bulk_create(objects_in, batch_size)
+        return cast(List[Event], await super().bulk_create(objects_in, batch_size))
+
+    @invalidate_cache("event:*")
+    @invalidate_cache("team:*:events:*")
+    @invalidate_cache("team:*:active_events")
+    @invalidate_cache("team:*:event_count*")
+    async def delete(self, id: UUID) -> bool:
+        """Delete an event and invalidate event-derived caches."""
+        return cast(bool, await super().delete(id))
