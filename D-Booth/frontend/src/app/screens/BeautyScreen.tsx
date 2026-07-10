@@ -20,11 +20,54 @@ import {
   DEFAULT_PROPS
 } from "../constants";
 
-type Tool = "美颜" | "贴纸";
+type Tool = "美颜" | "滤镜" | "调色" | "贴纸";
+
+interface FilterPreset {
+  id: string;
+  label: string;
+  filter: string;
+}
 
 const defaultBeautyValues = DEFAULT_BEAUTY_VALUES;
 
 const FALLBACK_IMAGE = BEAUTY_FALLBACK_IMAGE;
+
+const FILTER_PRESETS: FilterPreset[] = [
+  { id: "original", label: "原片", filter: "" },
+  { id: "clear", label: "清透", filter: "brightness(1.06) contrast(1.04) saturate(1.08)" },
+  { id: "warm", label: "暖阳", filter: "sepia(0.18) saturate(1.12) brightness(1.04)" },
+  { id: "cool", label: "冷调", filter: "sepia(0.12) hue-rotate(155deg) saturate(1.08)" },
+  { id: "mono", label: "黑白", filter: "grayscale(1) contrast(1.08)" },
+  { id: "film", label: "胶片", filter: "sepia(0.22) contrast(1.12) saturate(0.82)" },
+];
+
+function buildPhotoFilter(
+  presetFilter: string,
+  brightness: number,
+  contrast: number,
+  saturation: number,
+  warmth: number
+): string {
+  const filters = [
+    presetFilter,
+    `brightness(${brightness / 100})`,
+    `contrast(${contrast / 100})`,
+    `saturate(${saturation / 100})`,
+  ];
+
+  if (warmth > 0) {
+    filters.push(`sepia(${warmth / 400})`, `saturate(${1 + warmth / 500})`);
+  } else if (warmth < 0) {
+    const coolStrength = Math.abs(warmth);
+    filters.push(
+      `sepia(${coolStrength / 600})`,
+      "hue-rotate(155deg)",
+      `saturate(${1 + coolStrength / 700})`
+    );
+  }
+
+  return filters.filter(Boolean).join(" ") || "none";
+}
 
 function resolvePhotoUrl(url?: string): string {
   if (!url) return FALLBACK_IMAGE;
@@ -59,7 +102,11 @@ async function loadImageFromUrl(url: string): Promise<HTMLImageElement> {
   return loadImageFromBlob(await response.blob());
 }
 
-async function renderStickerOutput(baseUrl: string, stickers: Sticker[]): Promise<Blob> {
+async function renderEditedOutput(
+  baseUrl: string,
+  stickers: Sticker[],
+  photoFilter: string
+): Promise<Blob> {
   const baseImage = await loadImageFromUrl(baseUrl);
   const width = baseImage.naturalWidth || baseImage.width;
   const height = baseImage.naturalHeight || baseImage.height;
@@ -69,7 +116,9 @@ async function renderStickerOutput(baseUrl: string, stickers: Sticker[]): Promis
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("无法创建图片画布");
 
+  ctx.filter = photoFilter;
   ctx.drawImage(baseImage, 0, 0, width, height);
+  ctx.filter = "none";
 
   for (const sticker of stickers) {
     const size = Math.max(32, Math.round(Math.min(width, height) * 0.16 * sticker.scale));
@@ -141,6 +190,12 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [nasolabial, setNasolabial] = useState<number>(defaultBeautyValues.nasolabial);
   const [teethWhiten, setTeethWhiten] = useState<number>(defaultBeautyValues.teethWhiten);
   const [lipColor, setLipColor] = useState<number>(defaultBeautyValues.lipColor);
+
+  const [selectedFilterId, setSelectedFilterId] = useState("original");
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+  const [saturation, setSaturation] = useState(100);
+  const [warmth, setWarmth] = useState(0);
 
   // Sticker state
   const [stickers, setStickers] = useState<Sticker[]>([]);
@@ -262,6 +317,17 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
   }, [selectedPhoto?.id]);
 
   const displayedImageUrl = processedImageUrl || photoUrl;
+  const selectedFilter = FILTER_PRESETS.find(preset => preset.id === selectedFilterId)
+    ?? FILTER_PRESETS[0];
+  const photoFilter = useMemo(
+    () => buildPhotoFilter(selectedFilter.filter, brightness, contrast, saturation, warmth),
+    [selectedFilter.filter, brightness, contrast, saturation, warmth]
+  );
+  const hasPhotoAdjustments = selectedFilterId !== "original"
+    || brightness !== 100
+    || contrast !== 100
+    || saturation !== 100
+    || warmth !== 0;
 
   const presets = BEAUTY_PRESETS;
 
@@ -297,6 +363,29 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     });
   };
 
+  const resetFilters = () => {
+    setSelectedFilterId("original");
+  };
+
+  const resetColor = () => {
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setWarmth(0);
+  };
+
+  const resetActiveTool = () => {
+    if (activeTool === "滤镜") {
+      resetFilters();
+      return;
+    }
+    if (activeTool === "调色") {
+      resetColor();
+      return;
+    }
+    resetBeauty();
+  };
+
   const continueWithBeautyResult = async (nextScreen: Screen) => {
     if (isProcessing) {
       showToast.info("请等待当前美颜处理完成");
@@ -309,15 +398,16 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
 
     const needsStickerRender = stickers.length > 0;
-    if (!processedImageBlob && !needsStickerRender) {
+    const needsLocalRender = needsStickerRender || hasPhotoAdjustments;
+    if (!processedImageBlob && !needsLocalRender) {
       navigate(nextScreen);
       return;
     }
 
     try {
       setIsCommitting(true);
-      const outputBlob = needsStickerRender
-        ? await renderStickerOutput(displayedImageUrl, stickers)
+      const outputBlob = needsLocalRender
+        ? await renderEditedOutput(displayedImageUrl, stickers, photoFilter)
         : processedImageBlob;
       if (!outputBlob) {
         navigate(nextScreen);
@@ -325,10 +415,10 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
       }
       await addPhoto({
         blob: outputBlob,
-        filter: needsStickerRender ? "beauty-sticker" : "beauty",
+        filter: needsLocalRender ? "beauty-edited" : "beauty",
         mediaType: selectedPhoto.mediaType,
       });
-      showToast.success(needsStickerRender ? "已应用美颜和贴纸" : "已应用美颜结果");
+      showToast.success(needsLocalRender ? "已应用照片编辑结果" : "已应用美颜结果");
       navigate(nextScreen);
     } catch (err) {
       showToast.error(err instanceof Error ? err.message : "应用美颜结果失败");
@@ -369,7 +459,16 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const tools: { icon: React.ElementType; label: Tool }[] = [
     { icon: Sparkles, label: "美颜" },
+    { icon: Sliders, label: "滤镜" },
+    { icon: Sun, label: "调色" },
     { icon: ImagePlus, label: "贴纸" },
+  ];
+
+  const colorControls = [
+    { label: "亮度", value: brightness, icon: Sun, onChange: setBrightness, min: 50, max: 150 },
+    { label: "对比度", value: contrast, icon: Sliders, onChange: setContrast, min: 50, max: 150 },
+    { label: "饱和度", value: saturation, icon: Sparkles, onChange: setSaturation, min: 0, max: 200 },
+    { label: "色温", value: warmth, icon: Sun, onChange: setWarmth, min: -100, max: 100 },
   ];
 
   const levelLabels: { key: "light" | "natural" | "high"; label: string }[] = [
@@ -472,6 +571,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
             {activeTool === "贴纸" ? (
               <StickerOverlay
                 photoUrl={displayedImageUrl}
+                imageStyle={{ filter: photoFilter }}
                 stickers={stickers}
                 onChange={setStickers}
                 onStickerSelect={setSelectedStickerId}
@@ -482,14 +582,16 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <img src={photoUrl}
                   alt="original" className="absolute inset-0 w-full h-full object-cover" style={{ clipPath: "inset(0 50% 0 0)" }} loading="lazy" />
                 <img src={displayedImageUrl}
-                  alt="beauty" className="absolute inset-0 w-full h-full object-cover" style={{ clipPath: "inset(0 0 0 50%)" }} loading="lazy" />
+                  alt="beauty" className="absolute inset-0 w-full h-full object-cover"
+                  style={{ clipPath: "inset(0 0 0 50%)", filter: photoFilter }} loading="lazy" />
                 <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/80" />
                 <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-0.5 rounded">原图</div>
                 <div className="absolute top-3 right-3 bg-violet-500/80 text-white text-xs px-2 py-0.5 rounded">调整后</div>
               </div>
             ) : (
               <img src={displayedImageUrl}
-                alt="beauty preview" className="w-full h-full object-cover" loading="lazy" />
+                alt="beauty preview" className="w-full h-full object-cover"
+                style={{ filter: photoFilter }} loading="lazy" />
             )}
           </div>
           <div className="absolute bottom-6 right-6 flex gap-2">
@@ -499,14 +601,34 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <GlowBtn size="sm" variant="ghost" onClick={clearAllStickers}><RotateCcw size={13} />清除贴纸</GlowBtn>
               </>
             ) : (
-              <GlowBtn size="sm" variant="ghost" onClick={resetBeauty}><RotateCcw size={13} />重置</GlowBtn>
+              <GlowBtn size="sm" variant="ghost" onClick={resetActiveTool}><RotateCcw size={13} />重置</GlowBtn>
             )}
             <GlowBtn size="sm" variant="primary" disabled={isProcessing || isCommitting} onClick={() => void continueWithBeautyResult("print")}><Printer size={13} />打印照片</GlowBtn>
             <GlowBtn size="sm" variant="accent" disabled={isProcessing || isCommitting} onClick={() => void continueWithBeautyResult("sharing")}><Share2 size={13} />分享照片</GlowBtn>
           </div>
         </div>
 
+        {!isDesktop && (
+          <div className="flex gap-2 overflow-x-auto border-t border-white/5 px-4 py-2">
+            {tools.map(tool => (
+              <button
+                key={tool.label}
+                onClick={() => setActiveTool(tool.label)}
+                className={`flex min-w-16 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs transition-colors ${
+                  activeTool === tool.label
+                    ? "bg-violet-500 text-white"
+                    : "bg-white/5 text-white/50 hover:bg-white/10"
+                }`}
+              >
+                <tool.icon size={14} />
+                {tool.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Presets strip / Sticker category selector */}
+        {(activeTool === "美颜" || activeTool === "贴纸" || !isDesktop) && (
         <div className="border-t border-white/5 px-4 py-3">
           {activeTool === "贴纸" ? (
             <>
@@ -536,6 +658,50 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 ))}
               </div>
             </>
+          ) : activeTool === "滤镜" ? (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs text-white/40">滤镜预设</span>
+                <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
+                  重置
+                </button>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {FILTER_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => setSelectedFilterId(preset.id)}
+                    className="flex flex-shrink-0 flex-col items-center gap-1.5"
+                  >
+                    <span className={`block h-14 w-14 overflow-hidden rounded-md border-2 transition-colors ${
+                      selectedFilterId === preset.id ? "border-violet-500" : "border-transparent"
+                    }`}>
+                      <img
+                        src={displayedImageUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        style={{ filter: buildPhotoFilter(preset.filter, 100, 100, 100, 0) }}
+                      />
+                    </span>
+                    <span className={selectedFilterId === preset.id ? "text-[10px] text-violet-400" : "text-[10px] text-white/40"}>
+                      {preset.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : activeTool === "调色" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/40">画面调节</span>
+                <button onClick={resetColor} className="text-xs text-violet-400 hover:text-violet-300">
+                  重置
+                </button>
+              </div>
+              {colorControls.map(control => (
+                <SliderControl key={control.label} {...control} />
+              ))}
+            </div>
           ) : (
             <>
               <div className="flex items-center gap-2 mb-2">
@@ -560,6 +726,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
             </>
           )}
         </div>
+        )}
       </div>
 
       {/* Right panel (desktop only) */}
@@ -600,6 +767,50 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 })}
               </div>
             )}
+          </>
+        ) : activeTool === "滤镜" ? (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white/80">滤镜预设</span>
+              <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
+                重置
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {FILTER_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => setSelectedFilterId(preset.id)}
+                  className={`overflow-hidden rounded-md border text-left transition-colors ${
+                    selectedFilterId === preset.id
+                      ? "border-violet-500 bg-violet-500/15"
+                      : "border-white/5 bg-white/5 hover:bg-white/10"
+                  }`}
+                >
+                  <img
+                    src={displayedImageUrl}
+                    alt=""
+                    className="aspect-square w-full object-cover"
+                    style={{ filter: buildPhotoFilter(preset.filter, 100, 100, 100, 0) }}
+                  />
+                  <span className="block px-2 py-1.5 text-[10px] text-white/60">{preset.label}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : activeTool === "调色" ? (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white/80">画面调节</span>
+              <button onClick={resetColor} className="text-xs text-violet-400 hover:text-violet-300">
+                重置
+              </button>
+            </div>
+            <div className="space-y-3">
+              {colorControls.map(control => (
+                <SliderControl key={control.label} {...control} />
+              ))}
+            </div>
           </>
         ) : (
           <>

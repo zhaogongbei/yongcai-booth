@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import { Trash2 } from "lucide-react";
 
 export interface Sticker {
@@ -16,6 +16,7 @@ export interface Sticker {
 
 interface StickerOverlayProps {
   photoUrl: string;
+  imageStyle?: CSSProperties;
   stickers: Sticker[];
   onChange: (stickers: Sticker[]) => void;
   onStickerSelect?: (stickerId: string | null) => void;
@@ -47,6 +48,7 @@ function StickerVisual({ sticker }: { sticker: Sticker }) {
 
 export function StickerOverlay({
   photoUrl,
+  imageStyle,
   stickers,
   onChange,
   onStickerSelect,
@@ -196,6 +198,7 @@ export function StickerOverlay({
         src={photoUrl}
         alt="Photo"
         className="w-full h-full object-cover"
+        style={imageStyle}
         draggable={false}
       />
 
