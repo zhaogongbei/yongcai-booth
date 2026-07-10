@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Sparkles, Users, Eye, Sun, Zap, Sliders, Star, Heart,
   ArrowLeft, ImagePlus, RotateCcw, Download, Printer, Share2,
-  Trash2
+  Trash2, Crop, Type, Plus
 } from "lucide-react";
 import { motion } from "motion/react";
 import { GlassCard } from "../components/GlassCard";
 import { GlowBtn } from "../components/GlowBtn";
 import { SliderControl } from "../components/SliderControl";
 import { StickerOverlay, type Sticker } from "../components/StickerOverlay";
+import { TextOverlayLayer, type TextOverlay } from "../components/TextOverlayLayer";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { useResponsive } from "../hooks/useResponsive";
 import type { Screen } from "../types";
@@ -20,12 +21,25 @@ import {
   DEFAULT_PROPS
 } from "../constants";
 
-type Tool = "美颜" | "滤镜" | "调色" | "贴纸";
+type Tool = "美颜" | "裁剪" | "滤镜" | "调色" | "文字" | "贴纸";
 
 interface FilterPreset {
   id: string;
   label: string;
   filter: string;
+}
+
+interface CropPreset {
+  id: string;
+  label: string;
+  aspectRatio: number | null;
+}
+
+interface CropSettings {
+  aspectRatio: number;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
 }
 
 const defaultBeautyValues = DEFAULT_BEAUTY_VALUES;
@@ -40,6 +54,46 @@ const FILTER_PRESETS: FilterPreset[] = [
   { id: "mono", label: "黑白", filter: "grayscale(1) contrast(1.08)" },
   { id: "film", label: "胶片", filter: "sepia(0.22) contrast(1.12) saturate(0.82)" },
 ];
+
+const CROP_PRESETS: CropPreset[] = [
+  { id: "original", label: "原始", aspectRatio: null },
+  { id: "square", label: "1:1", aspectRatio: 1 },
+  { id: "portrait", label: "3:4", aspectRatio: 3 / 4 },
+  { id: "landscape", label: "4:3", aspectRatio: 4 / 3 },
+  { id: "wide", label: "16:9", aspectRatio: 16 / 9 },
+];
+
+const TEXT_COLORS = ["#ffffff", "#111827", "#f43f5e", "#f59e0b", "#22c55e", "#38bdf8"];
+
+function calculateCropRect(
+  sourceWidth: number,
+  sourceHeight: number,
+  settings: CropSettings
+): { x: number; y: number; width: number; height: number; outputWidth: number; outputHeight: number } {
+  const sourceAspectRatio = sourceWidth / sourceHeight;
+  let outputWidth = sourceWidth;
+  let outputHeight = sourceHeight;
+
+  if (sourceAspectRatio > settings.aspectRatio) {
+    outputWidth = sourceHeight * settings.aspectRatio;
+  } else if (sourceAspectRatio < settings.aspectRatio) {
+    outputHeight = sourceWidth / settings.aspectRatio;
+  }
+
+  const width = outputWidth / settings.zoom;
+  const height = outputHeight / settings.zoom;
+  const x = (sourceWidth - width) * ((settings.offsetX + 100) / 200);
+  const y = (sourceHeight - height) * ((settings.offsetY + 100) / 200);
+
+  return {
+    x,
+    y,
+    width,
+    height,
+    outputWidth: Math.max(1, Math.round(outputWidth)),
+    outputHeight: Math.max(1, Math.round(outputHeight)),
+  };
+}
 
 function buildPhotoFilter(
   presetFilter: string,
@@ -105,25 +159,38 @@ async function loadImageFromUrl(url: string): Promise<HTMLImageElement> {
 async function renderEditedOutput(
   baseUrl: string,
   stickers: Sticker[],
-  photoFilter: string
+  texts: TextOverlay[],
+  photoFilter: string,
+  cropSettings: CropSettings
 ): Promise<Blob> {
   const baseImage = await loadImageFromUrl(baseUrl);
-  const width = baseImage.naturalWidth || baseImage.width;
-  const height = baseImage.naturalHeight || baseImage.height;
+  const sourceWidth = baseImage.naturalWidth || baseImage.width;
+  const sourceHeight = baseImage.naturalHeight || baseImage.height;
+  const crop = calculateCropRect(sourceWidth, sourceHeight, cropSettings);
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = crop.outputWidth;
+  canvas.height = crop.outputHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("无法创建图片画布");
 
   ctx.filter = photoFilter;
-  ctx.drawImage(baseImage, 0, 0, width, height);
+  ctx.drawImage(
+    baseImage,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
   ctx.filter = "none";
 
   for (const sticker of stickers) {
-    const size = Math.max(32, Math.round(Math.min(width, height) * 0.16 * sticker.scale));
-    const x = sticker.x * width;
-    const y = sticker.y * height;
+    const size = Math.max(32, Math.round(Math.min(canvas.width, canvas.height) * 0.16 * sticker.scale));
+    const x = sticker.x * canvas.width;
+    const y = sticker.y * canvas.height;
     ctx.save();
     ctx.globalAlpha = sticker.opacity;
     ctx.translate(x, y);
@@ -144,6 +211,21 @@ async function renderEditedOutput(
       ctx.fillText(sticker.imageUrl, 0, 0);
     }
 
+    ctx.restore();
+  }
+
+  for (const text of texts) {
+    ctx.save();
+    ctx.globalAlpha = text.opacity;
+    ctx.translate(text.x * canvas.width, text.y * canvas.height);
+    ctx.rotate((text.rotation * Math.PI) / 180);
+    ctx.fillStyle = text.color;
+    ctx.font = `700 ${Math.max(14, canvas.height * text.size / 100)}px "Noto Sans SC", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+    ctx.shadowBlur = Math.max(2, canvas.height * 0.006);
+    ctx.fillText(text.text, 0, 0, canvas.width * 0.9);
     ctx.restore();
   }
 
@@ -196,6 +278,15 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [contrast, setContrast] = useState(100);
   const [saturation, setSaturation] = useState(100);
   const [warmth, setWarmth] = useState(0);
+
+  const [sourceAspectRatio, setSourceAspectRatio] = useState(3 / 4);
+  const [cropPresetId, setCropPresetId] = useState("original");
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffsetX, setCropOffsetX] = useState(0);
+  const [cropOffsetY, setCropOffsetY] = useState(0);
+
+  const [texts, setTexts] = useState<TextOverlay[]>([]);
+  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
 
   // Sticker state
   const [stickers, setStickers] = useState<Sticker[]>([]);
@@ -310,6 +401,19 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
   useEffect(() => {
     previousParamsRef.current = null;
     setProcessedImageBlob(null);
+    setSelectedFilterId("original");
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setWarmth(0);
+    setCropPresetId("original");
+    setCropZoom(1);
+    setCropOffsetX(0);
+    setCropOffsetY(0);
+    setTexts([]);
+    setSelectedTextId(null);
+    setStickers([]);
+    setSelectedStickerId(null);
     setProcessedImageUrl(currentUrl => {
       if (currentUrl) URL.revokeObjectURL(currentUrl);
       return null;
@@ -328,6 +432,49 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     || contrast !== 100
     || saturation !== 100
     || warmth !== 0;
+  const selectedCropPreset = CROP_PRESETS.find(preset => preset.id === cropPresetId)
+    ?? CROP_PRESETS[0];
+  const cropAspectRatio = selectedCropPreset.aspectRatio ?? sourceAspectRatio;
+  const cropSettings = useMemo<CropSettings>(() => ({
+    aspectRatio: cropAspectRatio,
+    zoom: cropZoom,
+    offsetX: cropOffsetX,
+    offsetY: cropOffsetY,
+  }), [cropAspectRatio, cropZoom, cropOffsetX, cropOffsetY]);
+  const hasCropAdjustments = cropPresetId !== "original"
+    || cropZoom !== 1
+    || cropOffsetX !== 0
+    || cropOffsetY !== 0;
+  const cropPositionStyle = useMemo(() => ({
+    objectPosition: `${50 + cropOffsetX / 2}% ${50 + cropOffsetY / 2}%`,
+    transform: `scale(${cropZoom})`,
+    transformOrigin: `${50 + cropOffsetX / 2}% ${50 + cropOffsetY / 2}%`,
+  }), [cropOffsetX, cropOffsetY, cropZoom]);
+  const cropPreviewStyle = useMemo(() => ({
+    ...cropPositionStyle,
+    filter: photoFilter,
+  }), [cropPositionStyle, photoFilter]);
+  const previewFrameStyle = useMemo(() => (
+    cropAspectRatio >= 1
+      ? { aspectRatio: cropAspectRatio, width: "100%", maxHeight: "100%" }
+      : { aspectRatio: cropAspectRatio, height: "100%", maxWidth: "100%" }
+  ), [cropAspectRatio]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadImageFromUrl(displayedImageUrl)
+      .then(image => {
+        if (!cancelled) {
+          setSourceAspectRatio((image.naturalWidth || image.width) / (image.naturalHeight || image.height));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSourceAspectRatio(3 / 4);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [displayedImageUrl]);
 
   const presets = BEAUTY_PRESETS;
 
@@ -374,13 +521,57 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     setWarmth(0);
   };
 
+  const resetCrop = () => {
+    setCropPresetId("original");
+    setCropZoom(1);
+    setCropOffsetX(0);
+    setCropOffsetY(0);
+  };
+
+  const addText = () => {
+    const newText: TextOverlay = {
+      id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: "输入文字",
+      x: 0.5,
+      y: 0.2,
+      size: 7,
+      color: "#ffffff",
+      rotation: 0,
+      opacity: 1,
+    };
+    setTexts(current => [...current, newText]);
+    setSelectedTextId(newText.id);
+  };
+
+  const selectedText = texts.find(item => item.id === selectedTextId) ?? null;
+
+  const updateSelectedText = (updates: Partial<TextOverlay>) => {
+    if (!selectedTextId) return;
+    setTexts(current => current.map(item => item.id === selectedTextId ? { ...item, ...updates } : item));
+  };
+
+  const deleteSelectedText = () => {
+    if (!selectedTextId) return;
+    setTexts(current => current.filter(item => item.id !== selectedTextId));
+    setSelectedTextId(null);
+  };
+
   const resetActiveTool = () => {
+    if (activeTool === "裁剪") {
+      resetCrop();
+      return;
+    }
     if (activeTool === "滤镜") {
       resetFilters();
       return;
     }
     if (activeTool === "调色") {
       resetColor();
+      return;
+    }
+    if (activeTool === "文字") {
+      setTexts([]);
+      setSelectedTextId(null);
       return;
     }
     resetBeauty();
@@ -398,7 +589,10 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
 
     const needsStickerRender = stickers.length > 0;
-    const needsLocalRender = needsStickerRender || hasPhotoAdjustments;
+    const needsLocalRender = needsStickerRender
+      || texts.length > 0
+      || hasPhotoAdjustments
+      || hasCropAdjustments;
     if (!processedImageBlob && !needsLocalRender) {
       navigate(nextScreen);
       return;
@@ -407,7 +601,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     try {
       setIsCommitting(true);
       const outputBlob = needsLocalRender
-        ? await renderEditedOutput(displayedImageUrl, stickers, photoFilter)
+        ? await renderEditedOutput(displayedImageUrl, stickers, texts, photoFilter, cropSettings)
         : processedImageBlob;
       if (!outputBlob) {
         navigate(nextScreen);
@@ -459,8 +653,10 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   const tools: { icon: React.ElementType; label: Tool }[] = [
     { icon: Sparkles, label: "美颜" },
+    { icon: Crop, label: "裁剪" },
     { icon: Sliders, label: "滤镜" },
     { icon: Sun, label: "调色" },
+    { icon: Type, label: "文字" },
     { icon: ImagePlus, label: "贴纸" },
   ];
 
@@ -470,6 +666,17 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     { label: "饱和度", value: saturation, icon: Sparkles, onChange: setSaturation, min: 0, max: 200 },
     { label: "色温", value: warmth, icon: Sun, onChange: setWarmth, min: -100, max: 100 },
   ];
+
+  const cropControls = [
+    { label: "缩放", value: Math.round(cropZoom * 100), icon: Crop, onChange: (value: number) => setCropZoom(value / 100), min: 100, max: 250 },
+    { label: "水平", value: cropOffsetX, icon: Sliders, onChange: setCropOffsetX, min: -100, max: 100 },
+    { label: "垂直", value: cropOffsetY, icon: Sliders, onChange: setCropOffsetY, min: -100, max: 100 },
+  ];
+  const textControls = selectedText ? [
+    { label: "字号", value: selectedText.size, icon: Type, onChange: (value: number) => updateSelectedText({ size: value }), min: 3, max: 20 },
+    { label: "旋转", value: selectedText.rotation, icon: RotateCcw, onChange: (value: number) => updateSelectedText({ rotation: value }), min: -180, max: 180 },
+    { label: "透明度", value: Math.round(selectedText.opacity * 100), icon: Sliders, onChange: (value: number) => updateSelectedText({ opacity: value / 100 }), min: 10, max: 100 },
+  ] : [];
 
   const levelLabels: { key: "light" | "natural" | "high"; label: string }[] = [
     { key: "light", label: "轻" },
@@ -557,7 +764,7 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
         {/* Photo preview */}
         <div className="flex-1 relative flex items-center justify-center bg-black/40 p-4">
-          <div className="relative h-full max-h-full aspect-[3/4] overflow-hidden rounded-2xl">
+          <div className="relative overflow-hidden rounded-md" style={previewFrameStyle}>
             {/* Processing skeleton overlay */}
             {isProcessing && (
               <div className="absolute inset-0 z-10 bg-black/40 backdrop-blur-sm flex items-center justify-center">
@@ -568,31 +775,36 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
               </div>
             )}
 
-            {activeTool === "贴纸" ? (
-              <StickerOverlay
-                photoUrl={displayedImageUrl}
-                imageStyle={{ filter: photoFilter }}
-                stickers={stickers}
-                onChange={setStickers}
-                onStickerSelect={setSelectedStickerId}
-                selectedStickerId={selectedStickerId}
-              />
-            ) : compareMode ? (
+            {compareMode && activeTool !== "贴纸" && activeTool !== "文字" ? (
               <div className="relative w-full h-full">
                 <img src={photoUrl}
-                  alt="original" className="absolute inset-0 w-full h-full object-cover" style={{ clipPath: "inset(0 50% 0 0)" }} loading="lazy" />
+                  alt="original" className="absolute inset-0 w-full h-full object-cover"
+                  style={{ ...cropPositionStyle, clipPath: "inset(0 50% 0 0)" }} loading="lazy" />
                 <img src={displayedImageUrl}
                   alt="beauty" className="absolute inset-0 w-full h-full object-cover"
-                  style={{ clipPath: "inset(0 0 0 50%)", filter: photoFilter }} loading="lazy" />
+                  style={{ ...cropPreviewStyle, clipPath: "inset(0 0 0 50%)" }} loading="lazy" />
                 <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/80" />
                 <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-0.5 rounded">原图</div>
                 <div className="absolute top-3 right-3 bg-violet-500/80 text-white text-xs px-2 py-0.5 rounded">调整后</div>
               </div>
             ) : (
-              <img src={displayedImageUrl}
-                alt="beauty preview" className="w-full h-full object-cover"
-                style={{ filter: photoFilter }} loading="lazy" />
+              <StickerOverlay
+                photoUrl={displayedImageUrl}
+                imageStyle={cropPreviewStyle}
+                interactive={activeTool === "贴纸"}
+                stickers={stickers}
+                onChange={setStickers}
+                onStickerSelect={setSelectedStickerId}
+                selectedStickerId={selectedStickerId}
+              />
             )}
+            <TextOverlayLayer
+              texts={compareMode && activeTool !== "文字" ? [] : texts}
+              selectedTextId={selectedTextId}
+              interactive={activeTool === "文字"}
+              onChange={setTexts}
+              onSelect={setSelectedTextId}
+            />
           </div>
           <div className="absolute bottom-6 right-6 flex gap-2">
             <GlowBtn size="sm" variant="ghost" onClick={() => navigate("camera")}><RotateCcw size={13} />重拍</GlowBtn>
@@ -609,12 +821,12 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
         </div>
 
         {!isDesktop && (
-          <div className="flex gap-2 overflow-x-auto border-t border-white/5 px-4 py-2">
+          <div className="grid grid-cols-6 gap-1 border-t border-white/5 px-2 py-2">
             {tools.map(tool => (
               <button
                 key={tool.label}
                 onClick={() => setActiveTool(tool.label)}
-                className={`flex min-w-16 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs transition-colors ${
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 py-2 text-[10px] transition-colors ${
                   activeTool === tool.label
                     ? "bg-violet-500 text-white"
                     : "bg-white/5 text-white/50 hover:bg-white/10"
@@ -658,6 +870,33 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 ))}
               </div>
             </>
+          ) : activeTool === "裁剪" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/40">裁剪比例</span>
+                <button onClick={resetCrop} className="text-xs text-violet-400 hover:text-violet-300">
+                  重置
+                </button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {CROP_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => setCropPresetId(preset.id)}
+                    className={`min-w-14 rounded-md px-3 py-2 text-xs ${
+                      cropPresetId === preset.id
+                        ? "bg-violet-500 text-white"
+                        : "bg-white/5 text-white/50 hover:bg-white/10"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              {cropControls.map(control => (
+                <SliderControl key={control.label} {...control} />
+              ))}
+            </div>
           ) : activeTool === "滤镜" ? (
             <>
               <div className="mb-2 flex items-center justify-between">
@@ -701,6 +940,52 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
               {colorControls.map(control => (
                 <SliderControl key={control.label} {...control} />
               ))}
+            </div>
+          ) : activeTool === "文字" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/40">文字图层</span>
+                <button
+                  onClick={addText}
+                  className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
+                >
+                  <Plus size={12} />添加
+                </button>
+              </div>
+              {selectedText ? (
+                <>
+                  <input
+                    value={selectedText.text}
+                    maxLength={40}
+                    onChange={event => updateSelectedText({ text: event.target.value })}
+                    className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                  />
+                  <div className="flex gap-2">
+                    {TEXT_COLORS.map(color => (
+                      <button
+                        key={color}
+                        onClick={() => updateSelectedText({ color })}
+                        className={`h-7 w-7 rounded-full border-2 ${selectedText.color === color ? "border-violet-400" : "border-white/20"}`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                  {textControls.map(control => (
+                    <SliderControl key={control.label} {...control} />
+                  ))}
+                  <button
+                    onClick={deleteSelectedText}
+                    className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 size={12} />删除文字
+                  </button>
+                </>
+              ) : (
+                <button onClick={addText} className="w-full rounded-md bg-white/5 py-3 text-xs text-white/50 hover:bg-white/10">
+                  <Plus size={14} className="mr-1 inline" />添加文字
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -768,6 +1053,35 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
               </div>
             )}
           </>
+        ) : activeTool === "裁剪" ? (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white/80">裁剪比例</span>
+              <button onClick={resetCrop} className="text-xs text-violet-400 hover:text-violet-300">
+                重置
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {CROP_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => setCropPresetId(preset.id)}
+                  className={`rounded-md px-3 py-2 text-xs ${
+                    cropPresetId === preset.id
+                      ? "bg-violet-500 text-white"
+                      : "bg-white/5 text-white/50 hover:bg-white/10"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-3">
+              {cropControls.map(control => (
+                <SliderControl key={control.label} {...control} />
+              ))}
+            </div>
+          </>
         ) : activeTool === "滤镜" ? (
           <>
             <div className="flex items-center justify-between">
@@ -811,6 +1125,52 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 <SliderControl key={control.label} {...control} />
               ))}
             </div>
+          </>
+        ) : activeTool === "文字" ? (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white/80">文字图层</span>
+              <button
+                onClick={addText}
+                className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
+              >
+                <Plus size={12} />添加
+              </button>
+            </div>
+            {selectedText ? (
+              <div className="space-y-3">
+                <input
+                  value={selectedText.text}
+                  maxLength={40}
+                  onChange={event => updateSelectedText({ text: event.target.value })}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                />
+                <div className="grid grid-cols-6 gap-1.5">
+                  {TEXT_COLORS.map(color => (
+                    <button
+                      key={color}
+                      onClick={() => updateSelectedText({ color })}
+                      className={`aspect-square rounded-full border-2 ${selectedText.color === color ? "border-violet-400" : "border-white/20"}`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                {textControls.map(control => (
+                  <SliderControl key={control.label} {...control} />
+                ))}
+                <button
+                  onClick={deleteSelectedText}
+                  className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
+                >
+                  <Trash2 size={12} />删除文字
+                </button>
+              </div>
+            ) : (
+              <button onClick={addText} className="w-full rounded-md bg-white/5 py-3 text-xs text-white/50 hover:bg-white/10">
+                <Plus size={14} className="mr-1 inline" />添加文字
+              </button>
+            )}
           </>
         ) : (
           <>

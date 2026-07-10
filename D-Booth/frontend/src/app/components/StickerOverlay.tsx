@@ -17,6 +17,7 @@ export interface Sticker {
 interface StickerOverlayProps {
   photoUrl: string;
   imageStyle?: CSSProperties;
+  interactive?: boolean;
   stickers: Sticker[];
   onChange: (stickers: Sticker[]) => void;
   onStickerSelect?: (stickerId: string | null) => void;
@@ -33,14 +34,18 @@ function StickerVisual({ sticker }: { sticker: Sticker }) {
       <img
         src={sticker.imageUrl}
         alt="Sticker"
-        className="w-16 h-16 object-contain pointer-events-none"
+        className="pointer-events-none object-contain"
+        style={{ width: "16cqmin", height: "16cqmin" }}
         draggable={false}
       />
     );
   }
 
   return (
-    <span className="flex h-16 w-16 items-center justify-center text-5xl leading-none pointer-events-none">
+    <span
+      className="pointer-events-none flex items-center justify-center leading-none"
+      style={{ width: "16cqmin", height: "16cqmin", fontSize: "16cqmin" }}
+    >
       {sticker.imageUrl}
     </span>
   );
@@ -49,6 +54,7 @@ function StickerVisual({ sticker }: { sticker: Sticker }) {
 export function StickerOverlay({
   photoUrl,
   imageStyle,
+  interactive = true,
   stickers,
   onChange,
   onStickerSelect,
@@ -64,11 +70,13 @@ export function StickerOverlay({
   const [startPointerPos, setStartPointerPos] = useState({ x: 0, y: 0 });
 
   const handleStickerClick = (e: React.MouseEvent, stickerId: string) => {
+    if (!interactive) return;
     e.stopPropagation();
     onStickerSelect?.(stickerId);
   };
 
   const handleContainerClick = () => {
+    if (!interactive) return;
     onStickerSelect?.(null);
   };
 
@@ -79,6 +87,7 @@ export function StickerOverlay({
   };
 
   const handleMouseDown = (e: React.MouseEvent, stickerId: string) => {
+    if (!interactive) return;
     if (e.button !== 0) return; // Only left click
     e.stopPropagation();
 
@@ -192,6 +201,7 @@ export function StickerOverlay({
     <div
       ref={containerRef}
       className="relative w-full h-full"
+      style={{ containerType: "size" }}
       onClick={handleContainerClick}
     >
       <img
@@ -207,7 +217,7 @@ export function StickerOverlay({
         return (
           <div
             key={sticker.id}
-            className={`absolute select-none transition-shadow ${isSelected ? 'z-10' : 'z-0'}`}
+            className={`absolute select-none transition-shadow ${isSelected ? 'z-10' : 'z-0'} ${interactive ? '' : 'pointer-events-none'}`}
             style={{
               left: `${sticker.x * 100}%`,
               top: `${sticker.y * 100}%`,
@@ -220,7 +230,7 @@ export function StickerOverlay({
           >
             <StickerVisual sticker={sticker} />
 
-            {isSelected && (
+            {isSelected && interactive && (
               <>
                 {/* Selection border */}
                 <div className="absolute inset-0 border-2 border-blue-500 rounded pointer-events-none" />

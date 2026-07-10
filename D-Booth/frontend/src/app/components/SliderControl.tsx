@@ -9,6 +9,7 @@ export function SliderControl({ label, value, icon: Icon, min = 0, max = 100, on
   onChange?: (value: number) => void;
 }) {
   const isPositive = value >= 0;
+  const formattedValue = value > 0 ? `+${value}` : `${value}`;
   // Normalize value to 0-100 range for display
   const displayPercent = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return (
@@ -28,7 +29,7 @@ export function SliderControl({ label, value, icon: Icon, min = 0, max = 100, on
         aria-label={label}
       />
       <span className={`text-xs font-mono w-10 text-right ${isPositive ? "text-violet-400" : "text-pink-400"}`}>
-        +{value}
+        {formattedValue}
       </span>
     </div>
   );
