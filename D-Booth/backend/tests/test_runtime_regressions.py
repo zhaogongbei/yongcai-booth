@@ -1,13 +1,17 @@
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy import inspect
 
 from app.models.models import (
+    DisclaimerAcceptance,
     Event,
     EventStatus,
     Photo,
     PrintJob,
     Share,
+    Signature,
+    SurveyResponse,
     Team,
     TeamMember,
     User,
@@ -17,6 +21,19 @@ from app.schemas.share import ShareCreate
 from app.services.analytics_service import AnalyticsService
 from app.services.event_service import EventService
 from app.services.share_service import ShareService
+
+
+def test_leaf_record_relationships_break_recursive_eager_loading() -> None:
+    relationship_boundaries = {
+        Signature: ("session",),
+        SurveyResponse: ("event", "session", "survey"),
+        DisclaimerAcceptance: ("event", "session", "disclaimer"),
+    }
+
+    for model, relationship_names in relationship_boundaries.items():
+        relationships = inspect(model).relationships
+        for relationship_name in relationship_names:
+            assert relationships[relationship_name].lazy == "noload"
 
 
 @pytest.mark.anyio

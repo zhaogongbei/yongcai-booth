@@ -165,7 +165,7 @@ class Signature(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (Index("ix_signature_session_id", "session_id"),)
 
     # Relationships
-    session = relationship("PhotoSession", back_populates="signatures", lazy="joined")
+    session = relationship("PhotoSession", back_populates="signatures", lazy="noload")
 
 
 # SurveyQuestion - used as JSON column in Survey model
@@ -225,9 +225,9 @@ class SurveyResponse(Base, TimestampMixin, SoftDeleteMixin):
     )
 
     # Relationships
-    event = relationship("Event", lazy="joined")
-    session = relationship("PhotoSession", lazy="joined")
-    survey = relationship("Survey", back_populates="responses", lazy="joined")
+    event = relationship("Event", lazy="noload")
+    session = relationship("PhotoSession", lazy="noload")
+    survey = relationship("Survey", back_populates="responses", lazy="noload")
 
 
 # Disclaimer Model
@@ -266,9 +266,9 @@ class DisclaimerAcceptance(Base, TimestampMixin, SoftDeleteMixin):
     )
 
     # Relationships
-    event = relationship("Event", lazy="joined")
-    session = relationship("PhotoSession", lazy="joined")
-    disclaimer = relationship("Disclaimer", back_populates="acceptances", lazy="joined")
+    event = relationship("Event", lazy="noload")
+    session = relationship("PhotoSession", lazy="noload")
+    disclaimer = relationship("Disclaimer", back_populates="acceptances", lazy="noload")
 
 
 # Green Screen Settings Model
