@@ -1,9 +1,9 @@
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
 from app.models.models import Event, Photo, PhotoSession, TeamMember
 from app.repositories.base import BaseRepository, log_query_performance
@@ -25,16 +25,18 @@ class PhotoRepository(BaseRepository[Photo]):
         super().__init__(Photo, db)
 
     @log_query_performance(threshold_ms=200.0)
-    @cached(
-        ttl=300,
-        key_builder=lambda self, event_id, skip, limit: f"event:{event_id}:photos:{skip}:{limit}",
-    )
+    async def get(self, id: UUID) -> Optional[Photo]:
+        """Get a photo without loading its relationship graph."""
+        result = await self.db.execute(select(Photo).options(noload("*")).where(Photo.id == id))
+        return result.scalar_one_or_none()
+
+    @log_query_performance(threshold_ms=200.0)
     async def get_by_event(self, event_id: UUID, skip: int = 0, limit: int = 100) -> List[Photo]:
         """
-        Get all photos for an event with preloaded relationships.
+        Get all photos for an event without loading relationship graphs.
 
-        Prevents N+1 queries by eager loading event, session, and ai_tasks.
-        Results are cached for 5 minutes.
+        ORM instances are intentionally uncached because the shared cache
+        deserializes model rows as dictionaries.
 
         Args:
             event_id: Event identifier
@@ -50,9 +52,7 @@ class PhotoRepository(BaseRepository[Photo]):
         result = await self.db.execute(
             select(Photo)
             .where(Photo.event_id == event_id)
-            .options(
-                selectinload(Photo.event), selectinload(Photo.session), selectinload(Photo.ai_tasks)
-            )
+            .options(noload("*"))
             .order_by(Photo.created_at.desc())
             .offset(skip)
             .limit(limit)
@@ -60,10 +60,6 @@ class PhotoRepository(BaseRepository[Photo]):
         return list(result.scalars().all())
 
     @log_query_performance(threshold_ms=200.0)
-    @cached(
-        ttl=300,
-        key_builder=lambda self, session_id, skip, limit: f"session:{session_id}:photos:{skip}:{limit}",
-    )
     async def get_by_session(
         self, session_id: UUID, skip: int = 0, limit: int = 100
     ) -> List[Photo]:
@@ -81,9 +77,7 @@ class PhotoRepository(BaseRepository[Photo]):
         result = await self.db.execute(
             select(Photo)
             .where(Photo.session_id == session_id)
-            .options(
-                selectinload(Photo.event), selectinload(Photo.session), selectinload(Photo.ai_tasks)
-            )
+            .options(noload("*"))
             .order_by(Photo.created_at)
             .offset(skip)
             .limit(limit)
@@ -97,7 +91,8 @@ class PhotoRepository(BaseRepository[Photo]):
         """
         Get photos from events owned by teams the user belongs to.
 
-        Preloads relationships to prevent N+1 queries.
+        Relationship graphs are not loaded because the API response only uses
+        photo columns and access checks are performed by the route layer.
 
         Args:
             user_id: User identifier
@@ -112,9 +107,7 @@ class PhotoRepository(BaseRepository[Photo]):
             .join(Event, Photo.event_id == Event.id)
             .join(TeamMember, TeamMember.team_id == Event.team_id)
             .where(TeamMember.user_id == user_id)
-            .options(
-                selectinload(Photo.event), selectinload(Photo.session), selectinload(Photo.ai_tasks)
-            )
+            .options(noload("*"))
             .order_by(Photo.created_at.desc())
             .offset(skip)
             .limit(limit)
@@ -138,7 +131,7 @@ class PhotoRepository(BaseRepository[Photo]):
         result = await self.db.execute(
             select(func.count()).select_from(Photo).where(Photo.event_id == event_id)
         )
-        return result.scalar_one()
+        return cast(int, result.scalar_one())
 
     @log_query_performance(threshold_ms=150.0)
     @cached(ttl=600, key_builder=lambda self, team_id: f"team:{team_id}:photo_count")
@@ -158,7 +151,7 @@ class PhotoRepository(BaseRepository[Photo]):
             .join(Event, Photo.event_id == Event.id)
             .where(Event.team_id == team_id)
         )
-        return result.scalar_one()
+        return cast(int, result.scalar_one())
 
     @log_query_performance(threshold_ms=100.0)
     @cached(ttl=300, key_builder=lambda self, session_id: f"session:{session_id}:photo_count")
@@ -175,7 +168,7 @@ class PhotoRepository(BaseRepository[Photo]):
         result = await self.db.execute(
             select(func.count()).select_from(Photo).where(Photo.session_id == session_id)
         )
-        return result.scalar_one()
+        return cast(int, result.scalar_one())
 
     @log_query_performance(threshold_ms=100.0)
     @cached(ttl=600, key_builder=lambda self, event_id: f"event:{event_id}:total_size")
@@ -192,10 +185,14 @@ class PhotoRepository(BaseRepository[Photo]):
         result = await self.db.execute(
             select(func.sum(Photo.file_size)).where(Photo.event_id == event_id)
         )
-        return result.scalar_one() or 0
+        return cast(Optional[int], result.scalar_one()) or 0
 
     @invalidate_cache("event:*:photos:*")
     @invalidate_cache("session:*:photos:*")
+    @invalidate_cache("event:*:photo_count")
+    @invalidate_cache("team:*:photo_count")
+    @invalidate_cache("session:*:photo_count")
+    @invalidate_cache("event:*:total_size")
     async def create(self, obj_in: dict) -> Photo:
         """
         Create a new photo and invalidate related caches.
@@ -206,10 +203,24 @@ class PhotoRepository(BaseRepository[Photo]):
         Returns:
             Created Photo instance
         """
-        return await super().create(obj_in)
+        return cast(Photo, await super().create(obj_in))
 
     @invalidate_cache("event:*:photos:*")
     @invalidate_cache("session:*:photos:*")
+    @invalidate_cache("event:*:photo_count")
+    @invalidate_cache("team:*:photo_count")
+    @invalidate_cache("session:*:photo_count")
+    @invalidate_cache("event:*:total_size")
+    async def update(self, id: UUID, obj_in: dict) -> Optional[Photo]:
+        """Update a photo and invalidate all photo-derived caches."""
+        return cast(Optional[Photo], await super().update(id, obj_in))
+
+    @invalidate_cache("event:*:photos:*")
+    @invalidate_cache("session:*:photos:*")
+    @invalidate_cache("event:*:photo_count")
+    @invalidate_cache("team:*:photo_count")
+    @invalidate_cache("session:*:photo_count")
+    @invalidate_cache("event:*:total_size")
     async def bulk_create(self, objects_in: List[dict], batch_size: int = 500) -> List[Photo]:
         """
         Bulk create photos with cache invalidation.
@@ -221,7 +232,17 @@ class PhotoRepository(BaseRepository[Photo]):
         Returns:
             List of created Photo instances
         """
-        return await super().bulk_create(objects_in, batch_size)
+        return cast(List[Photo], await super().bulk_create(objects_in, batch_size))
+
+    @invalidate_cache("event:*:photos:*")
+    @invalidate_cache("session:*:photos:*")
+    @invalidate_cache("event:*:photo_count")
+    @invalidate_cache("team:*:photo_count")
+    @invalidate_cache("session:*:photo_count")
+    @invalidate_cache("event:*:total_size")
+    async def delete(self, id: UUID) -> bool:
+        """Delete a photo and invalidate all photo-derived caches."""
+        return cast(bool, await super().delete(id))
 
 
 class PhotoSessionRepository(BaseRepository[PhotoSession]):
@@ -238,10 +259,14 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         super().__init__(PhotoSession, db)
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(
-        ttl=300,
-        key_builder=lambda self, event_id, skip, limit: f"event:{event_id}:sessions:{skip}:{limit}",
-    )
+    async def get(self, id: UUID) -> Optional[PhotoSession]:
+        """Get a session without loading its relationship graph."""
+        result = await self.db.execute(
+            select(PhotoSession).options(noload("*")).where(PhotoSession.id == id)
+        )
+        return result.scalar_one_or_none()
+
+    @log_query_performance(threshold_ms=150.0)
     async def get_by_event(
         self, event_id: UUID, skip: int = 0, limit: int = 100
     ) -> List[PhotoSession]:
@@ -259,6 +284,7 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         result = await self.db.execute(
             select(PhotoSession)
             .where(PhotoSession.event_id == event_id)
+            .options(noload("*"))
             .order_by(PhotoSession.started_at.desc())
             .offset(skip)
             .limit(limit)
@@ -279,17 +305,17 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         result = await self.db.execute(
             select(PhotoSession)
             .where(PhotoSession.id == session_id)
-            .options(selectinload(PhotoSession.photos))
+            .options(noload("*"), selectinload(PhotoSession.photos).noload("*"))
         )
         return result.scalar_one_or_none()
 
     @log_query_performance(threshold_ms=150.0)
-    @cached(ttl=60, key_builder=lambda self, event_id: f"event:{event_id}:active_sessions")
     async def get_active_sessions(self, event_id: UUID) -> List[PhotoSession]:
         """
         Get active sessions (not completed) for an event.
 
-        Cached for 1 minute since active status changes frequently.
+        ORM instances are intentionally uncached because the shared cache
+        deserializes model rows as dictionaries.
 
         Args:
             event_id: Event identifier
@@ -298,9 +324,9 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
             List of active PhotoSession instances
         """
         result = await self.db.execute(
-            select(PhotoSession).where(
-                PhotoSession.event_id == event_id, PhotoSession.completed_at.is_(None)
-            )
+            select(PhotoSession)
+            .where(PhotoSession.event_id == event_id, PhotoSession.completed_at.is_(None))
+            .options(noload("*"))
         )
         return list(result.scalars().all())
 
@@ -345,10 +371,11 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         result = await self.db.execute(
             select(func.count()).select_from(PhotoSession).where(PhotoSession.event_id == event_id)
         )
-        return result.scalar_one()
+        return cast(int, result.scalar_one())
 
     @invalidate_cache("event:*:sessions:*")
     @invalidate_cache("event:*:active_sessions")
+    @invalidate_cache("event:*:session_count")
     async def create(self, obj_in: dict) -> PhotoSession:
         """
         Create a new session and invalidate related caches.
@@ -359,10 +386,18 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         Returns:
             Created PhotoSession instance
         """
-        return await super().create(obj_in)
+        return cast(PhotoSession, await super().create(obj_in))
 
     @invalidate_cache("event:*:sessions:*")
     @invalidate_cache("event:*:active_sessions")
+    @invalidate_cache("event:*:session_count")
+    async def update(self, id: UUID, obj_in: dict) -> Optional[PhotoSession]:
+        """Update a session and invalidate all session-derived caches."""
+        return cast(Optional[PhotoSession], await super().update(id, obj_in))
+
+    @invalidate_cache("event:*:sessions:*")
+    @invalidate_cache("event:*:active_sessions")
+    @invalidate_cache("event:*:session_count")
     async def bulk_create(
         self, objects_in: List[dict], batch_size: int = 500
     ) -> List[PhotoSession]:
@@ -376,4 +411,11 @@ class PhotoSessionRepository(BaseRepository[PhotoSession]):
         Returns:
             List of created PhotoSession instances
         """
-        return await super().bulk_create(objects_in, batch_size)
+        return cast(List[PhotoSession], await super().bulk_create(objects_in, batch_size))
+
+    @invalidate_cache("event:*:sessions:*")
+    @invalidate_cache("event:*:active_sessions")
+    @invalidate_cache("event:*:session_count")
+    async def delete(self, id: UUID) -> bool:
+        """Delete a session and invalidate all session-derived caches."""
+        return cast(bool, await super().delete(id))

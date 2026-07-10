@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
-from app.models.models import Event, EventStatus, Photo, Team, User
+from app.models.models import Event, EventStatus, Photo, PhotoSession, Team, TeamMember, User
 from app.repositories.base import (
     DatabaseOperationError,
     DuplicateRecordError,
@@ -28,7 +28,7 @@ from app.repositories.base import (
     ValidationError,
 )
 from app.repositories.event_repository import EventRepository
-from app.repositories.photo_repository import PhotoRepository
+from app.repositories.photo_repository import PhotoRepository, PhotoSessionRepository
 from app.repositories.user_repository import UserRepository
 
 # Test database setup
@@ -84,6 +84,12 @@ def event_repo(async_session):
 def photo_repo(async_session):
     """Create PhotoRepository instance."""
     return PhotoRepository(async_session)
+
+
+@pytest.fixture
+def photo_session_repo(async_session):
+    """Create PhotoSessionRepository instance."""
+    return PhotoSessionRepository(async_session)
 
 
 class TestBaseRepository:
@@ -621,6 +627,117 @@ class TestCacheDecorator:
         mock_set.assert_not_called()
         assert isinstance(by_id, Event)
         assert all(isinstance(item, Event) for item in by_team + by_status + active)
+
+    @pytest.mark.asyncio
+    @patch("app.repositories.cache_decorator.RedisCache.get")
+    @patch("app.repositories.cache_decorator.RedisCache.set")
+    async def test_photo_orm_queries_are_uncached(
+        self, mock_set, mock_get, photo_repo, photo_session_repo
+    ):
+        """Photo and session queries must return ORM objects without Redis coercion."""
+        user = User(email="uncached-photo@example.com", hashed_password="not-used")
+        team = Team(name="Uncached Photo Team", slug="uncached-photo-team")
+        photo_repo.db.add_all([user, team])
+        await photo_repo.db.flush()
+
+        membership = TeamMember(team_id=team.id, user_id=user.id)
+        event = Event(
+            team_id=team.id,
+            creator_id=user.id,
+            name="Uncached Photo Event",
+            start_date=datetime(2026, 7, 10, tzinfo=timezone.utc),
+            end_date=datetime(2026, 7, 11, tzinfo=timezone.utc),
+        )
+        photo_repo.db.add_all([membership, event])
+        await photo_repo.db.flush()
+
+        session = PhotoSession(event_id=event.id, email="guest@example.com")
+        photo_repo.db.add(session)
+        await photo_repo.db.flush()
+
+        photo = Photo(
+            event_id=event.id,
+            session_id=session.id,
+            original_url="https://example.com/photo.jpg",
+        )
+        photo_repo.db.add(photo)
+        await photo_repo.db.commit()
+
+        mock_get.return_value = {"id": str(photo.id), "original_url": "cached"}
+
+        by_id = await photo_repo.get(photo.id)
+        by_event = await photo_repo.get_by_event(event.id)
+        by_session = await photo_repo.get_by_session(session.id)
+        visible = await photo_repo.get_visible_to_user(user.id)
+        session_by_id = await photo_session_repo.get(session.id)
+        sessions = await photo_session_repo.get_by_event(event.id)
+        active_sessions = await photo_session_repo.get_active_sessions(event.id)
+        session_with_photos = await photo_session_repo.get_with_photos(session.id)
+
+        mock_get.assert_not_called()
+        mock_set.assert_not_called()
+        assert isinstance(by_id, Photo)
+        assert all(isinstance(item, Photo) for item in by_event + by_session + visible)
+        assert isinstance(session_by_id, PhotoSession)
+        assert all(isinstance(item, PhotoSession) for item in sessions + active_sessions)
+        assert isinstance(session_with_photos, PhotoSession)
+        assert all(isinstance(item, Photo) for item in session_with_photos.photos)
+
+    @pytest.mark.asyncio
+    @patch("app.repositories.cache_decorator.RedisCache.delete_pattern")
+    async def test_photo_mutations_invalidate_aggregate_caches(
+        self, mock_delete, photo_repo, photo_session_repo
+    ):
+        """Photo and session mutations must not leave cached usage totals stale."""
+        user = User(email="photo-count@example.com", hashed_password="not-used")
+        team = Team(name="Photo Count Team", slug="photo-count-team")
+        photo_repo.db.add_all([user, team])
+        await photo_repo.db.flush()
+
+        event = Event(
+            team_id=team.id,
+            creator_id=user.id,
+            name="Photo Count Event",
+            start_date=datetime(2026, 7, 10, tzinfo=timezone.utc),
+            end_date=datetime(2026, 7, 11, tzinfo=timezone.utc),
+        )
+        photo_repo.db.add(event)
+        await photo_repo.db.commit()
+
+        session = await photo_session_repo.create(
+            {"event_id": event.id, "email": "count@example.com"}
+        )
+        mock_delete.assert_any_await("event:*:session_count")
+
+        mock_delete.reset_mock()
+        photo = await photo_repo.create(
+            {
+                "event_id": event.id,
+                "session_id": session.id,
+                "original_url": "https://example.com/counted.jpg",
+                "file_size": 10,
+            }
+        )
+        for pattern in (
+            "event:*:photo_count",
+            "team:*:photo_count",
+            "session:*:photo_count",
+            "event:*:total_size",
+        ):
+            mock_delete.assert_any_await(pattern)
+
+        mock_delete.reset_mock()
+        await photo_repo.update(photo.id, {"file_size": 20})
+        mock_delete.assert_any_await("event:*:total_size")
+
+        mock_delete.reset_mock()
+        await photo_repo.delete(photo.id)
+        mock_delete.assert_any_await("event:*:photo_count")
+        mock_delete.assert_any_await("team:*:photo_count")
+
+        mock_delete.reset_mock()
+        await photo_session_repo.delete(session.id)
+        mock_delete.assert_any_await("event:*:session_count")
 
     @pytest.mark.asyncio
     @patch("app.repositories.cache_decorator.RedisCache.delete_pattern")
