@@ -1,7 +1,5 @@
 using Booth.Infra.Storage.Sqlite;
 using Booth.Shared.Contracts;
-using System.Text.Json;
-
 namespace Booth.Runtime.JobApp;
 
 public sealed class JobExecutionService
@@ -43,21 +41,73 @@ public sealed class JobExecutionService
         Directory.CreateDirectory(sessionOutputDirectory);
         var outputPath = Path.Combine(sessionOutputDirectory, $"{jobId}.{executor.OutputAssetType}.json");
 
-        await executor.ExecuteAsync(job, outputPath, cancellationToken);
+        try
+        {
+            var createdOutputPath = await executor.ExecuteAsync(job, outputPath, cancellationToken);
+            var expectedOutputPath = Path.GetFullPath(outputPath);
+            if (!string.Equals(Path.GetFullPath(createdOutputPath), expectedOutputPath, StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(expectedOutputPath))
+            {
+                throw new JobExecutionException(
+                    ErrorCodes.ConfigurationInvalid,
+                    "Job executor did not create the expected output asset.");
+            }
 
-        var assetId = await _outputAssetRepository.CreateAsync(
-            sessionId: job.AggregateId,
-            assetType: executor.OutputAssetType,
-            storageScope: "local",
-            localPath: outputPath,
-            remoteUrl: null,
-            cancellationToken: cancellationToken);
+            var assetId = await _outputAssetRepository.CreateAsync(
+                sessionId: job.AggregateId,
+                assetType: executor.OutputAssetType,
+                storageScope: "local",
+                localPath: expectedOutputPath,
+                remoteUrl: null,
+                cancellationToken: cancellationToken);
 
-        await _jobRepository.UpdateStatusAsync(jobId, JobStatus.Succeeded, cancellationToken, createdAssetId: assetId);
+            await _jobRepository.UpdateStatusAsync(jobId, JobStatus.Succeeded, cancellationToken, createdAssetId: assetId);
+
+            return new JobExecutionApiResponse(
+                jobId,
+                JobStatus.Succeeded.ToString().ToLowerInvariant(),
+                assetId);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await _jobRepository.UpdateStatusAsync(
+                jobId,
+                JobStatus.Failed,
+                CancellationToken.None,
+                lastErrorCode: ErrorCodes.ConfigurationInvalid,
+                lastErrorMessage: "Job execution was cancelled.");
+            throw;
+        }
+        catch (JobExecutionException exception)
+        {
+            return await MarkFailedAsync(jobId, exception.ErrorCode, exception.Message, cancellationToken);
+        }
+        catch (Exception)
+        {
+            return await MarkFailedAsync(
+                jobId,
+                ErrorCodes.ConfigurationInvalid,
+                "Job execution failed.",
+                cancellationToken);
+        }
+    }
+
+    private async Task<JobExecutionApiResponse> MarkFailedAsync(
+        string jobId,
+        string errorCode,
+        string errorMessage,
+        CancellationToken cancellationToken)
+    {
+        await _jobRepository.UpdateStatusAsync(
+            jobId,
+            JobStatus.Failed,
+            cancellationToken,
+            lastErrorCode: errorCode,
+            lastErrorMessage: errorMessage);
 
         return new JobExecutionApiResponse(
             jobId,
-            JobStatus.Succeeded.ToString().ToLowerInvariant(),
-            assetId);
+            JobStatus.Failed.ToString().ToLowerInvariant(),
+            null);
     }
 }

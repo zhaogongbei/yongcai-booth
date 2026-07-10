@@ -29,6 +29,7 @@
 - 后端模型 UUID 类型位于 `app.models.custom_types`；不要重新创建 `app.models.types`。
 - Docker 发布上下文必须具备 `D-Booth/backend/Dockerfile` 和 `D-Booth/frontend/Dockerfile`。
 - Docker 发布必须等待后端、前端、Runtime 和安全扫描全部通过，镜像命名空间来自 `DOCKER_USERNAME` secret。
+- Runtime 打印/分享作业只有在执行器完成真实副作用并写出预期产物后才能标记成功；未配置适配器或执行异常必须故障封闭为 `failed`，记录错误码且不得创建伪输出资产。
 - GitHub Release 由 release job 使用 `gh release create` 创建，不使用旧 release action；没有真实部署脚本时，CI 不应声明 staging/production 部署成功。
 - CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
 - CI 安全扫描中的 Python 依赖审计必须使用项目声明的 `PYTHON_VERSION`，不能依赖 runner 默认 Python。
@@ -138,6 +139,7 @@
 
 ## 近期完成
 
+- 修复 Runtime 打印/分享作业只写 JSON 却标记成功的伪执行：未配置真实适配器时现在持久化为失败并记录稳定错误码，不再创建假 `output_assets`；真实执行器成功产物路径也会被校验。
 - 移除 Webcam 相机参数的模拟读写成功：后端明确返回不可读/不可写并对设置请求返回 501；前端仅在真实可写时启用参数控件，请求成功后才更新已读取显示，同时保留 gphoto2 真实写入能力。
 - 修复 DSLR 捕获错误分支用相机状态字典覆盖 FastAPI `status` 模块的问题，空图像、活动不存在和捕获异常现在能返回受控 4xx/5xx，不再因错误处理自身抛出 `AttributeError`。
 

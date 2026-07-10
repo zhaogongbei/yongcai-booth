@@ -39,9 +39,10 @@
 - `capture shot` 会在 `data/captures/{sessionId}` 下真实写出采集文件
 - `shots` 元数据会持久化到 SQLite
 - `print/share` 入队时会保存结构化 `payload`
-- `execute` 会把任务状态推进为 `running -> succeeded`
-- `execute` 会在 `data/outputs/{sessionId}` 下真实写出输出文件
-- `execute` 会创建 `output_assets` 记录并把 `created_asset_id` 反写到 `jobs`
+- `execute` 只有在执行器真实写出预期产物后才会把任务推进为 `running -> succeeded`
+- 当前未注册生产打印机和分享适配器，内置 `print/share` 执行器会故障封闭为 `failed`，分别记录 `PRN_QUEUE_UNAVAILABLE` / `SHR_CHANNEL_REJECTED`
+- 执行失败不会创建 `output_assets` 或写入伪造 `created_asset_id`；执行器异常会转为持久化失败状态
+- 后续真实执行器只能在 `data/outputs/{sessionId}` 下写出约定产物，成功后才创建 `output_assets`
 - `assets` 支持单项查询与软删除
 - `session details` 会聚合返回 `session + shots + jobs + assets`
 

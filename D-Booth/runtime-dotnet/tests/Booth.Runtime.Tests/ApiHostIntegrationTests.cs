@@ -13,7 +13,7 @@ namespace Booth.Runtime.Tests;
 public sealed class ApiHostIntegrationTests
 {
     [Fact]
-    public async Task SessionDetails_ShouldReturnShotsJobsAndAssets_FromHttpFlow()
+    public async Task SessionDetails_ShouldPersistFailedPrintJob_WhenPrinterIsNotConfigured()
     {
         var tempRoot = CreateTempRoot();
 
@@ -49,8 +49,8 @@ public sealed class ApiHostIntegrationTests
 
         var execution = await executeResponse.Content.ReadFromJsonAsync<JobExecutionApiResponse>();
         Assert.NotNull(execution);
-        Assert.Equal("succeeded", execution!.Status);
-        Assert.False(string.IsNullOrWhiteSpace(execution.CreatedAssetId));
+        Assert.Equal("failed", execution!.Status);
+        Assert.Null(execution.CreatedAssetId);
 
         var detailsResponse = await client.GetAsync("/v1/sessions/ses_http_flow_001");
         detailsResponse.EnsureSuccessStatusCode();
@@ -61,12 +61,13 @@ public sealed class ApiHostIntegrationTests
         Assert.Equal("capturing", details.Status);
         Assert.Single(details.Shots);
         Assert.Single(details.Jobs);
-        Assert.Single(details.Assets);
+        Assert.Empty(details.Assets);
         Assert.Equal("shot_http_flow_001", details.Shots[0].ShotId);
         Assert.Equal(0.97, details.Shots[0].AiPickScore);
         Assert.Equal(queuedJob.JobId, details.Jobs[0].JobId);
-        Assert.Equal("Succeeded", details.Jobs[0].Status);
-        Assert.Equal(execution.CreatedAssetId, details.Assets[0].AssetId);
+        Assert.Equal("Failed", details.Jobs[0].Status);
+        Assert.Equal(ErrorCodes.PrintQueueUnavailable, details.Jobs[0].LastErrorCode);
+        Assert.Null(details.Jobs[0].CreatedAssetId);
     }
 
     [Fact]
