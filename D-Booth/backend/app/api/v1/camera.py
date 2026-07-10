@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -7,13 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.core.logging import logger
 from app.models.models import User
-from app.schemas.camera import (
-    CameraCapabilitiesResponse,
-    CameraSettings,
-    CameraSettingsUpdate,
-    CameraStatus,
-    CameraWizardResult,
-)
+from app.schemas.camera import CameraCapabilitiesResponse, CameraSettingsUpdate, CameraStatus
 from app.services.camera_service import CameraController, camera_manager
 from app.services.camera_wizard_service import camera_wizard_service
 
@@ -109,11 +102,17 @@ async def update_camera_settings(
         if value is not None:
             try:
                 await controller.set_setting(key, value)
+            except NotImplementedError as e:
+                logger.warning(f"Camera setting is not supported: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                    detail=str(e),
+                ) from e
             except Exception as e:
                 logger.error(f"Failed to set {key}={value}: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail=f"设置 {key} 失败: {str(e)}"
-                )
+                ) from e
 
     return {"status": "ok", "message": "设置已更新"}
 
@@ -123,8 +122,8 @@ async def update_camera_settings(
 
 @router.post("/capture")
 async def capture_photo(
-    event_id: Optional[UUID] = Query(None),
-    session_id: Optional[UUID] = Query(None),
+    event_id: UUID | None = Query(None),
+    session_id: UUID | None = Query(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -140,8 +139,8 @@ async def capture_photo(
     from app.services.subscription_service import SubscriptionService
 
     controller = _get_controller()
-    status = controller.get_status()
-    controller_type = status.get("controller_type", "webcam")
+    camera_status = controller.get_status()
+    controller_type = camera_status.get("controller_type", "webcam")
 
     if controller_type == "webcam":
         # Webcam模式: 前端处理拍摄，这里返回指示
@@ -163,7 +162,6 @@ async def capture_photo(
             )
 
         # 保存到本地临时目录
-        import os
         from pathlib import Path
 
         upload_dir = Path("uploads") / "camera_captures"
@@ -202,10 +200,12 @@ async def capture_photo(
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"DSLR capture failed: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="拍摄失败")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="拍摄失败"
+        ) from e
 
 
 # ─── 能力 ──────────────────────────────────────────────────────────────────────

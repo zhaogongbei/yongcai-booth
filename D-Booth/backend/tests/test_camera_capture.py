@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from PIL import Image
 
 from app.api.v1 import camera as camera_api
-from app.services.camera_service import GPhoto2CameraController
+from app.services.camera_service import GPhoto2CameraController, WebcamCameraController
 
 
 async def _create_event(client: AsyncClient, slug: str) -> dict:
@@ -46,6 +46,11 @@ class FakeDslrController:
         return {"iso": 800, "shutter_speed": "1/125"}
 
 
+class EmptyDslrController(FakeDslrController):
+    async def capture(self) -> bytes:
+        return b""
+
+
 @pytest.mark.anyio
 async def test_gphoto2_settings_do_not_return_simulated_exposure_values():
     controller = GPhoto2CameraController()
@@ -54,9 +59,53 @@ async def test_gphoto2_settings_do_not_return_simulated_exposure_values():
     settings = await controller.get_settings()
 
     assert settings["settings_available"] is False
+    assert settings["settings_writable"] is True
     assert settings["source"] == "gphoto2"
     assert "iso" not in settings
     assert "shutter_speed" not in settings
+
+
+@pytest.mark.anyio
+async def test_webcam_settings_are_explicitly_unavailable():
+    controller = WebcamCameraController()
+
+    settings = await controller.get_settings()
+
+    assert settings["settings_available"] is False
+    assert settings["settings_writable"] is False
+    assert settings["source"] == "webcam"
+    assert "iso" not in settings
+    with pytest.raises(NotImplementedError, match="不支持后端设置"):
+        await controller.set_setting("iso", 400)
+
+
+@pytest.mark.anyio
+async def test_webcam_setting_update_fails_closed(
+    authenticated_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(camera_api, "_get_controller", WebcamCameraController)
+
+    response = await authenticated_client.put(
+        "/api/v1/camera/settings",
+        json={"iso": 400},
+    )
+
+    assert response.status_code == 501
+    assert response.json()["error"]["message"] == "浏览器摄像头曝光参数不支持后端设置"
+
+
+@pytest.mark.anyio
+async def test_empty_dslr_capture_returns_controlled_server_error(
+    authenticated_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(camera_api, "_get_controller", EmptyDslrController)
+
+    response = await authenticated_client.post("/api/v1/camera/capture")
+
+    assert response.status_code == 500
+    assert response.json()["error"]["message"] == "相机拍摄失败，未获取到图像数据"
 
 
 @pytest.mark.anyio

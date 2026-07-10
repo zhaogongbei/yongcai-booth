@@ -1,13 +1,10 @@
 import asyncio
-import io
 import logging
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
-
-from PIL import Image, ImageStat
+from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +13,15 @@ logger = logging.getLogger(__name__)
 class CameraCapabilities:
     """相机能力数据类"""
 
-    iso_range: Tuple[int, int] = (100, 6400)
-    shutter_speeds: list[str] = None
-    wb_modes: list[str] = None
-    focus_modes: list[str] = None
+    iso_range: tuple[int, int] = (100, 6400)
+    shutter_speeds: list[str] = field(
+        default_factory=lambda: ["1/30", "1/60", "1/125", "1/250", "1/500", "1/1000"]
+    )
+    wb_modes: list[str] = field(
+        default_factory=lambda: ["自动", "日光", "阴天", "钨丝灯", "荧光灯", "闪光灯"]
+    )
+    focus_modes: list[str] = field(default_factory=lambda: ["AF-S", "AF-C", "MF"])
     supports_live_view: bool = True
-
-    def __post_init__(self):
-        if self.shutter_speeds is None:
-            self.shutter_speeds = ["1/30", "1/60", "1/125", "1/250", "1/500", "1/1000"]
-        if self.wb_modes is None:
-            self.wb_modes = ["自动", "日光", "阴天", "钨丝灯", "荧光灯", "闪光灯"]
-        if self.focus_modes is None:
-            self.focus_modes = ["AF-S", "AF-C", "MF"]
 
 
 class CameraController(ABC):
@@ -55,7 +48,7 @@ class CameraController(ABC):
         pass
 
     @abstractmethod
-    async def get_settings(self) -> Dict[str, Any]:
+    async def get_settings(self) -> dict[str, Any]:
         """获取当前相机设置
         返回格式: {iso, shutter_speed, aperture, white_balance, exposure_compensation, focus_mode}
         """
@@ -77,7 +70,7 @@ class CameraController(ABC):
         pass
 
     @abstractmethod
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """获取相机状态
         返回格式: {connected, model, firmware_version, battery_level, storage_remaining}
         """
@@ -89,16 +82,6 @@ class WebcamCameraController(CameraController):
 
     def __init__(self):
         self._connected = False
-        self._settings = {
-            "settings_available": True,
-            "source": "webcam",
-            "iso": 800,
-            "shutter_speed": "1/125",
-            "aperture": "f/4.0",
-            "white_balance": "自动",
-            "exposure_compensation": 0.0,
-            "focus_mode": "AF-C",
-        }
         self._capabilities = CameraCapabilities(iso_range=(100, 3200), supports_live_view=True)
 
     async def connect(self) -> bool:
@@ -118,13 +101,16 @@ class WebcamCameraController(CameraController):
         """Webcam模式下，实时取景由前端实现"""
         raise NotImplementedError("Webcam live view is handled by frontend")
 
-    async def get_settings(self) -> Dict[str, Any]:
-        return self._settings.copy()
+    async def get_settings(self) -> dict[str, Any]:
+        return {
+            "settings_available": False,
+            "settings_writable": False,
+            "source": "webcam",
+            "message": "浏览器摄像头曝光参数不由后端控制",
+        }
 
     async def set_setting(self, key: str, value: Any) -> None:
-        if key in self._settings:
-            self._settings[key] = value
-            logger.info(f"Webcam setting {key} updated to {value} (simulated)")
+        raise NotImplementedError("浏览器摄像头曝光参数不支持后端设置")
 
     async def get_capabilities(self) -> CameraCapabilities:
         return self._capabilities
@@ -132,7 +118,7 @@ class WebcamCameraController(CameraController):
     def is_connected(self) -> bool:
         return self._connected
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "connected": self._connected,
             "model": "Web Camera",
@@ -149,10 +135,10 @@ class GPhoto2CameraController(CameraController):
     def __init__(self):
         self._connected = False
         self._gphoto2_path = shutil.which("gphoto2")
-        self._model = None
+        self._model: str | None = None
         self._capabilities = CameraCapabilities()
 
-    async def _run_command(self, args: list[str], timeout: int = 30) -> Tuple[bytes, bytes, int]:
+    async def _run_command(self, args: list[str], timeout: int = 30) -> tuple[bytes, bytes, int]:
         """运行gphoto2命令"""
         if not self._gphoto2_path:
             raise RuntimeError("gphoto2 not found in PATH")
@@ -162,7 +148,7 @@ class GPhoto2CameraController(CameraController):
                 self._gphoto2_path, *args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            return stdout, stderr, proc.returncode
+            return stdout, stderr, proc.returncode if proc.returncode is not None else -1
         except Exception as e:
             logger.error(f"GPhoto2 command failed: {e}")
             raise
@@ -171,7 +157,7 @@ class GPhoto2CameraController(CameraController):
         """检查gphoto2是否可用"""
         return self._gphoto2_path is not None
 
-    async def detect_camera(self) -> Optional[str]:
+    async def detect_camera(self) -> str | None:
         """检测连接的相机型号"""
         if not self.is_available():
             return None
@@ -259,12 +245,13 @@ class GPhoto2CameraController(CameraController):
 
         return stdout
 
-    async def get_settings(self) -> Dict[str, Any]:
+    async def get_settings(self) -> dict[str, Any]:
         if not self._connected:
             return {}
 
         return {
             "settings_available": False,
+            "settings_writable": True,
             "source": "gphoto2",
             "message": "真实相机参数读取尚未接入，未返回模拟曝光值",
         }
@@ -301,7 +288,7 @@ class GPhoto2CameraController(CameraController):
     def is_connected(self) -> bool:
         return self._connected
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "connected": self._connected,
             "model": self._model,
@@ -315,9 +302,10 @@ class GPhoto2CameraController(CameraController):
 class CameraManager:
     """相机管理器单例"""
 
-    _instance = None
+    _instance: "CameraManager | None" = None
+    _initialized: bool
 
-    def __new__(cls):
+    def __new__(cls) -> "CameraManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
@@ -327,7 +315,7 @@ class CameraManager:
         if self._initialized:
             return
 
-        self._active_controller: Optional[CameraController] = None
+        self._active_controller: CameraController | None = None
         self._webcam_controller = WebcamCameraController()
         self._gphoto2_controller = GPhoto2CameraController()
         self._initialized = True

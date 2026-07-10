@@ -23,7 +23,7 @@ const FILTERS = CAMERA_FILTERS;
 
 // 拍摄模式类型
 type CaptureMode = "photo" | "gif" | "boomerang" | "video";
-type CameraSettingsStatus = "reported" | "local" | "unavailable";
+type CameraSettingsStatus = "reported" | "writable" | "unavailable";
 
 // 拍摄模式配置
 const CAPTURE_MODES: { mode: CaptureMode; label: string; icon: React.ReactNode }[] = [
@@ -75,7 +75,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     exposure_compensation: "+0.0",
     focus_mode: "AF-C",
   });
-  const [cameraSettingsStatus, setCameraSettingsStatus] = useState<CameraSettingsStatus>("local");
+  const [cameraSettingsStatus, setCameraSettingsStatus] = useState<CameraSettingsStatus>("unavailable");
 
   const { addPhoto, removePhoto, photos, eventId, currentSessionId, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -215,6 +215,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
       try {
         const settings = await request<{
           settings_available?: boolean;
+          settings_writable?: boolean;
           source?: string;
           iso?: number;
           shutter_speed?: string;
@@ -225,7 +226,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
         }>("/camera/settings");
         if (cancelled) return;
         if (settings.settings_available === false) {
-          setCameraSettingsStatus("unavailable");
+          setCameraSettingsStatus(settings.settings_writable ? "writable" : "unavailable");
           return;
         }
         setCameraParams({
@@ -236,7 +237,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           exposure_compensation: String(settings.exposure_compensation ?? "+0.0"),
           focus_mode: settings.focus_mode ?? "AF-C",
         });
-        setCameraSettingsStatus(settings.source === "gphoto2" ? "reported" : "local");
+        setCameraSettingsStatus("reported");
       } catch {
         setCameraSettingsStatus("unavailable");
       }
@@ -253,10 +254,11 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
   // 更新相机参数到后端
   const updateCameraSetting = useCallback(async (key: string, value: string) => {
-    // 更新本地状态
-    setCameraParams(prev => ({ ...prev, [key]: value }));
+    if (cameraSettingsStatus === "unavailable") {
+      toast.error("当前相机不支持后端曝光参数设置");
+      return;
+    }
 
-    // 尝试同步到后端
     try {
       const body: Record<string, unknown> = {};
       switch (key) {
@@ -280,12 +282,16 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           break;
       }
       await request("/camera/settings", { method: "PUT", body });
-      setCameraSettingsStatus("local");
-    } catch {
-      // 后端不可用时参数仅在前端生效
-      setCameraSettingsStatus("local");
+      if (cameraSettingsStatus === "reported") {
+        setCameraParams(prev => ({ ...prev, [key]: value }));
+      } else {
+        toast.success("参数已发送到相机，当前读值不可用");
+      }
+    } catch (error) {
+      console.error("Camera setting update failed:", error);
+      toast.error("相机参数设置失败，显示值未更改");
     }
-  }, []);
+  }, [cameraSettingsStatus]);
 
   // 清理录制定时器
   useEffect(() => {
@@ -846,9 +852,9 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
           {/* Camera info overlay */}
           <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-6">
-            {cameraSettingsStatus === "unavailable" ? (
+            {cameraSettingsStatus !== "reported" ? (
               <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-lg text-xs text-amber-200">
-                相机参数未读取
+                {cameraSettingsStatus === "writable" ? "参数可设置，当前读值不可用" : "相机参数不可用"}
               </div>
             ) : (
               <>
@@ -1005,7 +1011,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
                 ? "真实参数"
                 : cameraSettingsStatus === "unavailable"
                   ? "参数未读取"
-                  : "本地参数"}
+                  : "可设置，读值不可用"}
             </div>
           </div>
           <button
@@ -1026,12 +1032,15 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
           <div key={p.label} className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-white/40">{p.label}</span>
-              <span className="text-xs font-mono text-violet-400">{p.value}</span>
+              <span className="text-xs font-mono text-violet-400">
+                {cameraSettingsStatus === "reported" ? p.value : "--"}
+              </span>
             </div>
             <div className="flex flex-wrap gap-1">
               {p.options.map(o => (
                 <button key={o} onClick={() => paramHandlers[p.label]?.(o)}
-                  className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${p.value === o ? "bg-violet-500/30 text-violet-400" : "bg-white/5 hover:bg-violet-500/20 text-white/40 hover:text-violet-400"}`}>
+                  disabled={cameraSettingsStatus === "unavailable"}
+                  className={`px-1.5 py-0.5 rounded text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${cameraSettingsStatus === "reported" && p.value === o ? "bg-violet-500/30 text-violet-400" : "bg-white/5 hover:bg-violet-500/20 text-white/40 hover:text-violet-400"}`}>
                   {o}
                 </button>
               ))}
