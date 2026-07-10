@@ -33,8 +33,23 @@ public sealed class SessionApplicationService
             request.DeviceId);
 
         session.BeginCountdown();
-        await _sessionRepository.SaveAsync(session, cancellationToken);
-        return session;
+        if (await _sessionRepository.TryAddAsync(session, cancellationToken))
+        {
+            return session;
+        }
+
+        var existing = await _sessionRepository.GetAsync(request.SessionId, cancellationToken);
+        if (existing is not null
+            && string.Equals(existing.EventId, request.EventId, StringComparison.Ordinal)
+            && existing.Mode == request.Mode
+            && string.Equals(existing.DeviceId, request.DeviceId, StringComparison.Ordinal))
+        {
+            return existing;
+        }
+
+        throw new SessionStartException(
+            ErrorCodes.SessionConflict,
+            "Session ID already exists with a different event, mode, or device identity.");
     }
 
     public Task<SessionAggregate?> GetAsync(string sessionId, CancellationToken cancellationToken)
@@ -67,6 +82,13 @@ public sealed class SessionApplicationService
         var shotId = request.PreferredShotId ?? $"shot_{Guid.NewGuid():N}";
         var rawAssetPath = BuildCapturePath(request.SessionId, shotId);
 
+        if (await _shotRepository.ExistsAsync(shotId, cancellationToken) || File.Exists(rawAssetPath))
+        {
+            throw new CaptureShotException(
+                ErrorCodes.ShotConflict,
+                "Shot ID or capture path already exists.");
+        }
+
         if (_cameraPlugin is null || !_cameraPlugin.IsConnected)
         {
             throw new CaptureShotException(
@@ -75,21 +97,22 @@ public sealed class SessionApplicationService
         }
 
         session.BeginCapture();
+        var captureTempPath = BuildCaptureTempPath(rawAssetPath);
 
         CaptureResult captureResult;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(rawAssetPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(captureTempPath)!);
             captureResult = await _cameraPlugin.CaptureAsync(
-                new CaptureConfig { OutputPath = rawAssetPath },
+                new CaptureConfig { OutputPath = captureTempPath },
                 cancellationToken);
 
             if (!captureResult.Success
                 || string.IsNullOrWhiteSpace(captureResult.FilePath)
-                || !PathsEqual(captureResult.FilePath, rawAssetPath)
-                || !await IsJpegFileAsync(rawAssetPath, cancellationToken))
+                || !PathsEqual(captureResult.FilePath, captureTempPath)
+                || !await IsJpegFileAsync(captureTempPath, cancellationToken))
             {
-                TryDeleteCaptureFile(rawAssetPath);
+                TryDeleteCaptureFile(captureTempPath);
                 throw new CaptureShotException(
                     ErrorCodes.CameraDeviceNotReady,
                     "Camera capture did not produce a valid JPEG file.");
@@ -97,7 +120,7 @@ public sealed class SessionApplicationService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            TryDeleteCaptureFile(rawAssetPath);
+            TryDeleteCaptureFile(captureTempPath);
             throw;
         }
         catch (CaptureShotException)
@@ -106,10 +129,31 @@ public sealed class SessionApplicationService
         }
         catch (Exception exception)
         {
-            TryDeleteCaptureFile(rawAssetPath);
+            TryDeleteCaptureFile(captureTempPath);
             throw new CaptureShotException(
                 ErrorCodes.CameraDeviceNotReady,
                 "Camera capture failed before a valid image was produced.",
+                exception);
+        }
+
+        try
+        {
+            File.Move(captureTempPath, rawAssetPath, overwrite: false);
+        }
+        catch (IOException exception) when (File.Exists(rawAssetPath))
+        {
+            TryDeleteCaptureFile(captureTempPath);
+            throw new CaptureShotException(
+                ErrorCodes.ShotConflict,
+                "Shot capture path was created by another request.",
+                exception);
+        }
+        catch (Exception exception)
+        {
+            TryDeleteCaptureFile(captureTempPath);
+            throw new CaptureShotException(
+                ErrorCodes.CameraDeviceNotReady,
+                "Captured image could not be moved into durable storage.",
                 exception);
         }
 
@@ -123,8 +167,26 @@ public sealed class SessionApplicationService
             metadata: null,
             request.AiPickScore);
 
+        bool inserted;
+        try
+        {
+            inserted = await _shotRepository.TryAddAsync(request.SessionId, shot, cancellationToken);
+        }
+        catch
+        {
+            TryDeleteCaptureFile(rawAssetPath);
+            throw;
+        }
+
+        if (!inserted)
+        {
+            TryDeleteCaptureFile(rawAssetPath);
+            throw new CaptureShotException(
+                ErrorCodes.ShotConflict,
+                "Shot ID was claimed by another request.");
+        }
+
         await _sessionRepository.SaveAsync(session, cancellationToken);
-        await _shotRepository.SaveAsync(request.SessionId, shot, cancellationToken);
         return shot;
     }
 
@@ -152,6 +214,13 @@ public sealed class SessionApplicationService
         }
 
         return capturePath;
+    }
+
+    private static string BuildCaptureTempPath(string rawAssetPath)
+    {
+        var directory = Path.GetDirectoryName(rawAssetPath)!;
+        var fileName = Path.GetFileNameWithoutExtension(rawAssetPath);
+        return Path.Combine(directory, $".{fileName}.{Guid.NewGuid():N}.capture.jpg");
     }
 
     private static void EnsureSafePathComponent(string value, string parameterName)

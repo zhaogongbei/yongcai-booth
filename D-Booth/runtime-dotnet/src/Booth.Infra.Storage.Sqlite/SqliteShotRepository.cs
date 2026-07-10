@@ -19,6 +19,18 @@ public sealed class SqliteShotRepository : IShotRepository
         Initialize();
     }
 
+    public async Task<bool> ExistsAsync(string shotId, CancellationToken cancellationToken)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS(SELECT 1 FROM shots WHERE id = $id);";
+        command.Parameters.AddWithValue("$id", shotId);
+
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) == 1;
+    }
+
     public async Task<int> GetNextShotIndexAsync(string sessionId, CancellationToken cancellationToken)
     {
         await using var connection = new SqliteConnection(_connectionString);
@@ -32,6 +44,26 @@ public sealed class SqliteShotRepository : IShotRepository
         return Convert.ToInt32(result);
     }
 
+    public async Task<bool> TryAddAsync(
+        string sessionId,
+        Shot shot,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO shots (id, session_id, shot_index, raw_asset_path, captured_at_utc, ai_pick_score)
+            VALUES ($id, $sessionId, $shotIndex, $rawAssetPath, $capturedAtUtc, $aiPickScore)
+            ON CONFLICT(id) DO NOTHING;
+            """;
+
+        AddShotParameters(command, sessionId, shot);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task SaveAsync(string sessionId, Shot shot, CancellationToken cancellationToken)
     {
         await using var connection = new SqliteConnection(_connectionString);
@@ -43,21 +75,19 @@ public sealed class SqliteShotRepository : IShotRepository
             INSERT INTO shots (id, session_id, shot_index, raw_asset_path, captured_at_utc, ai_pick_score)
             VALUES ($id, $sessionId, $shotIndex, $rawAssetPath, $capturedAtUtc, $aiPickScore)
             ON CONFLICT(id) DO UPDATE SET
-                session_id = excluded.session_id,
                 shot_index = excluded.shot_index,
                 raw_asset_path = excluded.raw_asset_path,
                 captured_at_utc = excluded.captured_at_utc,
-                ai_pick_score = excluded.ai_pick_score;
+                ai_pick_score = excluded.ai_pick_score
+            WHERE shots.session_id = excluded.session_id;
             """;
 
-        command.Parameters.AddWithValue("$id", shot.Id);
-        command.Parameters.AddWithValue("$sessionId", sessionId);
-        command.Parameters.AddWithValue("$shotIndex", shot.Index);
-        command.Parameters.AddWithValue("$rawAssetPath", shot.RawAssetPath ?? (object)DBNull.Value);
-        command.Parameters.AddWithValue("$capturedAtUtc", shot.CapturedAtUtc.UtcDateTime.ToString("O"));
-        command.Parameters.AddWithValue("$aiPickScore", shot.AiPickScore ?? (object)DBNull.Value);
+        AddShotParameters(command, sessionId, shot);
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException($"Shot '{shot.Id}' already belongs to another session.");
+        }
     }
 
     public async Task<IReadOnlyList<Shot>> ListBySessionAsync(string sessionId, CancellationToken cancellationToken)
@@ -113,6 +143,16 @@ public sealed class SqliteShotRepository : IShotRepository
         command.Parameters.AddWithValue("$sessionId", sessionId);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static void AddShotParameters(SqliteCommand command, string sessionId, Shot shot)
+    {
+        command.Parameters.AddWithValue("$id", shot.Id);
+        command.Parameters.AddWithValue("$sessionId", sessionId);
+        command.Parameters.AddWithValue("$shotIndex", shot.Index);
+        command.Parameters.AddWithValue("$rawAssetPath", shot.RawAssetPath ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$capturedAtUtc", shot.CapturedAtUtc.UtcDateTime.ToString("O"));
+        command.Parameters.AddWithValue("$aiPickScore", shot.AiPickScore ?? (object)DBNull.Value);
     }
 
     private void Initialize()

@@ -6,6 +6,14 @@ namespace Booth.Domain.Session;
 public interface ISessionRepository
 {
     /// <summary>
+    /// Atomically inserts a new session without replacing an existing identity.
+    /// </summary>
+    /// <param name="session">The new session to persist.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True when inserted; false when the session ID already exists.</returns>
+    Task<bool> TryAddAsync(SessionAggregate session, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Saves or updates a session aggregate.
     /// </summary>
     /// <param name="session">The session to persist.</param>

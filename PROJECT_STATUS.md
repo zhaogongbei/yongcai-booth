@@ -31,6 +31,8 @@
 - Docker 发布必须等待后端、前端、Runtime 和安全扫描全部通过，镜像命名空间来自 `DOCKER_USERNAME` secret。
 - Runtime 打印/分享作业只有在执行器完成真实副作用并写出预期产物后才能标记成功；未配置适配器或执行异常必须故障封闭为 `failed`，记录错误码且不得创建伪输出资产。
 - Runtime 拍照只有在已连接的相机插件真实写出捕获根目录内的有效 JPEG 后才能保存 Shot；未配置、插件伪成功、无效图片或越界路径必须故障封闭且不得改变会话状态。
+- Runtime 会话 ID 一经创建不得改写 event、mode 或 device 身份；重复启动只有身份完全一致时可幂等返回既有状态，否则必须以 `SES_CONFLICT` 故障封闭且不得重置会话。
+- Runtime Shot ID 在本地库中全局唯一，不得通过 upsert 跨会话重归属或覆盖既有捕获文件；冲突必须返回 `SHT_CONFLICT` 且保持原 Shot、文件和会话状态不变。
 - GitHub Release 由 release job 使用 `gh release create` 创建，不使用旧 release action；没有真实部署脚本时，CI 不应声明 staging/production 部署成功。
 - CI 中第三方 GitHub Actions 必须使用版本 tag，不能使用浮动 `main` 或 `master` 分支。
 - CI 安全扫描中的 Python 依赖审计必须使用项目声明的 `PYTHON_VERSION`，不能依赖 runner 默认 Python。
@@ -140,6 +142,7 @@
 
 ## 近期完成
 
+- 已同步版本到 1.0.35，并修复 Runtime 重复 sessionId/shotId 可覆盖身份和跨会话重归属的数据完整性问题；会话与 Shot 现使用原子插入、幂等身份校验和不可覆盖文件落盘，冲突稳定返回 HTTP 409。
 - 修复 Runtime 拍照把 JSON 文本写成 `.jpg` 并返回成功的问题；采集现复用 `ICameraPlugin`，要求真实 JPEG 产物后才持久化，未配置相机返回 `CAM_DEVICE_NOT_READY`，同时拒绝会话/Shot 标识导致的路径穿越写文件。
 - 修复 Runtime 打印/分享作业只写 JSON 却标记成功的伪执行：未配置真实适配器时现在持久化为失败并记录稳定错误码，不再创建假 `output_assets`；真实执行器成功产物路径也会被校验。
 - 移除 Webcam 相机参数的模拟读写成功：后端明确返回不可读/不可写并对设置请求返回 501；前端仅在真实可写时启用参数控件，请求成功后才更新已读取显示，同时保留 gphoto2 真实写入能力。

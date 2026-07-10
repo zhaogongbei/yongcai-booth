@@ -104,6 +104,42 @@ public sealed class SessionCaptureFlowTests
         Assert.Empty(await context.Service.ListShotsAsync("ses_safe_path", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task CaptureShot_ShouldRejectDuplicateShotIdWithoutReassigningOrOverwriting()
+    {
+        var camera = new TestCameraPlugin(async (config, cancellationToken) =>
+        {
+            await File.WriteAllBytesAsync(
+                config.OutputPath,
+                new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x01, 0xFF, 0xD9 },
+                cancellationToken);
+            return CaptureResult.Successful(config.OutputPath);
+        });
+        var context = CreateContext(camera);
+        await context.Service.StartAsync(
+            new SessionStartRequest("ses_shot_owner", "evt_shot_owner", SessionMode.Print, "dev_shot_owner"),
+            CancellationToken.None);
+        await context.Service.StartAsync(
+            new SessionStartRequest("ses_shot_contender", "evt_shot_contender", SessionMode.Print, "dev_shot_contender"),
+            CancellationToken.None);
+
+        var original = await context.Service.CaptureShotAsync(
+            new CaptureShotRequest("ses_shot_owner", "shot_shared", null, null),
+            CancellationToken.None);
+        var originalBytes = await File.ReadAllBytesAsync(original!.RawAssetPath!);
+
+        var exception = await Assert.ThrowsAsync<CaptureShotException>(() => context.Service.CaptureShotAsync(
+            new CaptureShotRequest("ses_shot_contender", "shot_shared", null, null),
+            CancellationToken.None));
+
+        Assert.Equal(ErrorCodes.ShotConflict, exception.ErrorCode);
+        Assert.Equal(1, camera.CaptureCallCount);
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.RawAssetPath!));
+        Assert.Single(await context.Service.ListShotsAsync("ses_shot_owner", CancellationToken.None));
+        Assert.Empty(await context.Service.ListShotsAsync("ses_shot_contender", CancellationToken.None));
+        Assert.False(File.Exists(Path.Combine(context.CapturesRoot, "ses_shot_contender", "shot_shared.jpg")));
+    }
+
     private static TestContext CreateContext(ICameraPlugin? cameraPlugin)
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"booth-runtime-shot-{Guid.NewGuid():N}");

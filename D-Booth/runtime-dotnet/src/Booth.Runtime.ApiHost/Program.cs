@@ -75,9 +75,17 @@ app.MapPost("/v1/license/activate", (ActivateLicenseRequest request, LicenseServ
     .WithTags("License");
 app.MapPost("/v1/session/start", async (SessionStartApiRequest request, SessionApplicationService service, CancellationToken cancellationToken) =>
 {
-    var session = await service.StartAsync(
-        new SessionStartRequest(request.SessionId, request.EventId, request.Mode, request.DeviceId),
-        cancellationToken);
+    SessionAggregate session;
+    try
+    {
+        session = await service.StartAsync(
+            new SessionStartRequest(request.SessionId, request.EventId, request.Mode, request.DeviceId),
+            cancellationToken);
+    }
+    catch (SessionStartException exception)
+    {
+        return Results.Conflict(new { errorCode = exception.ErrorCode, message = exception.Message });
+    }
 
     return Results.Ok(new SessionStartApiResponse(
         session.Id,
@@ -149,9 +157,12 @@ app.MapPost("/v1/sessions/{sessionId}/shots", async (string sessionId, CaptureSh
     }
     catch (CaptureShotException exception)
     {
-        var statusCode = exception.ErrorCode == ErrorCodes.ConfigurationInvalid
-            ? StatusCodes.Status400BadRequest
-            : StatusCodes.Status503ServiceUnavailable;
+        var statusCode = exception.ErrorCode switch
+        {
+            ErrorCodes.ConfigurationInvalid => StatusCodes.Status400BadRequest,
+            ErrorCodes.ShotConflict => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status503ServiceUnavailable
+        };
         return Results.Json(
             new { errorCode = exception.ErrorCode, message = exception.Message },
             statusCode: statusCode);
@@ -321,4 +332,3 @@ static bool IsFrontendDevOrigin(string origin)
             || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
             || (bytes[0] == 192 && bytes[1] == 168));
 }
-

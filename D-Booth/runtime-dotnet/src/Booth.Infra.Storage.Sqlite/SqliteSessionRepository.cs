@@ -29,6 +29,32 @@ public sealed class SqliteSessionRepository : ISessionRepository
     }
 
     /// <inheritdoc />
+    public async Task<bool> TryAddAsync(SessionAggregate session, CancellationToken cancellationToken)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO sessions (id, event_id, session_mode, status, started_at_utc, completed_at_utc, device_id, retry_count)
+            VALUES ($id, $eventId, $mode, $status, $startedAt, $completedAt, $deviceId, $retryCount)
+            ON CONFLICT(id) DO NOTHING;
+            """;
+
+        command.Parameters.AddWithValue("$id", session.Id);
+        command.Parameters.AddWithValue("$eventId", session.EventId);
+        command.Parameters.AddWithValue("$mode", session.Mode.ToString());
+        command.Parameters.AddWithValue("$status", session.Status.ToString());
+        command.Parameters.AddWithValue("$startedAt", session.StartedAtUtc.UtcDateTime.ToString("O"));
+        command.Parameters.AddWithValue("$completedAt", session.CompletedAtUtc?.UtcDateTime.ToString("O") ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$deviceId", session.DeviceId);
+        command.Parameters.AddWithValue("$retryCount", session.RetryCount);
+
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
+    /// <inheritdoc />
     public async Task SaveAsync(SessionAggregate session, CancellationToken cancellationToken)
     {
         await using var connection = new SqliteConnection(_connectionString);

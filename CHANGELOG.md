@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### 安全
+- Runtime 会话启动改为原子插入：相同 sessionId 仅在 event、mode、device 身份完全一致时幂等返回既有状态，不同身份返回 HTTP 409 / `SES_CONFLICT`，不再覆盖或重置已有会话。
+- Runtime Shot ID 改为全局不可重用；仓储拒绝跨会话重归属，捕获使用唯一临时 JPEG 和不可覆盖移动，数据库或文件冲突返回 HTTP 409 / `SHT_CONFLICT` 并保留原归属与文件。
 - Runtime 拍照文件路径现在验证会话和 Shot 标识并强制落在配置的 captures 根目录内，阻止路径穿越覆盖任意文件。
 - 后端 JWT 依赖从 `python-jose` 迁移到 `PyJWT[crypto]`，并升级 MediaPipe 依赖以消除 `ecdsa` / `protobuf` 安全审计阻断。
 - 禁用仓库内 Claude Stop hook 的自动版本递增、提交和 push 行为，并让仓库卫生检查阻止未验证自动提交配置回归。

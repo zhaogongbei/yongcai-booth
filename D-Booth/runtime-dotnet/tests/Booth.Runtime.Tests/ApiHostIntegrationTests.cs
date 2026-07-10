@@ -1,5 +1,8 @@
+using Booth.Domain.Session;
+using Booth.Infra.Storage.Sqlite;
 using Booth.Runtime.Licensing;
 using Booth.Shared.Contracts;
+using Microsoft.Data.Sqlite;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
@@ -12,6 +15,77 @@ namespace Booth.Runtime.Tests;
 
 public sealed class ApiHostIntegrationTests
 {
+    [Fact]
+    public async Task StartSession_ShouldReturnConflictAndPreserveOriginalIdentity_WhenSessionIdIsReused()
+    {
+        var tempRoot = CreateTempRoot();
+
+        await using var host = await BoothApiHost.StartAsync(tempRoot);
+        using var client = new HttpClient { BaseAddress = host.BaseAddress };
+        var originalRequest = new SessionStartApiRequest(
+            "ses_http_identity_conflict",
+            "evt_http_original",
+            SessionMode.Print,
+            "dev_http_original");
+
+        var firstResponse = await client.PostAsJsonAsync("/v1/session/start", originalRequest);
+        firstResponse.EnsureSuccessStatusCode();
+        var conflictResponse = await client.PostAsJsonAsync(
+            "/v1/session/start",
+            originalRequest with { DeviceId = "dev_http_other" });
+
+        Assert.Equal(HttpStatusCode.Conflict, conflictResponse.StatusCode);
+        using var error = JsonDocument.Parse(await conflictResponse.Content.ReadAsStringAsync());
+        Assert.Equal(ErrorCodes.SessionConflict, error.RootElement.GetProperty("errorCode").GetString());
+
+        var detailsResponse = await client.GetAsync("/v1/sessions/ses_http_identity_conflict");
+        detailsResponse.EnsureSuccessStatusCode();
+        var details = await detailsResponse.Content.ReadFromJsonAsync<SessionDetailsApiResponse>();
+        Assert.NotNull(details);
+        Assert.Equal(originalRequest.EventId, details!.EventId);
+        Assert.Equal(originalRequest.DeviceId, details.DeviceId);
+    }
+
+    [Fact]
+    public async Task CaptureShot_ShouldReturnConflictBeforeCameraCheck_WhenShotIdAlreadyExists()
+    {
+        var tempRoot = CreateTempRoot();
+
+        await using var host = await BoothApiHost.StartAsync(tempRoot);
+        using var client = new HttpClient { BaseAddress = host.BaseAddress };
+        foreach (var request in new[]
+        {
+            new SessionStartApiRequest("ses_http_shot_owner", "evt_http_shot_owner", SessionMode.Print, "dev_http_shot_owner"),
+            new SessionStartApiRequest("ses_http_shot_contender", "evt_http_shot_contender", SessionMode.Print, "dev_http_shot_contender")
+        })
+        {
+            (await client.PostAsJsonAsync("/v1/session/start", request)).EnsureSuccessStatusCode();
+        }
+
+        try
+        {
+            var repository = new SqliteShotRepository(Path.Combine(tempRoot, "runtime.db"));
+            Assert.True(await repository.TryAddAsync(
+                "ses_http_shot_owner",
+                new Shot("shot_http_shared", 1, DateTimeOffset.UtcNow, "owner.jpg", metadata: null, aiPickScore: null),
+                CancellationToken.None));
+
+            var response = await client.PostAsJsonAsync(
+                "/v1/sessions/ses_http_shot_contender/shots",
+                new CaptureShotApiRequest("shot_http_shared", "integration-test", null));
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(ErrorCodes.ShotConflict, error.RootElement.GetProperty("errorCode").GetString());
+            Assert.Single(await repository.ListBySessionAsync("ses_http_shot_owner", CancellationToken.None));
+            Assert.Empty(await repository.ListBySessionAsync("ses_http_shot_contender", CancellationToken.None));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+        }
+    }
+
     [Fact]
     public async Task SessionDetails_ShouldPersistFailedPrintJob_WhenPrinterIsNotConfigured()
     {
