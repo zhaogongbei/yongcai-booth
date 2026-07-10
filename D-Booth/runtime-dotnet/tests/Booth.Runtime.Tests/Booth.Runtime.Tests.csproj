@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Booth.Domain.Session\Booth.Domain.Session.csproj" />
     <ProjectReference Include="..\..\src\Booth.Infra.Storage.Sqlite\Booth.Infra.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Booth.Plugin.Abstractions\Booth.Plugin.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Booth.Runtime.SessionApp\Booth.Runtime.SessionApp.csproj" />
     <ProjectReference Include="..\..\src\Booth.Runtime.JobApp\Booth.Runtime.JobApp.csproj" />
     <ProjectReference Include="..\..\src\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />

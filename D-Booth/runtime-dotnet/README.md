@@ -36,7 +36,8 @@
 
 当前已实现的最小执行语义：
 
-- `capture shot` 会在 `data/captures/{sessionId}` 下真实写出采集文件
+- `capture shot` 仅在已注册并连接的相机插件真实写出有效 JPEG 后才保存采集结果
+- 当前 ApiHost 未注册生产相机适配器，采集请求会故障封闭返回 `CAM_DEVICE_NOT_READY`，不会创建伪图片或 Shot 记录
 - `shots` 元数据会持久化到 SQLite
 - `print/share` 入队时会保存结构化 `payload`
 - `execute` 只有在执行器真实写出预期产物后才会把任务推进为 `running -> succeeded`
@@ -60,7 +61,7 @@
 当前测试覆盖：
 
 - SQLite `session` 持久化回读
-- `capture shot` 文件落盘与元数据持久化
+- `capture shot` 真实 JPEG 校验、路径边界与未配置相机故障封闭
 - `job execute -> output_assets` 产物链路
 - `asset get/delete` 仓储语义
 - 外部进程方式启动 `ApiHost` 的真实 HTTP 集成测试

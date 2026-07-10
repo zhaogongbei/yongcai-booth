@@ -29,12 +29,6 @@ public sealed class ApiHostIntegrationTests
             "dev_http_flow_001"));
         startResponse.EnsureSuccessStatusCode();
 
-        var captureResponse = await client.PostAsJsonAsync("/v1/sessions/ses_http_flow_001/shots", new CaptureShotApiRequest(
-            "shot_http_flow_001",
-            "integration-test",
-            0.97));
-        captureResponse.EnsureSuccessStatusCode();
-
         var queueResponse = await client.PostAsJsonAsync("/v1/print/jobs", new PrintJobApiRequest(
             "ses_http_flow_001",
             2,
@@ -58,16 +52,47 @@ public sealed class ApiHostIntegrationTests
         var details = await detailsResponse.Content.ReadFromJsonAsync<SessionDetailsApiResponse>();
         Assert.NotNull(details);
         Assert.Equal("ses_http_flow_001", details!.SessionId);
-        Assert.Equal("capturing", details.Status);
-        Assert.Single(details.Shots);
+        Assert.Equal("countdown", details.Status);
+        Assert.Empty(details.Shots);
         Assert.Single(details.Jobs);
         Assert.Empty(details.Assets);
-        Assert.Equal("shot_http_flow_001", details.Shots[0].ShotId);
-        Assert.Equal(0.97, details.Shots[0].AiPickScore);
         Assert.Equal(queuedJob.JobId, details.Jobs[0].JobId);
         Assert.Equal("Failed", details.Jobs[0].Status);
         Assert.Equal(ErrorCodes.PrintQueueUnavailable, details.Jobs[0].LastErrorCode);
         Assert.Null(details.Jobs[0].CreatedAssetId);
+    }
+
+    [Fact]
+    public async Task CaptureShot_ShouldReturnServiceUnavailable_WhenCameraIsNotConfigured()
+    {
+        var tempRoot = CreateTempRoot();
+
+        await using var host = await BoothApiHost.StartAsync(tempRoot);
+        using var client = new HttpClient { BaseAddress = host.BaseAddress };
+
+        var startResponse = await client.PostAsJsonAsync("/v1/session/start", new SessionStartApiRequest(
+            "ses_http_capture_unavailable",
+            "evt_http_capture_unavailable",
+            SessionMode.Print,
+            "dev_http_capture_unavailable"));
+        startResponse.EnsureSuccessStatusCode();
+
+        var captureResponse = await client.PostAsJsonAsync(
+            "/v1/sessions/ses_http_capture_unavailable/shots",
+            new CaptureShotApiRequest("shot_http_capture_unavailable", "integration-test", 0.97));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, captureResponse.StatusCode);
+        using var error = JsonDocument.Parse(await captureResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            ErrorCodes.CameraDeviceNotReady,
+            error.RootElement.GetProperty("errorCode").GetString());
+
+        var shotsResponse = await client.GetAsync("/v1/sessions/ses_http_capture_unavailable/shots");
+        shotsResponse.EnsureSuccessStatusCode();
+        var shots = await shotsResponse.Content.ReadFromJsonAsync<ShotDetailsApiResponse[]>();
+        Assert.NotNull(shots);
+        Assert.Empty(shots!);
+        Assert.False(Directory.Exists(Path.Combine(tempRoot, "captures", "ses_http_capture_unavailable")));
     }
 
     [Fact]

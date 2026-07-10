@@ -1,3 +1,4 @@
+using Booth.Domain.Session;
 using Booth.Infra.Storage.Sqlite;
 using Booth.Runtime.JobApp;
 using Booth.Runtime.Licensing;
@@ -139,9 +140,22 @@ app.MapGet("/v1/sessions/{sessionId}", async (
 
 app.MapPost("/v1/sessions/{sessionId}/shots", async (string sessionId, CaptureShotApiRequest request, SessionApplicationService service, CancellationToken cancellationToken) =>
 {
-    var shot = await service.CaptureShotAsync(
-        new CaptureShotRequest(sessionId, request.PreferredShotId, request.SourceLabel, request.AiPickScore),
-        cancellationToken);
+    Shot? shot;
+    try
+    {
+        shot = await service.CaptureShotAsync(
+            new CaptureShotRequest(sessionId, request.PreferredShotId, request.SourceLabel, request.AiPickScore),
+            cancellationToken);
+    }
+    catch (CaptureShotException exception)
+    {
+        var statusCode = exception.ErrorCode == ErrorCodes.ConfigurationInvalid
+            ? StatusCodes.Status400BadRequest
+            : StatusCodes.Status503ServiceUnavailable;
+        return Results.Json(
+            new { errorCode = exception.ErrorCode, message = exception.Message },
+            statusCode: statusCode);
+    }
 
     if (shot is null)
     {

@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Booth.Domain.Session\Booth.Domain.Session.csproj" />
+    <ProjectReference Include="..\Booth.Plugin.Abstractions\Booth.Plugin.Abstractions.csproj" />
     <ProjectReference Include="..\Booth.Shared.Contracts\Booth.Shared.Contracts.csproj" />
   </ItemGroup>
 </Project>
