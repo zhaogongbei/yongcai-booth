@@ -96,7 +96,16 @@ app.MapPost("/v1/session/start", async (SessionStartApiRequest request, SessionA
 
 app.MapPost("/v1/session/{sessionId}/cancel", async (string sessionId, SessionApplicationService service, CancellationToken cancellationToken) =>
 {
-    var session = await service.CancelAsync(sessionId, cancellationToken);
+    SessionAggregate? session;
+    try
+    {
+        session = await service.CancelAsync(sessionId, cancellationToken);
+    }
+    catch (SessionStateException exception)
+    {
+        return Results.Conflict(new { errorCode = exception.ErrorCode, message = exception.Message });
+    }
+
     if (session is null)
     {
         return Results.NotFound(new { errorCode = ErrorCodes.ConfigurationInvalid, message = "Session not found." });

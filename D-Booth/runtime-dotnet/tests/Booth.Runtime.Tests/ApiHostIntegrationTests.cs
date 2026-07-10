@@ -112,6 +112,30 @@ public sealed class ApiHostIntegrationTests
     }
 
     [Fact]
+    public async Task CancelSession_ShouldStayIdempotent_WhenCancelledTwice()
+    {
+        var tempRoot = CreateTempRoot();
+
+        await using var host = await BoothApiHost.StartAsync(tempRoot);
+        using var client = new HttpClient { BaseAddress = host.BaseAddress };
+        var startRequest = new SessionStartApiRequest(
+            "ses_http_double_cancel",
+            "evt_http_double_cancel",
+            SessionMode.Print,
+            "dev_http_double_cancel");
+
+        (await client.PostAsJsonAsync("/v1/session/start", startRequest)).EnsureSuccessStatusCode();
+        (await client.PostAsync("/v1/session/ses_http_double_cancel/cancel", content: null)).EnsureSuccessStatusCode();
+
+        var secondCancel = await client.PostAsync("/v1/session/ses_http_double_cancel/cancel", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, secondCancel.StatusCode);
+        var payload = await secondCancel.Content.ReadFromJsonAsync<SessionCancelApiResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("cancelled", payload!.Status);
+    }
+
+    [Fact]
     public async Task SessionDetails_ShouldPersistFailedPrintJob_WhenPrinterIsNotConfigured()
     {
         var tempRoot = CreateTempRoot();

@@ -65,6 +65,18 @@ public sealed class SessionApplicationService
             return null;
         }
 
+        if (session.Status == SessionStatus.Cancelled)
+        {
+            return session;
+        }
+
+        if (session.IsTerminal)
+        {
+            throw new SessionStateException(
+                ErrorCodes.SessionInvalidState,
+                $"Session in status '{session.Status}' can no longer be cancelled.");
+        }
+
         session.Cancel();
         await _sessionRepository.SaveAsync(session, cancellationToken);
         return session;
