@@ -1,6 +1,6 @@
 import copy
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from uuid import UUID
 
 from PIL import Image, ImageDraw, ImageFont
@@ -19,6 +19,8 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
     Manages photo booth templates with layer-based design system,
     validation, preview generation, and duplication.
     """
+
+    repository: TemplateRepository
 
     def __init__(self, db: AsyncSession):
         repository = TemplateRepository(db)
@@ -42,7 +44,7 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
 
     async def get_template(self, template_id: UUID) -> Optional[Template]:
         """Get template by ID (alias for route compatibility)."""
-        return await self.get(template_id)
+        return cast(Optional[Template], await self.get(template_id))
 
     async def get_templates(
         self,
@@ -51,28 +53,14 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> List[Template]:
-        """Get templates with optional filters.
-
-        Combines team templates and public templates based on filters.
-        """
-        if team_id and is_public:
-            # Return both team + public templates
-            team_templates = await self.repository.get_by_team(team_id, skip, limit)
-            public_templates = await self.repository.get_public_templates(skip, limit)
-            # Merge and dedupe
-            seen = set()
-            result = []
-            for t in team_templates + public_templates:
-                if t.id not in seen:
-                    seen.add(t.id)
-                    result.append(t)
-            return result[:limit]
-        elif team_id:
-            return await self.repository.get_by_team(team_id, skip, limit)
-        elif is_public:
+        """Get team-scoped templates with optional visibility filtering."""
+        if team_id:
+            return await self.repository.get_by_team(
+                team_id, skip=skip, limit=limit, is_public=is_public
+            )
+        if is_public:
             return await self.repository.get_public_templates(skip, limit)
-        else:
-            return await self.repository.get_multi(skip, limit)
+        return cast(List[Template], await self.repository.get_multi(skip, limit))
 
     async def get_team_templates(
         self, team_id: UUID, skip: int = 0, limit: int = 100
@@ -86,17 +74,17 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
 
     async def create_template(self, template_in: TemplateCreate) -> Template:
         """Create a new template (alias for route compatibility)."""
-        return await self.create(template_in)
+        return cast(Template, await self.create(template_in))
 
     async def update_template(
         self, template_id: UUID, template_in: TemplateUpdate
     ) -> Optional[Template]:
         """Update template (alias for route compatibility)."""
-        return await self.update(template_id, template_in)
+        return cast(Optional[Template], await self.update(template_id, template_in))
 
     async def delete_template(self, template_id: UUID) -> bool:
         """Delete a template (alias for route compatibility)."""
-        return await self.delete(template_id)
+        return cast(bool, await self.delete(template_id))
 
     def validate_template(self, template_data: Dict[str, Any]) -> bool:
         """Validate template JSON structure"""
@@ -177,7 +165,7 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
             return False
 
     async def generate_preview(
-        self, template_id: UUID, sample_photos: List[BytesIO] = None
+        self, template_id: UUID, sample_photos: Optional[List[BytesIO]] = None
     ) -> bytes:
         """Generate template preview image using sample photos"""
         template = await self.get_template(template_id)
@@ -276,7 +264,9 @@ class TemplateService(BaseService[Template, TemplateCreate, TemplateUpdate]):
             img.save(buf, format="PNG")
             return buf.getvalue()
 
-    async def duplicate_template(self, template_id: UUID, new_name: str = None) -> Template:
+    async def duplicate_template(
+        self, template_id: UUID, new_name: Optional[str] = None
+    ) -> Template:
         """Duplicate a template"""
         original = await self.get_template(template_id)
         if not original:

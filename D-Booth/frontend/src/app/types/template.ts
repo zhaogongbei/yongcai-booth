@@ -67,6 +67,13 @@ export interface TemplateLayout {
   orientation: 'portrait' | 'landscape';
   background: { type: 'color' | 'gradient' | 'image'; value: string; zIndex?: number };
   elements: TemplateElement[];
+  catalog?: {
+    feature?: 'recommended' | 'popular';
+    category?: string;
+    style?: string;
+    scene?: string;
+    accentColor?: string;
+  };
 }
 
 export interface TemplatePreset {

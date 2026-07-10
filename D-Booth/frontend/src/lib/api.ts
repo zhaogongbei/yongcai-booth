@@ -953,11 +953,17 @@ export interface TemplateResponse {
   updated_at: string;
 }
 
+export type TemplateCatalogResponse = Omit<TemplateResponse, "team_id" | "is_public">;
+
 export async function getTemplates(teamId: string, token?: string): Promise<TemplateResponse[]> {
   return request<TemplateResponse[]>("/templates", {
     token,
     query: { team_id: teamId },
   });
+}
+
+export async function getTemplateCatalog(token?: string): Promise<TemplateCatalogResponse[]> {
+  return request<TemplateCatalogResponse[]>("/templates/catalog", { token });
 }
 
 export async function getTemplate(templateId: string, token?: string): Promise<TemplateResponse> {

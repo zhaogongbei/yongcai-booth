@@ -14,14 +14,19 @@ class TemplateRepository(BaseRepository[Template]):
     def __init__(self, db: AsyncSession):
         super().__init__(Template, db)
 
-    async def get_by_team(self, team_id: UUID, skip: int = 0, limit: int = 100) -> List[Template]:
+    async def get_by_team(
+        self,
+        team_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        is_public: Optional[bool] = None,
+    ) -> List[Template]:
         """Get all templates for a team"""
+        query = select(Template).where(Template.team_id == team_id)
+        if is_public is not None:
+            query = query.where(Template.is_public.is_(is_public))
         result = await self.db.execute(
-            select(Template)
-            .where(Template.team_id == team_id)
-            .order_by(Template.created_at.desc())
-            .offset(skip)
-            .limit(limit)
+            query.order_by(Template.created_at.desc()).offset(skip).limit(limit)
         )
         return list(result.scalars().all())
 
@@ -29,7 +34,7 @@ class TemplateRepository(BaseRepository[Template]):
         """Get all public templates"""
         result = await self.db.execute(
             select(Template)
-            .where(Template.is_public == True)
+            .where(Template.is_public.is_(True))
             .order_by(Template.created_at.desc())
             .offset(skip)
             .limit(limit)
@@ -54,4 +59,4 @@ class TemplateRepository(BaseRepository[Template]):
         result = await self.db.execute(
             select(func.count()).select_from(Template).where(Template.team_id == team_id)
         )
-        return result.scalar_one()
+        return int(result.scalar_one())

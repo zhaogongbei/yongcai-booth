@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import check_team_member, get_current_active_user, get_db
 from app.models.models import User
-from app.schemas.template import TemplateCreate, TemplateResponse, TemplateUpdate
+from app.schemas.template import (
+    TemplateCatalogResponse,
+    TemplateCreate,
+    TemplateResponse,
+    TemplateUpdate,
+)
 from app.services.base_service import ValidationError
 from app.services.template_service import TemplateService
 
@@ -31,7 +36,7 @@ class TemplateDuplicateRequest(BaseModel):
 @router.get("", response_model=List[TemplateResponse])
 async def get_templates(
     team_id: UUID = Query(...),
-    is_public: bool = Query(None),
+    is_public: Optional[bool] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
@@ -47,6 +52,18 @@ async def get_templates(
         team_id=team_id, is_public=is_public, skip=skip, limit=limit
     )
     return templates
+
+
+@router.get("/catalog", response_model=List[TemplateCatalogResponse])
+async def get_template_catalog(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    _current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get persisted public templates without exposing tenant identifiers."""
+    template_service = TemplateService(db)
+    return await template_service.get_public_templates(skip=skip, limit=limit)
 
 
 @router.post("", response_model=TemplateResponse, status_code=status.HTTP_201_CREATED)

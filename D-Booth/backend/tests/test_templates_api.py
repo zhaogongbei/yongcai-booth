@@ -138,3 +138,115 @@ async def test_create_template_rejects_invalid_photo_number(authenticated_client
 
     assert response.status_code == 400
     assert response.json()["error"]["message"] == "Invalid template structure"
+
+
+@pytest.mark.anyio
+async def test_template_catalog_is_public_and_team_lists_remain_isolated(
+    authenticated_client: AsyncClient,
+):
+    primary_authorization = authenticated_client.headers["Authorization"]
+
+    primary_team_response = await authenticated_client.post(
+        "/api/v1/teams",
+        json={"name": "Primary Catalog Team", "slug": "primary-catalog-team"},
+    )
+    assert primary_team_response.status_code == 201
+    primary_team_id = primary_team_response.json()["id"]
+
+    primary_private_response = await authenticated_client.post(
+        "/api/v1/templates",
+        json={
+            "team_id": primary_team_id,
+            "name": "Primary Private Template",
+            "layers": _custom_template_layers(),
+            "is_public": False,
+        },
+    )
+    assert primary_private_response.status_code == 201
+
+    primary_public_response = await authenticated_client.post(
+        "/api/v1/templates",
+        json={
+            "team_id": primary_team_id,
+            "name": "Primary Public Template",
+            "layers": _custom_template_layers(),
+            "is_public": True,
+        },
+    )
+    assert primary_public_response.status_code == 201
+
+    second_user = {
+        "email": "catalog-owner@example.com",
+        "password": "CatalogPass123!@",
+        "full_name": "Catalog Owner",
+    }
+    register_response = await authenticated_client.post("/api/v1/auth/register", json=second_user)
+    assert register_response.status_code == 201
+    login_response = await authenticated_client.post(
+        "/api/v1/auth/login",
+        data={"username": second_user["email"], "password": second_user["password"]},
+    )
+    assert login_response.status_code == 200
+    authenticated_client.headers["Authorization"] = (
+        f"Bearer {login_response.json()['access_token']}"
+    )
+
+    second_team_response = await authenticated_client.post(
+        "/api/v1/teams",
+        json={"name": "Second Catalog Team", "slug": "second-catalog-team"},
+    )
+    assert second_team_response.status_code == 201
+    second_team_id = second_team_response.json()["id"]
+
+    second_public_response = await authenticated_client.post(
+        "/api/v1/templates",
+        json={
+            "team_id": second_team_id,
+            "name": "Second Public Template",
+            "layers": _custom_template_layers(),
+            "is_public": True,
+        },
+    )
+    assert second_public_response.status_code == 201
+
+    second_private_response = await authenticated_client.post(
+        "/api/v1/templates",
+        json={
+            "team_id": second_team_id,
+            "name": "Second Private Template",
+            "layers": _custom_template_layers(),
+            "is_public": False,
+        },
+    )
+    assert second_private_response.status_code == 201
+
+    authenticated_client.headers["Authorization"] = primary_authorization
+
+    team_list_response = await authenticated_client.get(
+        "/api/v1/templates",
+        params={"team_id": primary_team_id},
+    )
+    assert team_list_response.status_code == 200
+    assert {item["name"] for item in team_list_response.json()} == {
+        "Primary Private Template",
+        "Primary Public Template",
+    }
+
+    public_team_list_response = await authenticated_client.get(
+        "/api/v1/templates",
+        params={"team_id": primary_team_id, "is_public": True},
+    )
+    assert public_team_list_response.status_code == 200
+    assert [item["name"] for item in public_team_list_response.json()] == [
+        "Primary Public Template"
+    ]
+
+    catalog_response = await authenticated_client.get("/api/v1/templates/catalog")
+    assert catalog_response.status_code == 200
+    catalog = catalog_response.json()
+    assert {item["name"] for item in catalog} == {
+        "Primary Public Template",
+        "Second Public Template",
+    }
+    assert all("team_id" not in item for item in catalog)
+    assert all("is_public" not in item for item in catalog)

@@ -45,6 +45,21 @@ class TemplateResponse(TemplateBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TemplateCatalogResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    size: Optional[str] = None
+    canvas_width: Optional[Decimal] = None
+    canvas_height: Optional[Decimal] = None
+    layers: Optional[Dict[str, Any]] = None
+    thumbnail_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Template List Query Schema
 class TemplateListQuery(BaseModel):
     team_id: Optional[UUID] = None

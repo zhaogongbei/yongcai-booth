@@ -9,20 +9,20 @@ import { showToast } from "../stores/useToast";
 import { useSettings } from "../stores/useSettings";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
 import { JUST_SAVED_TEMPLATE_SESSION_KEY, SELECTED_TEMPLATE_SESSION_KEY, TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY } from "../constants/templateNavigation";
-import { createTemplateLayoutFromPrintPreset, QUICK_PRINT_LAYOUTS, TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
-import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplates, tokenStorage, type TemplateResponse } from "../../lib/api";
+import { TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY } from "../constants/printLayoutPresets";
+import { createTemplate, deleteTemplate, duplicateTemplate, getMyTeams, getTemplateCatalog, getTemplates, tokenStorage, type TemplateCatalogResponse, type TemplateResponse } from "../../lib/api";
 import type { Screen } from "../types";
 import type { TemplateLayout } from "../types/template";
 
-type CatalogTemplate = {
-  name: string;
+type MarketTemplate = {
+  template: TemplateCatalogResponse;
+  layout: TemplateLayout;
   ratio: string;
-  type: "推荐" | "热门";
+  feature: "推荐" | "热门" | "公开";
   category: string;
   style: string;
   scene: string;
   accentColor: string;
-  layoutId: string;
 };
 
 function isTemplateLayout(value: unknown): value is TemplateLayout {
@@ -37,8 +37,39 @@ function isTemplateLayout(value: unknown): value is TemplateLayout {
   );
 }
 
-function getTemplateSizeLabel(layout: TemplateLayout): string {
-  return `${layout.paperSize.width}x${layout.paperSize.height}mm`;
+function getTemplateRatioLabel(layout: TemplateLayout): string {
+  const shortSide = Math.min(layout.paperSize.width, layout.paperSize.height);
+  const longSide = Math.max(layout.paperSize.width, layout.paperSize.height);
+  const ratio = longSide / shortSide;
+  if (Math.abs(ratio - 3) < 0.08) return "2×6";
+  if (Math.abs(ratio - 1.5) < 0.08) return "4×6";
+  if (Math.abs(ratio - 4 / 3) < 0.08) return "6×8";
+  return "其他";
+}
+
+function toMarketTemplate(template: TemplateCatalogResponse): MarketTemplate | null {
+  if (!isTemplateLayout(template.layers)) return null;
+
+  const metadata = template.layers.catalog;
+  const backgroundColor = template.layers.background.type === "color"
+    && /^#[0-9a-f]{3,8}$/i.test(template.layers.background.value)
+    ? template.layers.background.value
+    : "#8b5cf6";
+
+  return {
+    template,
+    layout: template.layers,
+    ratio: getTemplateRatioLabel(template.layers),
+    feature: metadata?.feature === "recommended"
+      ? "推荐"
+      : metadata?.feature === "popular" ? "热门" : "公开",
+    category: metadata?.category?.trim() || "自定义",
+    style: metadata?.style?.trim() || "其他",
+    scene: metadata?.scene?.trim() || "其他",
+    accentColor: metadata?.accentColor && /^#[0-9a-f]{3,8}$/i.test(metadata.accentColor)
+      ? metadata.accentColor
+      : backgroundColor,
+  };
 }
 
 export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void }) {
@@ -61,33 +92,23 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   const [selectedStyle, setSelectedStyle] = useState("全部");
   const [selectedScene, setSelectedScene] = useState("全部");
   const [savedTemplates, setSavedTemplates] = useState<TemplateResponse[]>([]);
+  const [marketTemplates, setMarketTemplates] = useState<TemplateCatalogResponse[]>([]);
   const [savedTemplatesLoading, setSavedTemplatesLoading] = useState(false);
   const [savedTemplatesError, setSavedTemplatesError] = useState<string | null>(null);
   const [operatingTemplateId, setOperatingTemplateId] = useState<string | null>(null);
   const [recentlySavedTemplateId, setRecentlySavedTemplateId] = useState<string | null>(null);
 
   const categories = ["全部", "婚礼", "生日", "企业", "毕业", "节日", "派对", "自定义"];
-  const catalogTemplates = useMemo<CatalogTemplate[]>(() => [
-    { name: "花漾双条", ratio: "2×6", type: "推荐", category: "婚礼", style: "清新", scene: "户外", accentColor: "#ec4899", layoutId: "two-double-horizontal" },
-    { name: "白花四连", ratio: "2×6", type: "推荐", category: "婚礼", style: "日系", scene: "室内", accentColor: "#f8fafc", layoutId: "four-double-vertical" },
-    { name: "生日主图", ratio: "2×6", type: "推荐", category: "生日", style: "清新", scene: "工作室", accentColor: "#ec4899", layoutId: "one-large-three-small-horizontal" },
-    { name: "夏日四宫格", ratio: "2×6", type: "推荐", category: "派对", style: "欧美", scene: "户外", accentColor: "#f59e0b", layoutId: "four-single-horizontal" },
-    { name: "企业横版", ratio: "4×6", type: "推荐", category: "企业", style: "欧美", scene: "室内", accentColor: "#3b82f6", layoutId: "one-single-horizontal" },
-    { name: "单张竖版", ratio: "4×6", type: "热门", category: "自定义", style: "清新", scene: "工作室", accentColor: "#22c55e", layoutId: "one-single-vertical" },
-    { name: "复古双联", ratio: "2×6", type: "热门", category: "节日", style: "复古", scene: "室内", accentColor: "#8b5cf6", layoutId: "one-double-vertical" },
-    { name: "三连双条", ratio: "2×6", type: "热门", category: "毕业", style: "国潮", scene: "工作室", accentColor: "#ef4444", layoutId: "three-double-vertical" },
-  ], []);
+  const parsedMarketTemplates = useMemo(
+    () => marketTemplates
+      .map(toMarketTemplate)
+      .filter((template): template is MarketTemplate => template !== null),
+    [marketTemplates]
+  );
 
-  const layoutPreviewById = useMemo(() => {
-    return new Map(QUICK_PRINT_LAYOUTS.map(preset => [
-      preset.id,
-      createTemplateLayoutFromPrintPreset(`catalog-${preset.id}`, preset),
-    ]));
-  }, []);
-
-  const filterCatalogTemplate = (template: CatalogTemplate) => {
+  const filterMarketTemplate = (template: MarketTemplate) => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-    const searchableText = `${template.name}${template.style}${template.scene}${template.category}${template.ratio}`.toLowerCase();
+    const searchableText = `${template.template.name}${template.style}${template.scene}${template.category}${template.ratio}`.toLowerCase();
     if (normalizedSearchTerm && !searchableText.includes(normalizedSearchTerm)) return false;
     if (selectedCategory && template.category !== selectedCategory) return false;
     if (selectedRatio !== "全部" && template.ratio !== selectedRatio) return false;
@@ -97,13 +118,13 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     return true;
   };
 
-  const filteredTemplates = catalogTemplates.filter(template => template.type === "推荐").filter(filterCatalogTemplate);
-  const filteredHotTemplates = catalogTemplates.filter(template => template.type === "热门").filter(filterCatalogTemplate);
+  const filteredMarketTemplates = parsedMarketTemplates.filter(filterMarketTemplate);
 
   const loadSavedTemplates = useCallback(async () => {
     const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
     if (!hasStoredAuthSession) {
       setSavedTemplates([]);
+      setMarketTemplates([]);
       setSavedTemplatesError(null);
       return;
     }
@@ -120,12 +141,17 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
       }
       if (!teamId) {
         setSavedTemplates([]);
+        setMarketTemplates([]);
         setSavedTemplatesError(null);
         return;
       }
 
-      const data = await getTemplates(teamId, authToken ?? undefined);
-      setSavedTemplates(data);
+      const [teamTemplates, catalogTemplates] = await Promise.all([
+        getTemplates(teamId, authToken ?? undefined),
+        getTemplateCatalog(authToken ?? undefined),
+      ]);
+      setSavedTemplates(teamTemplates);
+      setMarketTemplates(catalogTemplates);
       setSavedTemplatesError(null);
     } catch {
       setSavedTemplatesError("已保存模板加载失败");
@@ -165,8 +191,8 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
   ].map(card => ({
     ...card,
     count: card.filter === "自定义"
-      ? savedTemplates.length + catalogTemplates.filter(template => template.category === card.filter).length
-      : catalogTemplates.filter(template => template.category === card.filter).length,
+      ? savedTemplates.length + parsedMarketTemplates.filter(template => template.category === card.filter).length
+      : parsedMarketTemplates.filter(template => template.category === card.filter).length,
   }));
 
   const openTemplateEditor = (templateId?: string) => {
@@ -187,81 +213,12 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     navigate("template-editor");
   };
 
-  const openTemplateEditorWithLayout = (layoutId: string) => {
-    sessionStorage.removeItem(SELECTED_TEMPLATE_SESSION_KEY);
-    sessionStorage.removeItem(TEMPLATE_EDITOR_UPLOAD_BACKGROUND_SESSION_KEY);
-    sessionStorage.setItem(TEMPLATE_EDITOR_QUICK_LAYOUT_SESSION_KEY, layoutId);
-    navigate("template-editor");
-  };
-
   const resolveTemplateTeamId = useCallback(async () => {
     if (currentEvent?.teamId) return currentEvent.teamId;
     if (captureTeamId) return captureTeamId;
     const teams = await getMyTeams(authToken ?? undefined);
     return teams[0]?.id;
   }, [authToken, captureTeamId, currentEvent?.teamId]);
-
-  const selectQuickLayoutForPrint = async (layoutId: string) => {
-    const preset = QUICK_PRINT_LAYOUTS.find(item => item.id === layoutId);
-    if (!preset) {
-      showToast.error("未找到该打印版式");
-      return;
-    }
-
-    const temporaryId = `quick-${preset.id}`;
-    const layout = createTemplateLayoutFromPrintPreset(temporaryId, preset);
-    let templateId = temporaryId;
-    let templateName = preset.name;
-
-    const hasStoredAuthSession = Boolean(tokenStorage.access || tokenStorage.refresh || authToken);
-    if (hasStoredAuthSession) {
-      try {
-        const teamId = await resolveTemplateTeamId();
-        if (!teamId) {
-          showToast.error("未找到可保存模板的团队");
-          return;
-        }
-        const saved = await createTemplate({
-          team_id: teamId,
-          name: preset.name,
-          description: "由快速打印版式自动保存",
-          size: getTemplateSizeLabel(layout),
-          canvas_width: preset.canvasWidth,
-          canvas_height: preset.canvasHeight,
-          layers: layout as unknown as Record<string, unknown>,
-          is_public: false,
-        }, authToken ?? undefined);
-        templateId = saved.id;
-        templateName = saved.name;
-        setSavedTemplates(prev => [saved, ...prev.filter(item => item.id !== saved.id)]);
-      } catch (err) {
-        showToast.error(err instanceof Error ? err.message : "快速版式保存失败");
-        return;
-      }
-    }
-
-    setActivePrintTemplate({
-      id: templateId,
-      name: templateName,
-      layout: {
-        ...layout,
-        id: templateId,
-        name: templateName,
-      },
-    });
-    showToast.success(`已使用版式：${templateName}`);
-    const returnScreen = templateSelectionReturnScreen === "print" ? "print" : "camera";
-    setTemplateSelectionReturnScreen(null);
-    navigate(returnScreen);
-  };
-
-  const openOrSelectLayout = (layoutId: string) => {
-    if (templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera") {
-      void selectQuickLayoutForPrint(layoutId);
-      return;
-    }
-    openTemplateEditorWithLayout(layoutId);
-  };
 
   const selectTemplateForPrint = (template: TemplateResponse) => {
     if (!isTemplateLayout(template.layers)) {
@@ -286,9 +243,6 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
 
   const isTemplateSelectionMode = templateSelectionReturnScreen === "print" || templateSelectionReturnScreen === "camera";
   const selectTemplateButtonLabel = templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用并返回拍照";
-  const quickLayoutActionLabel = isTemplateSelectionMode
-    ? (templateSelectionReturnScreen === "print" ? "使用并返回预览" : "使用并返回拍照")
-    : "用此版式创建";
   const selectionModeTitle = templateSelectionReturnScreen === "print" ? "正在为打印预览选择模板" : "正在为拍照流程选择模板";
   const selectionModeReturnLabel = templateSelectionReturnScreen === "print" ? "返回打印预览" : "返回拍照";
   const selectionModeDescription = templateSelectionReturnScreen === "print"
@@ -308,6 +262,46 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
     setSelectedRatio("全部");
     setSelectedStyle("全部");
     setSelectedScene("全部");
+  };
+
+  const importMarketTemplate = async (marketTemplate: MarketTemplate) => {
+    setOperatingTemplateId(marketTemplate.template.id);
+    try {
+      const teamId = await resolveTemplateTeamId();
+      if (!teamId) {
+        showToast.error("未找到可保存模板的团队");
+        return;
+      }
+
+      const copy = await createTemplate({
+        team_id: teamId,
+        name: marketTemplate.template.name,
+        description: marketTemplate.template.description || "从模板市场导入",
+        size: marketTemplate.template.size,
+        canvas_width: marketTemplate.template.canvas_width == null
+          ? null
+          : Number(marketTemplate.template.canvas_width),
+        canvas_height: marketTemplate.template.canvas_height == null
+          ? null
+          : Number(marketTemplate.template.canvas_height),
+        layers: marketTemplate.layout as unknown as Record<string, unknown>,
+        thumbnail_url: marketTemplate.template.thumbnail_url,
+        is_public: false,
+      }, authToken ?? undefined);
+      setSavedTemplates(prev => [copy, ...prev.filter(item => item.id !== copy.id)]);
+
+      if (isTemplateSelectionMode) {
+        selectTemplateForPrint(copy);
+        return;
+      }
+
+      showToast.success("市场模板已加入我的模板");
+      openTemplateEditor(copy.id);
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "市场模板导入失败");
+    } finally {
+      setOperatingTemplateId(null);
+    }
   };
 
   const duplicateSavedTemplate = async (template: TemplateResponse) => {
@@ -523,59 +517,60 @@ export function TemplatesScreen({ navigate }: { navigate: (s: Screen) => void })
           </div>
         )}
 
-        {/* Featured templates */}
+        {/* Persisted public template catalog */}
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-white">推荐版式</span>
-              <NeonBadge color="purple">{filteredTemplates.length}</NeonBadge>
+              <span className="text-sm font-semibold text-white">模板市场</span>
+              <NeonBadge color="purple">{filteredMarketTemplates.length}</NeonBadge>
             </div>
             <button className="text-xs text-violet-400 hover:text-violet-300" onClick={clearVisualFilters}>查看全部</button>
           </div>
-          <div className="grid grid-cols-6 gap-4">
-            {filteredTemplates.map(t => (
-              <motion.div key={t.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => openOrSelectLayout(t.layoutId)}>
-                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 bg-white group-hover:border-violet-500/40 transition-all">
-                  <TemplateThumbnailPreview layout={layoutPreviewById.get(t.layoutId) ?? null} />
-                  <div className="absolute top-2 right-2">
-                    <NeonBadge color="purple">可创建</NeonBadge>
+          {savedTemplatesLoading ? (
+            <div className="py-8 text-center text-xs text-white/40">正在加载公开模板...</div>
+          ) : filteredMarketTemplates.length === 0 ? (
+            <div className="border border-dashed border-white/10 py-8 text-center text-xs text-white/40">
+              {savedTemplatesError ? "模板市场加载失败" : "暂无符合条件的公开模板"}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              {filteredMarketTemplates.map(item => (
+                <motion.div
+                  key={item.template.id}
+                  whileHover={{ scale: 1.03 }}
+                  className={`group ${operatingTemplateId === item.template.id ? "cursor-wait opacity-60" : "cursor-pointer"}`}
+                  onClick={() => {
+                    if (operatingTemplateId !== item.template.id) {
+                      void importMarketTemplate(item);
+                    }
+                  }}
+                >
+                  <div className="relative overflow-hidden rounded-lg aspect-[2/5] border border-white/10 bg-white transition-all group-hover:border-violet-500/40">
+                    <TemplateThumbnailPreview layout={item.layout} />
+                    <div className="absolute top-2 right-2">
+                      <NeonBadge color={item.feature === "热门" ? "pink" : item.feature === "推荐" ? "purple" : "green"}>
+                        {item.feature}
+                      </NeonBadge>
+                    </div>
+                    <div className="absolute left-2 top-2 h-3 w-3 rounded-full border border-white/60" style={{ background: item.accentColor }} />
+                    <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/70 via-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <span className="w-full rounded bg-violet-500/90 px-2 py-1 text-center text-[10px] font-medium text-white">
+                        {operatingTemplateId === item.template.id
+                          ? "正在导入"
+                          : isTemplateSelectionMode ? "导入并使用" : "加入我的模板"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="absolute left-2 top-2 h-3 w-3 rounded-full border border-white/60" style={{ background: t.accentColor }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                    <GlowBtn size="sm" variant="primary" className="w-full justify-center">{quickLayoutActionLabel}</GlowBtn>
+                  <div className="mt-2">
+                    <div className="truncate text-xs font-medium text-white">{item.template.name}</div>
+                    <div className="truncate text-[10px] text-white/40">
+                      {item.ratio} · {item.category} · {item.style}
+                    </div>
                   </div>
-                </div>
-                <div className="mt-2">
-                  <div className="text-xs font-medium text-white">{t.name}</div>
-                  <div className="text-[10px] text-white/40">{t.ratio}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Hot templates */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-semibold text-white">热门版式</span>
-            <NeonBadge color="pink">{filteredHotTemplates.length}</NeonBadge>
-          </div>
-          <div className="grid grid-cols-8 gap-3">
-            {filteredHotTemplates.map((item) => (
-              <motion.div key={item.name} whileHover={{ scale: 1.03 }} className="cursor-pointer group"
-                onClick={() => openOrSelectLayout(item.layoutId)}>
-                <div className="relative rounded-xl overflow-hidden aspect-[2/5] border border-white/10 bg-white group-hover:border-pink-500/40 transition-all">
-                  <TemplateThumbnailPreview layout={layoutPreviewById.get(item.layoutId) ?? null} />
-                  <div className="absolute left-2 top-2 h-3 w-3 rounded-full border border-white/60" style={{ background: item.accentColor }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
-                    <span className="rounded-lg bg-pink-500/90 px-2 py-1 text-[10px] font-medium text-white">{isTemplateSelectionMode ? "使用" : "创建"}</span>
-                  </div>
-                </div>
-                <div className="text-[10px] text-white/50 mt-1.5 text-center">{item.name}</div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
