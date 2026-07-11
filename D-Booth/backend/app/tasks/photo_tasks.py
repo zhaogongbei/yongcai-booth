@@ -14,6 +14,18 @@ from app.core.config import settings
 from app.core.logging import logger
 
 
+def _r2_public_url(object_key: str) -> str:
+    """Build a publicly reachable R2 URL for a stored object key.
+
+    The R2 S3 API endpoint does not serve anonymous GETs, so a configured
+    public base (pub-*.r2.dev or a custom domain) must be used when present.
+    """
+    public_base = settings.R2_PUBLIC_URL.rstrip("/")
+    if public_base:
+        return f"{public_base}/{object_key}"
+    return f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{object_key}"
+
+
 def get_s3_client():
     """Get synchronous S3 client for Celery tasks (legacy)"""
     if not settings.R2_ACCESS_KEY_ID or not settings.R2_SECRET_ACCESS_KEY:
@@ -41,7 +53,6 @@ async def upload_to_s3_async(
 
     if not settings.R2_ACCESS_KEY_ID or not settings.R2_SECRET_ACCESS_KEY:
         raise RuntimeError("S3 credentials not configured")
-
     file_ext = filename.split(".")[-1] if "." in filename else ""
     unique_filename = f"{uuid4()}.{file_ext}" if file_ext else str(uuid4())
     object_key = f"{folder}/{unique_filename}"
@@ -63,7 +74,7 @@ async def upload_to_s3_async(
                 CacheControl="public, max-age=31536000",
             )
 
-            public_url = f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{object_key}"
+            public_url = _r2_public_url(object_key)
             logger.info(f"Async upload completed: {object_key}")
             return public_url
 

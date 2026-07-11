@@ -3,8 +3,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List
 
-from celery import shared_task
-
 from app.celery_app import celery_app
 from app.core.config import settings
 from app.core.logging import logger
@@ -17,37 +15,37 @@ class EmailService:
     def send_email(
         to: str | List[str], subject: str, html_content: str, text_content: str = None
     ) -> bool:
-        """Send email via SMTP"""
+        """Send email via SMTP.
+
+        Returns False only when SMTP is not configured (a deliberate skip).
+        A configured-but-failing send raises, so Celery tasks can retry
+        instead of silently reporting success.
+        """
 
         if not settings.SMTP_HOST or not settings.SMTP_USER:
             logger.warning("SMTP not configured, skipping email")
             return False
 
-        try:
-            # Create message
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
-            msg["To"] = to if isinstance(to, str) else ", ".join(to)
+        # Create message
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+        msg["To"] = to if isinstance(to, str) else ", ".join(to)
 
-            # Add text and HTML parts
-            if text_content:
-                msg.attach(MIMEText(text_content, "plain"))
-            msg.attach(MIMEText(html_content, "html"))
+        # Add text and HTML parts
+        if text_content:
+            msg.attach(MIMEText(text_content, "plain"))
+        msg.attach(MIMEText(html_content, "html"))
 
-            # Send email
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                server.starttls()
-                if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                    server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.send_message(msg)
+        # Send email — exceptions propagate so the caller can retry.
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.send_message(msg)
 
-            logger.info(f"Email sent successfully to {to}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to send email to {to}: {e}")
-            return False
+        logger.info(f"Email sent successfully to {to}")
+        return True
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -81,9 +79,9 @@ def send_welcome_email(self, user_email: str, user_name: str):
         The {settings.APP_NAME} Team
         """
 
-        EmailService.send_email(user_email, subject, html_content, text_content)
+        sent = EmailService.send_email(user_email, subject, html_content, text_content)
 
-        return {"status": "sent", "to": user_email}
+        return {"status": "sent" if sent else "skipped", "to": user_email}
 
     except Exception as e:
         logger.error(f"Failed to send welcome email to {user_email}: {e}")
@@ -129,9 +127,9 @@ def send_password_reset_email(self, user_email: str, reset_token: str):
         The {settings.APP_NAME} Team
         """
 
-        EmailService.send_email(user_email, subject, html_content, text_content)
+        sent = EmailService.send_email(user_email, subject, html_content, text_content)
 
-        return {"status": "sent", "to": user_email}
+        return {"status": "sent" if sent else "skipped", "to": user_email}
 
     except Exception as e:
         logger.error(f"Failed to send password reset email to {user_email}: {e}")
@@ -169,9 +167,9 @@ def send_event_invitation_email(self, user_email: str, event_name: str, event_ur
         The {settings.APP_NAME} Team
         """
 
-        EmailService.send_email(user_email, subject, html_content, text_content)
+        sent = EmailService.send_email(user_email, subject, html_content, text_content)
 
-        return {"status": "sent", "to": user_email}
+        return {"status": "sent" if sent else "skipped", "to": user_email}
 
     except Exception as e:
         logger.error(f"Failed to send invitation email to {user_email}: {e}")
@@ -208,9 +206,9 @@ def send_photo_share_email(self, user_email: str, photo_url: str, sender_name: s
         The {settings.APP_NAME} Team
         """
 
-        EmailService.send_email(user_email, subject, html_content, text_content)
+        sent = EmailService.send_email(user_email, subject, html_content, text_content)
 
-        return {"status": "sent", "to": user_email}
+        return {"status": "sent" if sent else "skipped", "to": user_email}
 
     except Exception as e:
         logger.error(f"Failed to send photo share email to {user_email}: {e}")

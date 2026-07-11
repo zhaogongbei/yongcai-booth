@@ -119,6 +119,46 @@ class R2StorageService:
         """Check if R2 storage is configured and available"""
         return self.client is not None
 
+    @staticmethod
+    def _public_url(object_key: str) -> str:
+        """Build a publicly accessible URL for a stored object.
+
+        The R2 S3 API endpoint does not serve anonymous GETs, so a configured
+        public base (pub-*.r2.dev or a custom domain) must be used when present.
+        Falls back to the endpoint/bucket form only when no public base is set
+        (e.g. tests), where reachability is not expected.
+        """
+        public_base = settings.R2_PUBLIC_URL.rstrip("/")
+        if public_base:
+            return f"{public_base}/{object_key}"
+        return f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{object_key}"
+
+    async def download_file(self, url: str) -> bytes:
+        """Download a stored object's bytes by its public or key-bearing URL."""
+        if not self.is_available():
+            raise RuntimeError("R2 storage is not configured")
+
+        object_key = self._object_key_from_url(url)
+
+        try:
+            response = await asyncio.to_thread(
+                self.client.get_object, Bucket=self.bucket_name, Key=object_key
+            )
+            return await asyncio.to_thread(response["Body"].read)
+        except ClientError as e:
+            logger.error(f"Failed to download file from R2: {e}")
+            raise RuntimeError(f"File download failed: {str(e)}")
+
+    def _object_key_from_url(self, url: str) -> str:
+        """Extract the bucket-relative object key from a stored URL."""
+        public_base = settings.R2_PUBLIC_URL.rstrip("/")
+        if public_base and url.startswith(public_base):
+            return url[len(public_base) :].lstrip("/")
+        marker = f"{self.bucket_name}/"
+        if marker in url:
+            return url.split(marker, 1)[-1]
+        return url.rsplit("/", 1)[-1]
+
     async def upload_file(
         self,
         file_data: bytes,
@@ -168,7 +208,7 @@ class R2StorageService:
             )
 
             # Generate public URL
-            public_url = f"{settings.R2_ENDPOINT_URL}/{self.bucket_name}/{object_key}"
+            public_url = self._public_url(object_key)
 
             logger.info(f"File uploaded successfully: {object_key}")
             return public_url
@@ -192,7 +232,7 @@ class R2StorageService:
 
         try:
             # Extract object key from URL
-            object_key = url.split(f"{self.bucket_name}/")[-1]
+            object_key = self._object_key_from_url(url)
 
             await asyncio.to_thread(
                 self.client.delete_object, Bucket=self.bucket_name, Key=object_key
@@ -242,7 +282,7 @@ class R2StorageService:
                 ExpiresIn=expires_in,
             )
 
-            public_url = f"{settings.R2_ENDPOINT_URL}/{self.bucket_name}/{object_key}"
+            public_url = self._public_url(object_key)
 
             return {
                 "upload_url": presigned_post["url"],

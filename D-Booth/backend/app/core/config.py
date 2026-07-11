@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "AI Booth API"
-    VERSION: str = "1.0.41"
+    VERSION: str = "1.0.42"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
 
@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     R2_SECRET_ACCESS_KEY: str = ""
     R2_BUCKET_NAME: str = "aibooth-storage"
     R2_REGION: str = "auto"
+    # Public base URL for objects (pub-*.r2.dev or a custom domain). The S3 API
+    # endpoint (R2_ENDPOINT_URL) does NOT serve anonymous GETs, so stored object
+    # URLs must be built from this public base when it is configured.
+    R2_PUBLIC_URL: str = ""
 
     # Celery - optional
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
