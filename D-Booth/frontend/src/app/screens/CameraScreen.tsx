@@ -6,7 +6,6 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { GlassCard } from "../components/GlassCard";
-import { SliderControl } from "../components/SliderControl";
 import { GlowBtn } from "../components/GlowBtn";
 import { TemplateCaptureOverlay } from "../components/TemplateCaptureOverlay";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
@@ -52,7 +51,6 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [captured, setCaptured] = useState(false);
   const [showPhotoActions, setShowPhotoActions] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
-  const [greenScreenEnabled, setGreenScreenEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState(0);
   const [selectedPhoto, setSelectedPhoto] = useState<number | null>(null);
@@ -60,6 +58,8 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [captureMode, setCaptureMode] = useState<CaptureMode>("photo");
   const [gifProgress, setGifProgress] = useState(0);
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  // rAF 绘制循环读取的录制标记：state 闭包在录制启动前捕获旧值，必须用 ref
+  const isRecordingVideoRef = useRef(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   // 相机连接状态
@@ -433,12 +433,13 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     }
 
     const drawFrame = () => {
-      if (videoRef.current && isRecordingVideo) {
+      if (videoRef.current && isRecordingVideoRef.current) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         requestAnimationFrame(drawFrame);
       }
     };
 
+    isRecordingVideoRef.current = true;
     drawFrame();
 
     try {
@@ -463,6 +464,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
       toast.info("开始录制视频");
     } catch (error) {
+      isRecordingVideoRef.current = false;
       toast.error(`视频录制失败: ${error instanceof Error ? error.message : "未知错误"}`);
     }
   }, [isRecordingVideo]);
@@ -471,6 +473,7 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
     if (!videoRecorderRef.current || !isRecordingVideo) return;
 
     try {
+      isRecordingVideoRef.current = false;
       setIsRecordingVideo(false);
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
@@ -1049,47 +1052,16 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
         ))}
 
         <div className="pt-2 border-t border-white/5">
-          <div className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-3">美颜强度</div>
-          <div className="space-y-2">
-            <SliderControl label="磨皮" value={60} />
-            <SliderControl label="美白" value={45} />
-            <SliderControl label="瘦脸" value={30} />
+          <div className="flex items-center gap-1.5 mb-2">
+            <Layers size={12} className="text-white/40" />
+            <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">绿幕设置</span>
           </div>
-        </div>
-
-        <div className="pt-2 border-t border-white/5">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5">
-              <Layers size={12} className="text-white/40" />
-              <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">绿幕功能</span>
-            </div>
-            <button
-              onClick={() => setGreenScreenEnabled(!greenScreenEnabled)}
-              className={`w-8 h-4 rounded-full transition-all relative ${
-                greenScreenEnabled ? "bg-violet-500" : "bg-white/10"
-              }`}
-            >
-              <div
-                className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
-                  greenScreenEnabled ? "translate-x-4" : "translate-x-0.5"
-                }`}
-              />
-            </button>
-          </div>
-
-          {greenScreenEnabled && (
-            <div className="space-y-2">
-              <div className="text-[10px] text-white/40">
-                绿幕功能已开启，拍摄后将自动替换背景
-              </div>
-              <button
-                onClick={() => navigate("green-screen")}
-                className="w-full py-1.5 rounded-lg text-[10px] bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 transition-colors"
-              >
-                进入绿幕设置
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => navigate("green-screen")}
+            className="w-full py-1.5 rounded-lg text-[10px] bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 transition-colors"
+          >
+            进入绿幕设置
+          </button>
         </div>
       </GlassCard>
     </main>

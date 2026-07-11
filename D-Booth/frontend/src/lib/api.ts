@@ -548,27 +548,17 @@ export async function uploadPhoto(params: PhotoUploadParams): Promise<PhotoRespo
   const formData = new FormData();
   formData.append("file", params.file, "capture.jpg");
 
-  const url = new URL("/api/v1/photos/upload", BASE_URL);
-  url.searchParams.set("event_id", params.eventId);
-  if (params.sessionId) {
-    url.searchParams.set("session_id", params.sessionId);
-  }
-
-  const response = await fetch(url.toString(), {
+  // Route through the unified request pipeline: 401 refresh-and-retry, CSRF
+  // header, sub-path-safe URL building. Retries stay disabled because an
+  // upload that actually landed must not be re-sent as a duplicate photo.
+  return request<PhotoResponse>("/photos/upload", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${params.token}`,
-    },
+    token: params.token,
     body: formData,
-    credentials: "include",
+    query: { event_id: params.eventId, session_id: params.sessionId },
+    retry: false,
+    timeout: 60000,
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || `Upload failed: ${response.status}`);
-  }
-
-  return response.json();
 }
 
 // ─── Print Jobs ───────────────────────────────────────────────────────────────
