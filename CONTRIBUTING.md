@@ -47,34 +47,7 @@
 
 ### 本地开发设置
 
-```bash
-# 1. 克隆仓库
-git clone <internal-repo-url>
-cd D-Booth
-
-# 2. 设置 Backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env
-alembic upgrade head
-
-# 3. 设置 Frontend
-cd ../frontend
-npm ci
-
-# 4. 设置 Runtime
-cd ../runtime-dotnet
-dotnet restore
-dotnet build
-
-# 5. 启动本地服务
-docker-compose up -d postgres redis  # 基础设施
-uvicorn app.main:app --reload        # Backend
-npm run dev                           # Frontend
-dotnet run --project src/Booth.Runtime.ApiHost  # Runtime
-```
+完整的本地环境搭建步骤（Backend / Frontend / Runtime / 基础设施）以 [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md#初次设置) 为唯一权威来源，本文不再重复，避免多处漂移。
 
 ---
 

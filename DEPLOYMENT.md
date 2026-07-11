@@ -57,64 +57,7 @@
 
 ## 开发环境部署
 
-### 1. Backend 设置
-
-```bash
-# 克隆仓库
-git clone <repo-url>
-cd D-Booth/backend
-
-# 创建虚拟环境
-python3.11 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安装依赖
-pip install --upgrade pip
-pip install -r requirements.txt -r requirements-dev.txt
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，设置数据库连接等
-
-# 初始化数据库
-alembic upgrade head
-
-# 启动开发服务器
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 2. Frontend 设置
-
-```bash
-cd D-Booth/frontend
-
-# 安装依赖
-npm ci
-
-# 启动开发服务器
-npm run dev
-
-# 构建生产版本
-npm run build
-```
-
-### 3. Runtime 设置
-
-```bash
-cd D-Booth/runtime-dotnet
-
-# 恢复 NuGet 包
-dotnet restore
-
-# 构建项目
-dotnet build
-
-# 运行 API Host
-dotnet run --project src/Booth.Runtime.ApiHost
-
-# 或运行 WinUI 应用
-dotnet run --project src/Booth.Runtime.App
-```
+本地开发环境的完整搭建步骤（Backend / Frontend / Runtime / Docker 基础设施）见 [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md#初次设置)。本文档聚焦**生产环境部署**，下文从生产部署开始。
 
 ---
 
