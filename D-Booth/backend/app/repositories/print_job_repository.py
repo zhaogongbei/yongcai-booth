@@ -101,6 +101,36 @@ class PrintJobRepository(BaseRepository[PrintJob]):
         )
         return list(result.scalars().all())
 
+    async def claim_for_printing(self, job_id: UUID) -> Optional[PrintJob]:
+        """Atomically claim a job for printing.
+
+        Compare-and-swap: only a job currently PENDING or QUEUED is moved to
+        PRINTING, in a single UPDATE guarded by the status. Concurrent workers
+        (Celery retry racing an inline background run) cannot both claim the
+        same job and double-print it. Returns the job when this caller won the
+        claim, else None.
+        """
+        from sqlalchemy import update
+
+        stmt = (
+            update(PrintJob)
+            .where(
+                PrintJob.id == job_id,
+                PrintJob.status.in_([PrintJobStatus.PENDING, PrintJobStatus.QUEUED]),
+            )
+            .values(status=PrintJobStatus.PRINTING)
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+
+        if result.rowcount != 1:
+            return None
+
+        fetched = await self.db.execute(
+            select(PrintJob).where(PrintJob.id == job_id).options(noload("*"))
+        )
+        return fetched.scalar_one_or_none()
+
     async def update_status(
         self, job_id: UUID, status: PrintJobStatus, error_message: Optional[str] = None
     ) -> Optional[PrintJob]:

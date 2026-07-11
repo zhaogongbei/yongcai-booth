@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "AI Booth API"
-    VERSION: str = "1.0.42"
+    VERSION: str = "1.0.43"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
 
@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = "noreply@aibooth.app"
     SMTP_FROM_NAME: str = "AI Booth"
+    SMTP_USE_TLS: bool = True
 
     # Stripe
     STRIPE_SECRET_KEY: str = ""

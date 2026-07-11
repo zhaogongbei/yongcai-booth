@@ -150,32 +150,49 @@ class PrinterDriverService:
 
     @staticmethod
     async def print_file(printer_name: str, file_path: str, copies: int = 1) -> bool:
-        """发送文件到打印机"""
+        """发送文件到打印机。
+
+        优先使用能反馈退出码的 PowerShell ``Start-Process -Verb Print -Wait``，
+        因为 ``ShellExecute`` 是异步触发 shell 的 print 动词、不反馈打印结果，
+        且其 ``/d:`` 参数会被多数打印处理程序忽略而打到默认打印机——据此把任务
+        标记为成功会掩盖真实失败并可能打错打印机。仅在 PowerShell 不可用时退回
+        ``ShellExecute``。
+        """
         if not os.path.exists(file_path):
             print(f"File not found: {file_path}")
             return False
 
         try:
-            # 方案1: 使用win32api打印
-            win32api.ShellExecute(0, "print", file_path, f'/d:"{printer_name}"', ".", 0)  # 隐藏窗口
-            return True
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-Command",
+                    (
+                        "$ErrorActionPreference='Stop'; "
+                        f'Start-Process -FilePath "{file_path}" -Verb Print '
+                        f'-ArgumentList "/d:{printer_name}" -Wait -PassThru | Out-Null'
+                    ),
+                ],
+                capture_output=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                return True
+            print(
+                "PowerShell print failed "
+                f"(rc={result.returncode}): {result.stderr.decode(errors='ignore')}"
+            )
+            return False
         except Exception as e:
-            print(f"Win32 print failed, fallback to subprocess: {e}")
-            try:
-                # 方案2: 使用subprocess调用powershell
-                result = subprocess.run(
-                    [
-                        "powershell",
-                        "-Command",
-                        f'Start-Process -FilePath "{file_path}" -Verb Print -ArgumentList "/d:{printer_name}" -Wait',
-                    ],
-                    capture_output=True,
-                    timeout=30,
-                )
-                return result.returncode == 0
-            except Exception as e2:
-                print(f"Subprocess print failed: {e2}")
-                return False
+            print(f"PowerShell print failed, fallback to ShellExecute: {e}")
+
+        try:
+            # 退路：ShellExecute 不反馈打印结果，只能保证已把文件交给 shell。
+            win32api.ShellExecute(0, "print", file_path, f'/d:"{printer_name}"', ".", 0)
+            return True
+        except Exception as e2:
+            print(f"ShellExecute print failed: {e2}")
+            return False
 
     @staticmethod
     async def get_print_queue(printer_name: str) -> List[PrintQueueItem]:

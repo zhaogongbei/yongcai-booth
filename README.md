@@ -1,6 +1,6 @@
 # 咏彩Booth (D-Booth) - 下一代智能拍照亭系统
 
-[![Version](https://img.shields.io/badge/version-1.0.42-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.0.43-blue.svg)](./VERSION)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](./LICENSE)
 
 > 基于 AI 的全能拍照亭解决方案，集成云端管理、现场运行时、智能美颜、实时打印与社交分享。
@@ -68,6 +68,8 @@ cd ../runtime-dotnet
 dotnet build
 dotnet run --project src/Booth.Runtime.ApiHost
 ```
+
+> 以上为快速上手概览。完整的环境搭建与故障排查以 [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md#初次设置) 为准。
 
 访问：
 - Backend API: http://localhost:8000
@@ -234,22 +236,7 @@ npm run build
 
 ## 路线图
 
-### v1.1 (Q3 2026)
-- [ ] 多机位同步拍摄
-- [ ] 4K 视频慢动作
-- [ ] AR 滤镜与特效
-- [ ] 微信小程序照片墙
-
-### v1.2 (Q4 2026)
-- [ ] 云端模板市场
-- [ ] AI 生成式背景
-- [ ] NFT 照片铸造
-- [ ] 区块链存证
-
-### v2.0 (Q1 2027)
-- [ ] 3D 摄影测量
-- [ ] 全息投影集成
-- [ ] Metaverse 接入
+版本规划与功能路线以 [ROADMAP.md](./ROADMAP.md) 为唯一权威来源，本文件不再单独维护路线图，避免两处漂移。
 
 ## 贡献
 

@@ -192,8 +192,8 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
         return await self.repository.get_pending_jobs(limit)
 
     async def start_printing(self, job_id: UUID) -> Optional[PrintJob]:
-        """Mark job as printing"""
-        return await self.repository.update_status(job_id, PrintJobStatus.PRINTING)
+        """Atomically claim a job for printing (compare-and-swap guard)."""
+        return await self.repository.claim_for_printing(job_id)
 
     async def complete_job(self, job_id: UUID) -> Optional[PrintJob]:
         """Mark job as completed"""
@@ -288,7 +288,8 @@ class PrintService(BaseService[PrintJob, PrintJobCreate, PrintJobUpdate]):
     async def execute_print_job(self, job_id: UUID) -> bool:
         """执行真实打印任务"""
         try:
-            # 更新状态为打印中
+            # 原子领取任务：只有 PENDING/QUEUED 的任务能被本次执行领取，
+            # 避免 Celery 重试与后台执行并发时同一任务被重复打印。
             if not await self.start_printing(job_id):
                 return False
             job = await self._get_job_for_execution(job_id)

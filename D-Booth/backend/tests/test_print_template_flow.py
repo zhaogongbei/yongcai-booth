@@ -187,6 +187,61 @@ async def test_execute_print_job_fails_when_printer_not_ready(db_session, monkey
 
 
 @pytest.mark.anyio
+async def test_execute_print_job_is_claimed_once(db_session, monkeypatch):
+    """A job already advanced past PENDING/QUEUED cannot be re-claimed and reprinted."""
+    _, _, event = await _create_user_team_event(db_session, "print-claim@example.com")
+    photo = Photo(event_id=event.id, original_url=_image_data_url("red"))
+    db_session.add(photo)
+    await db_session.flush()
+    job = PrintJob(photo_id=photo.id, printer_name="Booth Printer", copies=1)
+    db_session.add(job)
+    await db_session.commit()
+
+    print_calls = {"count": 0}
+
+    async def ready(_printer_name):
+        return "ready"
+
+    async def count_print(printer_name, file_path, copies=1):
+        print_calls["count"] += 1
+        return True
+
+    monkeypatch.setattr(PrinterDriverService, "get_printer_status", ready)
+    monkeypatch.setattr(PrinterDriverService, "print_file", count_print)
+
+    service = PrintService(db_session)
+    first = await service.execute_print_job(job.id)
+    # A second execution of the same (now COMPLETED) job must not print again.
+    second = await service.execute_print_job(job.id)
+
+    refreshed = await db_session.get(PrintJob, job.id)
+    assert first is True
+    assert second is False
+    assert print_calls["count"] == 1
+    assert refreshed.status == PrintJobStatus.COMPLETED
+
+
+@pytest.mark.anyio
+async def test_start_printing_claim_is_compare_and_swap(db_session):
+    """claim_for_printing only succeeds from PENDING/QUEUED, and only once."""
+    _, _, event = await _create_user_team_event(db_session, "print-cas@example.com")
+    photo = Photo(event_id=event.id, original_url=_image_data_url("red"))
+    db_session.add(photo)
+    await db_session.flush()
+    job = PrintJob(photo_id=photo.id, printer_name="Booth Printer", copies=1)
+    db_session.add(job)
+    await db_session.commit()
+
+    service = PrintService(db_session)
+    claimed = await service.start_printing(job.id)
+    reclaimed = await service.start_printing(job.id)
+
+    assert claimed is not None
+    assert claimed.status == PrintJobStatus.PRINTING
+    assert reclaimed is None
+
+
+@pytest.mark.anyio
 async def test_create_print_job_accepts_same_team_template(
     authenticated_client, db_session, monkeypatch
 ):

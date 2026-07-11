@@ -20,6 +20,14 @@
 - 外部触发器批量更新会先完整校验新配置再替换旧配置，避免无效配置导致既有触发器被删除。
 
 ### 变更
+- 统一 AI 开发规范为 `CLAUDE.md` 单一权威：删除与之冲突的 `PROTOCOL.md`（可用理念并入 CLAUDE.md，移除"永不收敛/无需用户确认"的自主执行协议），修复 CLAUDE.md 末尾截断的示例，新增真实质量门禁、版本同步清单与提交纪律章节。
+- 路线图单源化：README 与 ARCHITECTURE 不再维护独立路线图（改为链接 ROADMAP.md）；ROADMAP 当前版本基线纠正为根 `VERSION` 权威，2027+ 版本改为未排期方向性规划，移除 NFT/区块链/元宇宙等未立项条目与虚构的季度承诺。
+- 文档对齐真实工具链：移除不存在的脚本/命令引用（`seed_db.py`、`deploy.sh`、`scripts.create_admin_user`、`npm test`、`npm run generate-types`），明确前端当前无单元测试框架（门禁为 typecheck+build）、全量 mypy 非 CI 门禁；仓库卫生检查新增对应防回归规则。
+- API.md 限流文档与实际中间件对齐（基于 IP 的分钟/小时双窗口、真实响应头、豁免路径）；SECURITY.md 移除虚构的 CVE 记录、未发生的第三方审计结论与占位 PGP/致谢内容。
+- 删除前端从未填写的 Figma 模板占位文件 `guidelines/Guidelines.md`。
+- 补充缺失的 `SMTP_USE_TLS` 配置项；分享测试邮件（`send_photo_email`）此前读取不存在的设置抛 AttributeError 并被吞成失败，SMTP 配置完整时也从未发送成功。
+- 打印任务执行改为原子领取（compare-and-swap）：只有 PENDING/QUEUED 状态的任务能被领取进入 PRINTING，Celery 重试与后台执行并发时同一任务不再可能被重复打印或重复计数。
+- 打印发送改用可反馈退出码的 PowerShell `Start-Process -Verb Print -Wait` 作为首选路径；`ShellExecute` 因异步无结果反馈且 `/d:` 参数常被忽略（可能打到默认打印机）降级为最后退路，打印失败不再被无条件标记为完成。
 - R2 存储对象 URL 改用可配置的公开访问基址（`R2_PUBLIC_URL`，指向 pub-*.r2.dev 或自定义域）；S3 API 端点不支持匿名 GET，此前入库的照片 URL 在生产启用 R2 后全部不可访问、打印拉图必失败。上传、预签名和 Celery 异步上传统一走公开基址，未配置时回退端点形式（仅测试场景）。
 - 实现 `R2StorageService.download_file`；道具合成（`POST /props/apply`）此前调用不存在的方法必抛 AttributeError/500，现可真实下载道具图并合成。
 - 邮件发送改为故障封闭：`EmailService.send_email` 对已配置 SMTP 的发送失败抛异常（而非吞掉返回 False），四个邮件任务（欢迎/密码重置/活动邀请/照片分享）据此触发 Celery 重试；未配置 SMTP 时返回 skipped 状态而非谎报 sent。
