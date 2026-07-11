@@ -544,6 +544,24 @@ export async function createPhotoSession(params: {
   });
 }
 
+export async function getPhotos(params: {
+  eventId?: string;
+  sessionId?: string;
+  token?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<PhotoResponse[]> {
+  return request<PhotoResponse[]>("/photos", {
+    token: params.token,
+    query: {
+      event_id: params.eventId,
+      session_id: params.sessionId,
+      skip: params.skip,
+      limit: params.limit,
+    },
+  });
+}
+
 export async function uploadPhoto(params: PhotoUploadParams): Promise<PhotoResponse> {
   const formData = new FormData();
   formData.append("file", params.file, "capture.jpg");

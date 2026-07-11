@@ -1,8 +1,6 @@
-import { Sparkles, ImagePlus, Cpu, Zap, ChevronRight } from "lucide-react";
+import { Sparkles, ImagePlus, Zap, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
-import { GlassCard } from "../components/GlassCard";
 import { NeonBadge } from "../components/NeonBadge";
-import { SparkArea } from "../components/SparkArea";
 import type { Screen } from "../types";
 
 export function AIStudioScreen({ navigate }: { navigate: (s: Screen) => void }) {
@@ -19,7 +17,6 @@ export function AIStudioScreen({ navigate }: { navigate: (s: Screen) => void }) 
           <p className="text-xs text-white/40 mt-0.5">基于最新大模型技术，为您提供专业 AI 摄影服务</p>
         </div>
         <div className="flex items-center gap-2">
-          <NeonBadge color="purple"><Cpu size={11} />GPT-4V 加持</NeonBadge>
           <NeonBadge color="blue"><Zap size={11} />实时处理</NeonBadge>
         </div>
       </div>
@@ -56,44 +53,9 @@ export function AIStudioScreen({ navigate }: { navigate: (s: Screen) => void }) 
         ))}
       </div>
 
-      {/* AI usage stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <GlassCard className="p-4">
-          <div className="text-xs text-white/40 mb-3">AI 使用统计</div>
-          <div className="flex items-end gap-3">
-            <div>
-              <div className="text-3xl font-black text-white">1,256</div>
-              <div className="text-xs text-white/40">本月 AI 处理次数</div>
-            </div>
-            <div className="flex-1">
-              <SparkArea data={[80,120,95,180,140,220,180,260]} color="#8b5cf6" height={50} />
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-4">
-          <div className="text-xs text-white/40 mb-3">热门 AI 功能 TOP 3</div>
-          {[
-            { name: "AI 美颜", count: 680, pct: 54 },
-            { name: "背景替换", count: 341, pct: 27 },
-            { name: "贴纸美化", count: 235, pct: 19 },
-          ].map(r => (
-            <div key={r.name} className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-white/60 w-16">{r.name}</span>
-              <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500" style={{ width: `${r.pct}%` }} />
-              </div>
-              <span className="text-xs text-white/40 w-8 text-right">{r.count}</span>
-            </div>
-          ))}
-        </GlassCard>
-
-        <GlassCard className="p-4">
-          <div className="text-xs text-white/40 mb-3">AI 积分余额</div>
-          <div className="text-3xl font-black text-white mb-1">8,420</div>
-          <div className="text-xs text-white/40">当前仅展示账户余额；充值请在后台账户系统处理。</div>
-        </GlassCard>
-      </div>
+      <p className="text-xs text-white/30">
+        使用统计与积分账户尚未接入后端，接入后将在此展示真实数据。
+      </p>
     </div>
   );
 }

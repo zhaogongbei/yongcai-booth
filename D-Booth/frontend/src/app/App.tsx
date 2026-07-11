@@ -2,13 +2,13 @@ import React, { useState, Suspense, useEffect } from "react";
 import {
   Camera, LayoutDashboard, Image, CalendarDays, GalleryHorizontal,
   Share2, BarChart3, Sparkles, Settings, HelpCircle, Printer,
-  Monitor, Wrench
+  Monitor, Wrench, UserRound
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Toaster } from "sonner";
 
 import { SettingsProvider, useSettings } from "./stores/useSettings";
-import { AuthProvider } from "./stores/useAuth";
+import { AuthProvider, useAuth } from "./stores/useAuth";
 import { CaptureFlowProvider } from "./stores/useCaptureFlow";
 import { initCsrfToken } from "../lib/api";
 
@@ -84,6 +84,20 @@ const MOBILE_NAV_ITEMS: NavItem[] = [
 ];
 
 // ─── Sidebar (Desktop/Tablet) ─────────────────────────────────────────────────
+function SidebarUserBadge() {
+  const { user } = useAuth();
+  const label = user ? (user.full_name?.trim() || user.email) : "未登录";
+  const initial = user ? label.charAt(0).toUpperCase() : null;
+  return (
+    <div
+      className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white"
+      title={label}
+    >
+      {initial ?? <UserRound size={14} className="text-white/80" />}
+    </div>
+  );
+}
+
 function Sidebar({ screen, navigate, width }: { screen: Screen; navigate: (s: Screen) => void; width: number }) {
   return (
     <div className="flex flex-col" style={{ width, background: "#080d1f", borderRight: "1px solid rgba(139,92,246,0.08)", flexShrink: 0 }} role="navigation" aria-label="主导航">
@@ -131,9 +145,7 @@ function Sidebar({ screen, navigate, width }: { screen: Screen; navigate: (s: Sc
           <HelpCircle size={18} />
           <span className="text-[9px]">帮助</span>
         </button>
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white">
-          张
-        </div>
+        <SidebarUserBadge />
       </div>
     </div>
   );
@@ -230,7 +242,7 @@ function AppInner() {
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Top bar (not for attract) */}
             {screen !== "attract" && (
-              <TopBar />
+              <TopBar onSelectEvent={() => navigate("events")} />
             )}
 
             {/* Screen content */}
