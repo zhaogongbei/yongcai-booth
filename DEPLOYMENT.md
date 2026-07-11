@@ -79,9 +79,6 @@ cp .env.example .env
 # 初始化数据库
 alembic upgrade head
 
-# 创建测试用户（可选）
-python -m scripts.create_admin_user
-
 # 启动开发服务器
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```

@@ -101,8 +101,8 @@ db-rollback: ## Rollback last migration
 db-reset: ## Reset database (WARNING: destroys data)
 	cd D-Booth/backend && source venv/bin/activate && alembic downgrade base && alembic upgrade head
 
-db-seed: ## Seed database with test data
-	cd D-Booth/backend && source venv/bin/activate && python scripts/seed_db.py
+db-seed: ## Seed database with test data (script not yet provided)
+	@echo "Seed script (scripts/seed_db.py) is not provided yet."
 
 # Docker
 docker-up: ## Start all services with Docker Compose
@@ -118,13 +118,14 @@ docker-logs: ## View Docker logs
 	cd D-Booth/backend && docker-compose logs -f
 
 # Deployment
-deploy-backend: ## Deploy backend to production
-	@echo "Deploying backend..."
-	cd D-Booth/backend && ./deploy.sh
+deploy-backend: ## Deploy backend to production (deploy script not yet provided)
+	@echo "Backend deploy script (D-Booth/backend/deploy.sh) is not provided yet."
+	@echo "Production releases run through .github/workflows/ci.yml (Docker build + GitHub release)."
 
-deploy-frontend: ## Deploy frontend to production
-	@echo "Deploying frontend..."
-	cd D-Booth/frontend && npm run build && ./deploy.sh
+deploy-frontend: ## Deploy frontend to production (build only; deploy script not yet provided)
+	@echo "Building frontend..."
+	cd D-Booth/frontend && npm run build
+	@echo "Frontend deploy script (D-Booth/frontend/deploy.sh) is not provided yet; publish dist/ via your CDN/Nginx."
 
 # Maintenance
 clean: ## Clean build artifacts and caches

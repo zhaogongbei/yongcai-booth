@@ -119,6 +119,7 @@ BLOCKED_TEXT = {
         "pnpm format",
         "使用 ESLint + Prettier",
         "mypy app",
+        "使用 mypy 类型检查",
     ],
     "DEPLOYMENT.md": [
         "pnpm",
@@ -128,6 +129,7 @@ BLOCKED_TEXT = {
         "pnpm",
         "pnpm-lock.yaml",
         "mypy app/",
+        "npm run generate-types",
     ],
     "SECURITY.md": [
         "safety check",

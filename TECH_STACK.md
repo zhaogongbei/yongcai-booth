@@ -217,8 +217,8 @@ async def test_create_user(client: AsyncClient):
 
 **black** - 代码格式化
 **isort** - 导入排序
-**mypy** - 类型检查
-**ruff** - 快速 Linter
+**ruff** - 快速 Linter（CI 门禁：`E9,F63,F7,F82`）
+**mypy** - 类型检查（按模块逐步收敛，当前非 CI 门禁）
 
 ---
 
@@ -350,9 +350,10 @@ const className = clsx(
 
 ### 开发工具
 
-**TypeScript** - 类型检查
-**Vite** - 前端构建
-**Vitest** - 单元测试
+**TypeScript** - 类型检查（`npm run typecheck`）
+**Vite** - 前端构建（`npm run build`）
+
+> 前端当前未接入单元测试框架；质量门禁为类型检查与构建。
 
 ---
 
@@ -565,4 +566,4 @@ gunicorn app.main:app \
 ---
 
 **文档维护者**: Tech Team  
-**最后更新**: 2026-07-02
+**最后更新**: 2026-07-11

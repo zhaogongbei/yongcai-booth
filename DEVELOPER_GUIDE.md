@@ -233,9 +233,9 @@ git checkout -b feature/your-feature-name
 # Frontend: 添加 component → screen → route
 # Runtime: 添加 domain model → repository → service
 
-# 3. 编写测试
+# 3. 编写测试 / 检查
 # Backend: pytest tests/
-# Frontend: npm test
+# Frontend: npm run typecheck && npm run build
 # Runtime: dotnet test
 
 # 4. 代码检查
@@ -539,7 +539,17 @@ async def test_create_user_duplicate_email(db_session):
 
 ### Frontend 测试
 
+> 前端当前**未接入单元测试框架**（package.json 无 Jest/Vitest 依赖）。前端质量门禁为类型检查与构建：
+
+```bash
+npm run typecheck   # tsc --noEmit
+npm run build       # tsc --noEmit && vite build
+```
+
+若后续引入 Vitest + testing-library，可参考以下组件测试形态（示例，尚未接入）：
+
 ```typescript
+// 示例：待接入 Vitest 后可用
 // tests/components/Button.test.tsx
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Button } from '../components/Button';
@@ -550,20 +560,9 @@ describe('Button', () => {
     expect(screen.getByText('Click me')).toBeInTheDocument();
   });
 
-  it('calls onClick when clicked', () => {
-    const handleClick = jest.fn();
-    render(<Button onClick={handleClick}>Click me</Button>);
-    
-    fireEvent.click(screen.getByText('Click me'));
-    
-    expect(handleClick).toHaveBeenCalledTimes(1);
-  });
-
   it('is disabled when disabled prop is true', () => {
     render(<Button disabled>Click me</Button>);
-    const button = screen.getByText('Click me');
-    
-    expect(button).toBeDisabled();
+    expect(screen.getByText('Click me')).toBeDisabled();
   });
 });
 ```
@@ -644,9 +643,6 @@ npm ci
 ```bash
 # 运行类型检查
 npm run typecheck
-
-# 生成类型定义
-npm run generate-types
 ```
 
 ### Runtime
