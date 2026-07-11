@@ -91,19 +91,21 @@ Authorization: Bearer <access_token>
 
 ## Rate Limiting
 
-API 请求受到速率限制保护：
+API 请求受到基于客户端 IP 的固定窗口速率限制保护（Redis 计数，回退到内存）：
 
-- **默认**: 60 requests/minute
-- **认证用户**: 1000 requests/hour
+- **每分钟**: 60 requests（`RATE_LIMIT_PER_MINUTE`）
+- **每小时**: 1000 requests（`RATE_LIMIT_PER_HOUR`）
+- `/health`、`/metrics` 和 `/api/v1/internal/*` 豁免限流
 
 超出限制将返回 `429 Too Many Requests`。
 
-响应头中包含限制信息：
+每个响应头中包含限制信息：
 
 ```http
-X-RateLimit-Limit: 60
-X-RateLimit-Remaining: 45
-X-RateLimit-Reset: 1656864000
+X-RateLimit-Limit-Minute: 60
+X-RateLimit-Limit-Hour: 1000
+X-RateLimit-Remaining-Minute: 45
+X-RateLimit-Remaining-Hour: 980
 ```
 
 ---
