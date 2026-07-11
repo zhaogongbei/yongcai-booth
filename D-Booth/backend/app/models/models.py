@@ -492,7 +492,7 @@ class Share(Base, TimestampMixin, SoftDeleteMixin):
     )
 
     # Relationships
-    photo = relationship("Photo", back_populates="shares", lazy="selectin")
+    photo = relationship("Photo", back_populates="shares", lazy="noload")
 
 
 # AITask Model

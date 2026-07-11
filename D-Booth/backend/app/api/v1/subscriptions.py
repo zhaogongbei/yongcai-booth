@@ -16,7 +16,7 @@ from app.schemas.subscription import (
     SubscriptionUpdate,
     SubscriptionUsage,
 )
-from app.services.subscription_service import SubscriptionService
+from app.services.subscription_service import StripeCancellationError, SubscriptionService
 
 router = APIRouter()
 
@@ -217,6 +217,8 @@ async def cancel_subscription(
         return subscription
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except StripeCancellationError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
 
 @router.post("/webhooks/stripe", status_code=status.HTTP_200_OK)

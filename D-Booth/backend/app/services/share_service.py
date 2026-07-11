@@ -105,8 +105,22 @@ class ShareService(BaseService[Share, ShareCreate, ShareCreate]):
         return await self.create(extended_in)
 
     async def get_share_by_code(self, short_code: str) -> Optional[Share]:
-        """Get share by short code."""
-        return await self.repository.get_by_short_code(short_code)
+        """Get share by short code, treating expired shares as absent.
+
+        Expiry must be enforced on the read path itself: the hourly Celery
+        cleanup is best-effort and must never be the only gate on a public
+        endpoint.
+        """
+        share = await self.repository.get_by_short_code(short_code)
+        if share is None:
+            return None
+        if share.expires_at is not None:
+            expires_at = share.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at <= datetime.now(timezone.utc):
+                return None
+        return share
 
     async def get_shares(
         self,

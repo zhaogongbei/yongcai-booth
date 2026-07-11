@@ -28,6 +28,7 @@ def test_leaf_record_relationships_break_recursive_eager_loading() -> None:
         Signature: ("session",),
         SurveyResponse: ("event", "session", "survey"),
         DisclaimerAcceptance: ("event", "session", "disclaimer"),
+        Share: ("photo",),
     }
 
     for model, relationship_names in relationship_boundaries.items():

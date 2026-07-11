@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
@@ -18,6 +19,10 @@ from app.schemas.subscription import (
     SubscriptionUsage,
 )
 from app.services.base_service import BaseService, BusinessRuleError, ValidationError
+
+
+class StripeCancellationError(RuntimeError):
+    """Raised when Stripe rejects or cannot process a subscription cancellation."""
 
 
 class SubscriptionService(BaseService[Subscription, SubscriptionCreate, SubscriptionUpdate]):
@@ -173,20 +178,29 @@ class SubscriptionService(BaseService[Subscription, SubscriptionCreate, Subscrip
 
         # Notify Stripe if a stripe_subscription_id is linked
         if subscription.stripe_subscription_id:
-            try:
-                import stripe
+            import stripe
 
-                stripe.api_key = settings.STRIPE_SECRET_KEY
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            try:
                 if immediate:
-                    stripe.Subscription.delete(subscription.stripe_subscription_id)
-                else:
-                    stripe.Subscription.modify(
-                        subscription.stripe_subscription_id, cancel_at_period_end=True
+                    await asyncio.to_thread(
+                        stripe.Subscription.delete, subscription.stripe_subscription_id
                     )
-            except Exception:
-                # Stripe unreachable — still cancel locally; Stripe will
-                # sync via webhook when it comes back online.
-                pass
+                else:
+                    await asyncio.to_thread(
+                        stripe.Subscription.modify,
+                        subscription.stripe_subscription_id,
+                        cancel_at_period_end=True,
+                    )
+            except Exception as exc:
+                # Fail closed: if Stripe has not accepted the cancellation, keep
+                # the local subscription unchanged. Marking it cancelled locally
+                # while Stripe keeps billing would silently charge the customer
+                # behind a "cancelled" status.
+                raise StripeCancellationError(
+                    "Stripe subscription cancellation failed; the subscription "
+                    "was not cancelled. Please retry later."
+                ) from exc
 
         if immediate:
             return await self.repository.update_status(
