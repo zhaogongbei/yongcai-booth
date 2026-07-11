@@ -10,6 +10,7 @@ import {
   type PrinterInfo,
 } from "../../lib/api";
 import { getBoothPrinters, getDefaultBoothPrinter } from "../services/printerPolicy";
+import { useSettings } from "../stores/useSettings";
 
 export type HealthTone = "ok" | "warn" | "error" | "idle";
 
@@ -55,6 +56,8 @@ interface ApiHealthResponse {
 }
 
 export function useBoothHealth(selectedPrinterName?: string): BoothHealth {
+  const { settings } = useSettings();
+  const preferredPrinterName = settings.print.preferredPrinterName.trim() || undefined;
   const [api, setApi] = useState<BoothHealth["api"]>({ online: false, status: "unknown" });
   const [camera, setCamera] = useState<CameraHealth>({ connected: false });
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
@@ -64,11 +67,11 @@ export function useBoothHealth(selectedPrinterName?: string): BoothHealth {
 
   const selectedPrinter = useMemo(() => {
     if (!printers.length) return undefined;
-    const boothPrinters = getBoothPrinters(printers);
+    const boothPrinters = getBoothPrinters(printers, preferredPrinterName);
     if (!boothPrinters.length) return undefined;
     return boothPrinters.find((printer) => printer.name === selectedPrinterName)
-      ?? getDefaultBoothPrinter(boothPrinters);
-  }, [printers, selectedPrinterName]);
+      ?? getDefaultBoothPrinter(boothPrinters, preferredPrinterName);
+  }, [printers, selectedPrinterName, preferredPrinterName]);
 
   const refreshQueue = useCallback(async () => {
     if (!selectedPrinter?.name) {

@@ -1,7 +1,5 @@
 import type { PrinterInfo } from "../../lib/api";
 
-export const PREFERRED_PRINTER_NAME = "HP LaserJet Professional P1108";
-
 const EXCLUDED_PRINTER_NAMES = new Set([
   "GE801PN",
   "GE801PN-Test",
@@ -10,8 +8,8 @@ const EXCLUDED_PRINTER_NAMES = new Set([
   "Microsoft Print to PDF",
 ]);
 
-export function isPreferredPrinter(printer: PrinterInfo): boolean {
-  return printer.name === PREFERRED_PRINTER_NAME;
+export function isPreferredPrinter(printer: PrinterInfo, preferredName?: string): boolean {
+  return Boolean(preferredName) && printer.name === preferredName;
 }
 
 export function isExcludedPrinter(printer: PrinterInfo): boolean {
@@ -31,25 +29,27 @@ export function isVirtualPrinter(printer: PrinterInfo): boolean {
   );
 }
 
-export function isSupportedBoothPrinter(printer: PrinterInfo): boolean {
-  if (isPreferredPrinter(printer)) return true;
+export function isSupportedBoothPrinter(printer: PrinterInfo, preferredName?: string): boolean {
+  if (isPreferredPrinter(printer, preferredName)) return true;
   if (isExcludedPrinter(printer) || isVirtualPrinter(printer)) return false;
   return true;
 }
 
-export function getBoothPrinters(printers: PrinterInfo[]): PrinterInfo[] {
+export function getBoothPrinters(printers: PrinterInfo[], preferredName?: string): PrinterInfo[] {
   return [...printers]
-    .filter(isSupportedBoothPrinter)
+    .filter((printer) => isSupportedBoothPrinter(printer, preferredName))
     .sort((left, right) => {
-      if (isPreferredPrinter(left)) return -1;
-      if (isPreferredPrinter(right)) return 1;
+      if (isPreferredPrinter(left, preferredName)) return -1;
+      if (isPreferredPrinter(right, preferredName)) return 1;
       if (left.status === "ready" && right.status !== "ready") return -1;
       if (left.status !== "ready" && right.status === "ready") return 1;
       return left.name.localeCompare(right.name, "zh-CN");
     });
 }
 
-export function getDefaultBoothPrinter(printers: PrinterInfo[]): PrinterInfo | undefined {
-  const supported = getBoothPrinters(printers);
-  return supported.find(isPreferredPrinter) ?? supported.find((printer) => printer.is_default) ?? supported[0];
+export function getDefaultBoothPrinter(printers: PrinterInfo[], preferredName?: string): PrinterInfo | undefined {
+  const supported = getBoothPrinters(printers, preferredName);
+  return supported.find((printer) => isPreferredPrinter(printer, preferredName))
+    ?? supported.find((printer) => printer.is_default)
+    ?? supported[0];
 }

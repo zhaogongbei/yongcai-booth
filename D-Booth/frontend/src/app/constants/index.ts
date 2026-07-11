@@ -28,8 +28,6 @@ export const DEFAULT_BEAUTY_VALUES = {
   lipColor: 20,
 } as const;
 
-export const BEAUTY_FALLBACK_IMAGE = "/images/avatars/avatar-woman-asian-01.webp";
-
 export const BEAUTY_PRESET_AVATARS = [
   "/images/avatars/avatar-woman-asian-01.webp",
   "/images/avatars/avatar-woman-latina-01.webp",

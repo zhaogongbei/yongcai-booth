@@ -8,6 +8,7 @@ import { GlowBtn } from "../components/GlowBtn";
 import { TemplatePrintPreview, getTemplateCanvasSize } from "../components/TemplatePrintPreview";
 import { StatusPill } from "../components/StatusPill";
 import { useCaptureFlow } from "../stores/useCaptureFlow";
+import { useSettings } from "../stores/useSettings";
 import { cancelPrintQueueJob, createPrintJob, getPrintJob, printTestPage } from "../lib/api";
 import { printerTone, useBoothHealth } from "../hooks/useBoothHealth";
 import { getBoothPrinters, getDefaultBoothPrinter, isPreferredPrinter } from "../services/printerPolicy";
@@ -75,24 +76,35 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
   const [selectedPrinter, setSelectedPrinter] = useState("");
   const [printStatus, setPrintStatus] = useState<PrintRuntimeState>("idle");
   const [qty, setQty] = useState(1);
+  const { settings, updateSettings } = useSettings();
+  const preferredPrinterName = settings.print.preferredPrinterName.trim() || undefined;
   const boothHealth = useBoothHealth(selectedPrinter);
 
   // 从 useBoothHealth 轮询数据中过滤出支持的 Booth 打印机（每 8s 自动刷新）
   const boothPrinters = useMemo(
-    () => getBoothPrinters(boothHealth.printers),
-    [boothHealth.printers],
+    () => getBoothPrinters(boothHealth.printers, preferredPrinterName),
+    [boothHealth.printers, preferredPrinterName],
   );
 
   // 当轮询检测到新打印机时，自动选择默认打印机
   useEffect(() => {
     if (!selectedPrinter && boothPrinters.length > 0) {
-      const defaultPrinter = getDefaultBoothPrinter(boothPrinters);
+      const defaultPrinter = getDefaultBoothPrinter(boothPrinters, preferredPrinterName);
       setSelectedPrinter(defaultPrinter ? defaultPrinter.name : boothPrinters[0].name);
     }
-  }, [boothPrinters, selectedPrinter]);
+  }, [boothPrinters, preferredPrinterName, selectedPrinter]);
+
+  // 手动选择打印机时记住偏好，下次进入默认选中同一台
+  const selectPrinter = useCallback((name: string) => {
+    setSelectedPrinter(name);
+    if (settings.print.preferredPrinterName !== name) {
+      updateSettings({ print: { ...settings.print, preferredPrinterName: name } });
+    }
+  }, [settings.print, updateSettings]);
 
   const { selectedPhoto, photos, authToken, activePrintTemplate, setTemplateSelectionReturnScreen } = useCaptureFlow();
   const pollTimerRef = useRef<number | null>(null);
+  const pollFallbackTimerRef = useRef<number | null>(null);
   const hasPrintablePhoto = photos.length > 0;
   const printPhoto = selectedPhoto ?? photos[0];
   const orderedPrintPhotos = useMemo(() => {
@@ -206,7 +218,14 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
       window.clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     }
+    if (pollFallbackTimerRef.current !== null) {
+      window.clearTimeout(pollFallbackTimerRef.current);
+      pollFallbackTimerRef.current = null;
+    }
   }, []);
+
+  // 组件卸载时停止状态轮询和兜底计时
+  useEffect(() => stopPolling, [stopPolling]);
 
   const sendPrintEvent = useCallback((event: Parameters<typeof transitionPrintState>[1]) => {
     setPrintStatus((state) => transitionPrintState(state, event));
@@ -256,11 +275,13 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
           toast.error("打印状态查询失败");
         }
       }, 2000);
-      // 安全兜底：30s 未完成则停止轮询
-      window.setTimeout(() => {
+      // 安全兜底：长时间未到终态时停止自动跟踪；打印可能仍在进行，不得谎报为失败
+      pollFallbackTimerRef.current = window.setTimeout(() => {
+        pollFallbackTimerRef.current = null;
         stopPolling();
-        setPrintStatus((state) => isPrintBusy(state) ? "failed" : state);
-      }, 30000);
+        sendPrintEvent("RESET");
+        toast.info("打印任务仍在处理，已停止自动跟踪；可在下方打印队列查看实际进度");
+      }, 180000);
     } catch (err) {
       sendPrintEvent("FAIL");
       toast.error(err instanceof Error ? err.message : "提交打印任务失败");
@@ -583,7 +604,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
 
           <div className="max-h-48 overflow-y-auto space-y-1">
             {boothPrinters.map(p => (
-              <button key={p.name} onClick={() => setSelectedPrinter(p.name)}
+              <button key={p.name} onClick={() => selectPrinter(p.name)}
                 className={`w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all ${selectedPrinter === p.name ? "border-violet-500/50 bg-violet-500/10" : "border-white/5 bg-white/3 hover:bg-white/5"}`}>
                 <Printer size={15} className={selectedPrinter === p.name ? "text-violet-400" : "text-white/40"} />
                 <div className="flex-1 text-left min-w-0">
@@ -591,7 +612,7 @@ export function PrintScreen({ navigate }: { navigate: (s: Screen) => void }) {
                   <div className={`text-[10px] ${printerStatusColor(p.status)}`}>
                     <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${printerStatusDot(p.status)}`} />
                     {printerStatusLabel(p.status)}
-                    {isPreferredPrinter(p) && <span className="text-emerald-300 ml-1">(Booth)</span>}
+                    {isPreferredPrinter(p, preferredPrinterName) && <span className="text-emerald-300 ml-1">(常用)</span>}
                     {p.is_default && <span className="text-white/20 ml-1">(默认)</span>}
                   </div>
                 </div>

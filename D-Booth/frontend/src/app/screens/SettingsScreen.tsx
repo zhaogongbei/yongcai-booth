@@ -398,8 +398,10 @@ export function SettingsScreen() {
           <div className="text-sm font-semibold text-white/80 mb-4 flex items-center gap-1.5">
             <Droplets size={15} className="text-violet-400" />
             水印设置
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-normal">未接入</span>
           </div>
-          <div className="space-y-4">
+          <p className="text-xs text-white/40 mb-3">水印尚未接入照片输出链路，以下配置暂不会影响实际照片与打印效果。</p>
+          <div className="space-y-4 opacity-50 pointer-events-none" aria-disabled="true">
             {/* 启用开关 */}
             <div className="flex items-center gap-3">
               <div className="flex-1">
@@ -489,8 +491,10 @@ export function SettingsScreen() {
           <div className="text-sm font-semibold text-white/80 mb-4 flex items-center gap-1.5">
             <Zap size={15} className="text-violet-400" />
             打印锐化
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-normal">未接入</span>
           </div>
-          <div className="space-y-4">
+          <p className="text-xs text-white/40 mb-3">打印锐化尚未接入打印输出链路，该配置暂不会影响实际打印效果。</p>
+          <div className="space-y-4 opacity-50 pointer-events-none" aria-disabled="true">
             <div>
               <div className="text-sm text-white mb-1">锐化级别</div>
               <div className="text-xs text-white/40 mb-1.5">针对打印输出进行图像锐化处理</div>

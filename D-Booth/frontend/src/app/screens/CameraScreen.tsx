@@ -607,8 +607,11 @@ export function CameraScreen({ navigate }: { navigate: (s: Screen) => void }) {
             className={`w-full h-full object-cover opacity-80 ${cameraReady ? "block" : "hidden"}`}
           />
           {!cameraReady && (
-            <img src="/images/scenes/wedding-guests-fun.webp"
-              alt="相机预览画面" className="w-full h-full object-cover opacity-80" loading="lazy" />
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-[#0a0f24]">
+              <Camera size={40} className="text-white/25" />
+              <div className="text-sm text-white/40">相机预览不可用</div>
+              <div className="text-xs text-white/30">请检查相机连接与浏览器权限后重试</div>
+            </div>
           )}
           {activePrintTemplate && (
             <TemplateCaptureOverlay

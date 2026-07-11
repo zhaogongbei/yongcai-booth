@@ -17,7 +17,7 @@ import type { BeautyParams as BeautyParamsType } from "../../lib/api";
 import { processBeautyImage, resolveBackendUrl } from "../../lib/api";
 import { showToast } from "../stores/useToast";
 import {
-  BEAUTY_PRESETS, DEFAULT_BEAUTY_VALUES, BEAUTY_FALLBACK_IMAGE, BEAUTY_PRESET_AVATARS,
+  BEAUTY_PRESETS, DEFAULT_BEAUTY_VALUES, BEAUTY_PRESET_AVATARS,
   DEFAULT_PROPS
 } from "../constants";
 
@@ -43,8 +43,6 @@ interface CropSettings {
 }
 
 const defaultBeautyValues = DEFAULT_BEAUTY_VALUES;
-
-const FALLBACK_IMAGE = BEAUTY_FALLBACK_IMAGE;
 
 const FILTER_PRESETS: FilterPreset[] = [
   { id: "original", label: "原片", filter: "" },
@@ -124,7 +122,7 @@ function buildPhotoFilter(
 }
 
 function resolvePhotoUrl(url?: string): string {
-  if (!url) return FALLBACK_IMAGE;
+  if (!url) return "";
   if (/^(blob:|data:|https?:\/\/)/i.test(url)) return url;
   if (/^\/?(api\/v1\/media|uploads)\//i.test(url)) return resolveBackendUrl(url);
   return url;
@@ -726,6 +724,24 @@ export function BeautyScreen({ navigate }: { navigate: (s: Screen) => void }) {
     setStickers([]);
     setSelectedStickerId(null);
   };
+
+  // 美颜编辑必须作用于当前拍摄流的真实照片；无照片时不得用素材样张充当编辑对象
+  if (!selectedPhoto) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6">
+        <GlassCard className="p-8 max-w-md w-full text-center space-y-3">
+          <ImagePlus size={32} className="mx-auto text-white/30" />
+          <div className="text-sm font-semibold text-white">还没有可编辑的照片</div>
+          <p className="text-xs text-white/40 leading-relaxed">
+            美颜编辑使用当前拍摄流中的真实照片。请先完成拍摄，再进入美颜。
+          </p>
+          <GlowBtn size="sm" variant="primary" onClick={() => navigate("camera")}>
+            前往拍摄
+          </GlowBtn>
+        </GlassCard>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex overflow-hidden">

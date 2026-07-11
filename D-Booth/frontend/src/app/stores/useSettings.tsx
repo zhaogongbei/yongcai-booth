@@ -81,7 +81,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   print: {
     sharpenProfile: "medium",
-    preferredPrinterName: "HP LaserJet Professional P1108",
+    preferredPrinterName: "",
   },
   virtualAttendant: {
     enabled: true,
