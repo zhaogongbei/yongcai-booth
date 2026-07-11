@@ -3,7 +3,7 @@
 > 本文档定义 D-Booth 项目的 AI 辅助开发规范、工作流程、代码质量标准与最佳实践。  
 > 所有使用 AI 工具的开发者必须遵循此规范。
 
-**版本**: 2.0.0 | **更新**: 2026-07-02 | **范围**: Backend/Frontend/Runtime
+**版本**: 2.1.0 | **更新**: 2026-07-11 | **范围**: Backend/Frontend/Runtime
 
 ---
 
@@ -149,8 +149,68 @@ dotnet format                # C#
 
 ### 并行工具调用示例
 
-```xml
-<!-- ✅ 正确：并行执行独立任务 -->
-<function_calls>
-  <invoke name="Read">
-    <parameter name="file_path">D:/path/file1.py
+当多个操作彼此独立时，在同一轮里一次性发起（例如同时 Read 多个文件、并行 Glob + Grep），不要逐个串行等待。只有当后一步依赖前一步结果时才分轮进行。
+
+```
+# ✅ 正确：一轮内并行收集信息
+Read(file1) + Read(file2) + Grep(pattern)  →  分析  →  批量 Edit
+
+# ❌ 错误：无依赖却串行往返
+Read → Edit → Read → Edit → Read → Edit
+```
+
+---
+
+## 工作理念（并入自原 PROTOCOL.md）
+
+以下原则来自已删除的 `PROTOCOL.md`，作为 CLAUDE.md 的一部分保留。**本文件是本项目唯一权威的 AI 开发规范**；不再存在与之竞争的"协议"文档。
+
+- **全局优先（Think Globally）**：修改前先理解整体架构，识别上游调用者与下游依赖，不为局部最优牺牲整体质量。
+- **先规划后动手（Plan Before Action）**：形成目标、影响范围、风险、验证方式后再改，不边想边改。
+- **批量操作（Batch Operations）**：一次读取多个文件、一次完成多个相关修改，保持命名/风格/结构一致。
+- **验证一切（Verify Everything）**：每次修改后确认是否破坏其它模块、影响性能或安全，发现问题立即修复。
+- **记忆优先（Memory First）**：依赖 `PROJECT_STATUS.md`、CHANGELOG 与持久化记忆，而非聊天上下文；重要修改同步更新文档。
+- **决策取向（Decision）**：多方案并存时，选长期维护成本最低者，而非实现最快者；增加复杂度必须证明其值得，否则保持简单。
+
+> 注意：AI 应在完成用户请求的任务并通过验证后收敛并交回控制权。对于不可逆或对外的操作（提交、推送、发布、删除），必须先取得用户确认，**不得自行无限扩展改动范围**。
+
+---
+
+## 运行时事实与纪律（权威）
+
+> 本节是与真实代码/CI 对齐的硬事实，优先级高于本文档其它示例性内容。示例代码块仅供风格参考，真实的强制约束以下列门禁为准。
+
+### 真正被执行的质量门禁
+
+CI（`.github/workflows/ci.yml`）与本地一致的门禁只有以下几项——文档其它地方出现的 Jest/Vitest/mypy 全量检查等**不是**当前门禁：
+
+- 仓库卫生：`python tools/check_repository_hygiene.py`
+- 后端 lint：`black --check .`、`isort --check-only .`、`ruff check app/ --select E9,F63,F7,F82`（在 `D-Booth/backend`）
+- 后端测试：`python -m pytest -q`（在 `D-Booth/backend`）
+- Python 依赖审计：`python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict`
+- 前端：`npm run typecheck`、`npm run build`、`npm run audit:security`（在 `D-Booth/frontend`）
+- Runtime：`dotnet build --configuration Release --no-restore`、`dotnet test --configuration Release --no-build`（在 `D-Booth/runtime-dotnet`）
+
+全量 mypy 目前**不是** CI 门禁；类型债务按模块逐步收敛（见 `PROJECT_STATUS.md`「已知债务」）。
+
+### 版本同步清单（每次发版）
+
+递增根 `VERSION`（PATCH）后，必须同步以下 5 处，否则仓库卫生检查会失败：
+
+1. `README.md` 版本徽章
+2. `D-Booth/backend/app/core/config.py` 的 `VERSION` 默认值
+3. `D-Booth/frontend/package.json` 的 `version`
+4. `D-Booth/frontend/package-lock.json` 根 `version`
+5. `D-Booth/frontend/package-lock.json` 的 `packages[""]` `version`
+
+并更新 `CHANGELOG.md` 的 `[Unreleased]` 与 `PROJECT_STATUS.md`（近期完成 + 必要时的架构不变量）。
+
+### 提交纪律
+
+- 提交用**精确文件列表**，不使用 `git add -A`（可能有并行会话在同一仓库操作）。
+- **禁止**在仓库内 Claude 配置中加入自动 `git add`/`commit`/`push` 或自动递增 `VERSION` 的 hook；提交与版本递增必须走显式、经验证的流程。
+- 命令重复失败时先分析根因再决定对策，不做盲目循环重试。
+
+---
+
+**版本**: 2.1.0 | **更新**: 2026-07-11 | **范围**: Backend/Frontend/Runtime

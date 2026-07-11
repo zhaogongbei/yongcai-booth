@@ -176,16 +176,16 @@ async def get_event_by_id(
 
 - 使用 Black 格式化 (行长度 100)
 - 使用 isort 排序导入
-- 使用 mypy 类型检查
-- 使用 pylint/ruff 静态分析
+- 使用 Ruff 静态分析（CI 门禁：`ruff check app/ --select E9,F63,F7,F82`）
 - 所有公共函数必须有 docstring
 - 所有参数必须有类型注解
+- 类型检查（mypy）按模块逐步收敛，当前不是 CI 门禁
 
 ```bash
-# 运行检查
-black .
-isort .
-ruff check app --select E9,F63,F7,F82
+# 运行检查（与 CI 一致）
+black --check .
+isort --check-only .
+ruff check app/ --select E9,F63,F7,F82
 ```
 
 ### TypeScript (Frontend)
