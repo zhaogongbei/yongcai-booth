@@ -13,6 +13,8 @@ interface GalleryScreenProps {
   navigate?: (s: Screen) => void;
 }
 
+const PAGE_SIZE = 60;
+
 export function GalleryScreen({ navigate }: GalleryScreenProps) {
   const { currentEvent } = useSettings();
   const captureFlow = useCaptureFlow();
@@ -21,6 +23,8 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
 
   const [photos, setPhotos] = useState<PhotoResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [latestFirst, setLatestFirst] = useState(true);
   const [previewPhoto, setPreviewPhoto] = useState<PhotoResponse | null>(null);
@@ -31,8 +35,9 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
     setLoading(true);
     setLoadError(null);
     try {
-      const result = await getPhotos({ eventId });
+      const result = await getPhotos({ eventId, skip: 0, limit: PAGE_SIZE });
       setPhotos(result);
+      setHasMore(result.length === PAGE_SIZE);
       setSelectedIds(new Set());
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "照片加载失败");
@@ -40,6 +45,23 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
       setLoading(false);
     }
   }, [eventId, isLoggedIn]);
+
+  const loadMorePhotos = useCallback(async () => {
+    if (!eventId || !isLoggedIn || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await getPhotos({ eventId, skip: photos.length, limit: PAGE_SIZE });
+      setPhotos(prev => {
+        const seen = new Set(prev.map(photo => photo.id));
+        return [...prev, ...result.filter(photo => !seen.has(photo.id))];
+      });
+      setHasMore(result.length === PAGE_SIZE);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载更多照片失败");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [eventId, isLoggedIn, loadingMore, photos.length]);
 
   useEffect(() => {
     void loadPhotos();
@@ -140,7 +162,8 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
         <div>
           <h2 className="text-xl font-bold text-white">照片相册</h2>
           <p className="text-xs text-white/40 mt-0.5">
-            共 {photos.length} 张照片{currentEvent?.name ? ` · ${currentEvent.name}` : ""}
+            已加载 {photos.length} 张照片{hasMore ? "（还有更多）" : ""}
+            {currentEvent?.name ? ` · ${currentEvent.name}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -219,6 +242,14 @@ export function GalleryScreen({ navigate }: GalleryScreenProps) {
               </div>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {hasMore && sortedPhotos.length > 0 && (
+        <div className="flex justify-center py-2">
+          <GlowBtn size="sm" variant="ghost" onClick={() => void loadMorePhotos()} disabled={loadingMore}>
+            {loadingMore ? "加载中..." : "加载更多照片"}
+          </GlowBtn>
         </div>
       )}
 

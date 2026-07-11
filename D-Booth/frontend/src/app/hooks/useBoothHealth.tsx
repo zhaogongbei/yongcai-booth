@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import {
   getBackendHealth,
   getBoothHealth,
@@ -51,47 +61,37 @@ interface CameraStatusResponse {
   controller_type?: string | null;
 }
 
-interface ApiHealthResponse {
-  status?: "healthy" | "degraded" | string;
+interface SharedBoothHealthState {
+  api: BoothHealth["api"];
+  camera: CameraHealth;
+  printers: PrinterInfo[];
+  sharedPrintQueue: PrintQueueItem[];
+  loading: boolean;
+  lastUpdated: number | null;
+  refresh: () => Promise<void>;
 }
 
-export function useBoothHealth(selectedPrinterName?: string): BoothHealth {
-  const { settings } = useSettings();
-  const preferredPrinterName = settings.print.preferredPrinterName.trim() || undefined;
+const BoothHealthContext = createContext<SharedBoothHealthState | null>(null);
+
+/**
+ * Single polling owner for booth health. Mount once near the app root:
+ * every consumer (TopBar, print/ops screens) reads the same 8s poll
+ * instead of each mounting its own request loop.
+ */
+export function BoothHealthProvider({ children }: { children: ReactNode }) {
   const [api, setApi] = useState<BoothHealth["api"]>({ online: false, status: "unknown" });
   const [camera, setCamera] = useState<CameraHealth>({ connected: false });
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
-  const [printQueue, setPrintQueue] = useState<PrintQueueItem[]>([]);
+  const [sharedPrintQueue, setSharedPrintQueue] = useState<PrintQueueItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
-
-  const selectedPrinter = useMemo(() => {
-    if (!printers.length) return undefined;
-    const boothPrinters = getBoothPrinters(printers, preferredPrinterName);
-    if (!boothPrinters.length) return undefined;
-    return boothPrinters.find((printer) => printer.name === selectedPrinterName)
-      ?? getDefaultBoothPrinter(boothPrinters, preferredPrinterName);
-  }, [printers, selectedPrinterName, preferredPrinterName]);
-
-  const refreshQueue = useCallback(async () => {
-    if (!selectedPrinter?.name) {
-      setPrintQueue([]);
-      return;
-    }
-    try {
-      const queue = await getPrintQueue(selectedPrinter.name);
-      setPrintQueue(queue);
-    } catch {
-      setPrintQueue([]);
-    }
-  }, [selectedPrinter?.name]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       try {
         const boothHealth = await getBoothHealth();
-        applyBoothHealthResponse(boothHealth, setApi, setCamera, setPrinters, setPrintQueue);
+        applyBoothHealthResponse(boothHealth, setApi, setCamera, setPrinters, setSharedPrintQueue);
         setLastUpdated(Date.parse(boothHealth.timestamp) || Date.now());
         return;
       } catch {
@@ -139,18 +139,76 @@ export function useBoothHealth(selectedPrinterName?: string): BoothHealth {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  const value = useMemo(
+    () => ({ api, camera, printers, sharedPrintQueue, loading, lastUpdated, refresh }),
+    [api, camera, printers, sharedPrintQueue, loading, lastUpdated, refresh],
+  );
+
+  return <BoothHealthContext.Provider value={value}>{children}</BoothHealthContext.Provider>;
+}
+
+export interface UseBoothHealthOptions {
+  /**
+   * When false, this consumer does not run the 5s print-queue poll.
+   * Ambient consumers (TopBar) should disable it; the print/ops screens
+   * that actually show the queue keep the default.
+   */
+  withQueue?: boolean;
+}
+
+export function useBoothHealth(
+  selectedPrinterName?: string,
+  options: UseBoothHealthOptions = {},
+): BoothHealth {
+  const shared = useContext(BoothHealthContext);
+  if (!shared) {
+    throw new Error("useBoothHealth must be used within BoothHealthProvider");
+  }
+  const { withQueue = true } = options;
+  const { settings } = useSettings();
+  const preferredPrinterName = settings.print.preferredPrinterName.trim() || undefined;
+  const { api, camera, printers, sharedPrintQueue, loading, lastUpdated, refresh } = shared;
+  const [ownPrintQueue, setOwnPrintQueue] = useState<PrintQueueItem[] | null>(null);
+
+  const selectedPrinter = useMemo(() => {
+    if (!printers.length) return undefined;
+    const boothPrinters = getBoothPrinters(printers, preferredPrinterName);
+    if (!boothPrinters.length) return undefined;
+    return boothPrinters.find((printer) => printer.name === selectedPrinterName)
+      ?? getDefaultBoothPrinter(boothPrinters, preferredPrinterName);
+  }, [printers, selectedPrinterName, preferredPrinterName]);
+
+  const printQueue = ownPrintQueue ?? sharedPrintQueue;
+
+  const refreshQueue = useCallback(async () => {
+    if (!withQueue || !selectedPrinter?.name) {
+      setOwnPrintQueue(null);
+      return;
+    }
+    try {
+      const queue = await getPrintQueue(selectedPrinter.name);
+      setOwnPrintQueue(queue);
+    } catch {
+      setOwnPrintQueue([]);
+    }
+  }, [withQueue, selectedPrinter?.name]);
+
   useEffect(() => {
+    if (!withQueue) {
+      setOwnPrintQueue(null);
+      return;
+    }
     let cancelled = false;
     async function loadQueue() {
       if (!selectedPrinter?.name) {
-        setPrintQueue([]);
+        if (!cancelled) setOwnPrintQueue(null);
         return;
       }
       try {
         const queue = await getPrintQueue(selectedPrinter.name);
-        if (!cancelled) setPrintQueue(queue);
+        if (!cancelled) setOwnPrintQueue(queue);
       } catch {
-        if (!cancelled) setPrintQueue([]);
+        if (!cancelled) setOwnPrintQueue([]);
       }
     }
     void loadQueue();
@@ -159,7 +217,7 @@ export function useBoothHealth(selectedPrinterName?: string): BoothHealth {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [selectedPrinter?.name]);
+  }, [withQueue, selectedPrinter?.name]);
 
   const queue = useMemo(() => {
     const active = printQueue.filter((job) => {

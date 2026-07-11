@@ -10,6 +10,7 @@ import { Toaster } from "sonner";
 import { SettingsProvider, useSettings } from "./stores/useSettings";
 import { AuthProvider, useAuth } from "./stores/useAuth";
 import { CaptureFlowProvider } from "./stores/useCaptureFlow";
+import { BoothHealthProvider } from "./hooks/useBoothHealth";
 import { initCsrfToken } from "../lib/api";
 
 import { SplashScreen } from "./screens/SplashScreen";
@@ -215,6 +216,7 @@ function AppInner() {
 
   return (
     <ActivationGate>
+      <BoothHealthProvider>
       <CaptureFlowProvider>
       <div>
       {screen === "splash" ? (
@@ -297,6 +299,7 @@ function AppInner() {
         }}
       />
       </CaptureFlowProvider>
+      </BoothHealthProvider>
     </ActivationGate>
   );
 }

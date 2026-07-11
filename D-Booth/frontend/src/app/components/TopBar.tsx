@@ -17,7 +17,8 @@ function StatusDot({ tone }: { tone: HealthTone }) {
 export function TopBar({ title, onBack, onSelectEvent }: { title?: string; onBack?: () => void; onSelectEvent?: () => void }) {
   const { currentEvent } = useSettings();
   const { user } = useAuth();
-  const health = useBoothHealth();
+  // 常驻顶栏只读共享健康轮询，不启动打印队列轮询（队列由打印/运营页按需拉取）
+  const health = useBoothHealth(undefined, { withQueue: false });
 
   const cameraLabel = health.camera.connected
     ? (health.camera.model || "相机已连接")
