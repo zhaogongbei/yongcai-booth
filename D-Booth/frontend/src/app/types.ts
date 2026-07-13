@@ -5,7 +5,7 @@ export type Screen =
   | "template-editor" | "print" | "sharing" | "events"
   | "ai-studio" | "attract" | "gallery" | "analytics" | "ops" | "settings"
   | "signature" | "survey" | "disclaimer" | "survey-config" | "lock" | "green-screen"
-  | "camera-wizard" | "booth-manager" | "trigger-config" | "gopro";
+  | "camera-wizard" | "booth-manager" | "trigger-config" | "gopro" | "login";
 
 export interface NavItem {
   id: Screen;

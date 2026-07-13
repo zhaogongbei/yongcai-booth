@@ -14,7 +14,7 @@ function StatusDot({ tone }: { tone: HealthTone }) {
   return <div className={`w-2 h-2 rounded-full ${TONE_DOT_CLASS[tone]}`} />;
 }
 
-export function TopBar({ title, onBack, onSelectEvent }: { title?: string; onBack?: () => void; onSelectEvent?: () => void }) {
+export function TopBar({ title, onBack, onSelectEvent, onOpenAccount }: { title?: string; onBack?: () => void; onSelectEvent?: () => void; onOpenAccount?: () => void }) {
   const { currentEvent } = useSettings();
   const { user } = useAuth();
   // 常驻顶栏只读共享健康轮询，不启动打印队列轮询（队列由打印/运营页按需拉取）
@@ -66,12 +66,16 @@ export function TopBar({ title, onBack, onSelectEvent }: { title?: string; onBac
               {user.full_name?.trim() || user.email}
             </span>
           )}
-          <div
-            className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white"
-            title={user ? (user.full_name?.trim() || user.email) : "未登录"}
+          <button
+            type="button"
+            onClick={onOpenAccount}
+            disabled={!onOpenAccount}
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white transition-transform hover:scale-105 disabled:hover:scale-100 disabled:cursor-default"
+            title={user ? (user.full_name?.trim() || user.email) : "未登录（点击登录）"}
+            aria-label={user ? "账户" : "登录"}
           >
             {userInitial ?? <User size={14} className="text-white/80" />}
-          </div>
+          </button>
         </div>
       </div>
     </div>

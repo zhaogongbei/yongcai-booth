@@ -38,6 +38,7 @@ const CameraWizardScreen = React.lazy(() => import("./screens/CameraWizardScreen
 const BoothManagerScreen = React.lazy(() => import("./screens/BoothManagerScreen").then(m => ({ default: m.default })));
 const TriggerConfigScreen = React.lazy(() => import("./screens/TriggerConfigScreen").then(m => ({ default: m.TriggerConfigScreen })));
 const GoProScreen = React.lazy(() => import("./screens/GoProScreen").then(m => ({ default: m.GoProScreen })));
+const LoginScreen = React.lazy(() => import("./screens/LoginScreen").then(m => ({ default: m.LoginScreen })));
 
 import { TopBar } from "./components/TopBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -85,17 +86,34 @@ const MOBILE_NAV_ITEMS: NavItem[] = [
 ];
 
 // ─── Sidebar (Desktop/Tablet) ─────────────────────────────────────────────────
-function SidebarUserBadge() {
-  const { user } = useAuth();
+function SidebarUserBadge({ navigate }: { navigate: (s: Screen) => void }) {
+  const { user, logout } = useAuth();
   const label = user ? (user.full_name?.trim() || user.email) : "未登录";
   const initial = user ? label.charAt(0).toUpperCase() : null;
+
+  const handleClick = async () => {
+    if (!user) {
+      navigate("login");
+      return;
+    }
+    try {
+      await logout();
+    } catch {
+      // 撤销失败时后端 fail-closed；本地令牌已在 logout 内清除，回到登录页
+    }
+    navigate("login");
+  };
+
   return (
-    <div
-      className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white"
-      title={label}
+    <button
+      type="button"
+      onClick={handleClick}
+      className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white transition-transform hover:scale-105"
+      title={user ? `${label}（点击登出）` : "未登录（点击登录）"}
+      aria-label={user ? "登出" : "登录"}
     >
       {initial ?? <UserRound size={14} className="text-white/80" />}
-    </div>
+    </button>
   );
 }
 
@@ -146,7 +164,7 @@ function Sidebar({ screen, navigate, width }: { screen: Screen; navigate: (s: Sc
           <HelpCircle size={18} />
           <span className="text-[9px]">帮助</span>
         </button>
-        <SidebarUserBadge />
+        <SidebarUserBadge navigate={navigate} />
       </div>
     </div>
   );
@@ -212,7 +230,7 @@ function AppInner() {
   // Sidebar width: tablet 56px, desktop 68px (ignored when mobile)
   const sidebarWidth = isTablet ? 56 : 68;
 
-  const isFullscreen = screen === "attract";
+  const isFullscreen = screen === "attract" || screen === "login";
 
   return (
     <ActivationGate>
@@ -242,9 +260,12 @@ function AppInner() {
 
           {/* Main area */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Top bar (not for attract) */}
-            {screen !== "attract" && (
-              <TopBar onSelectEvent={() => navigate("events")} />
+            {/* Top bar (hidden on fullscreen screens: attract / login) */}
+            {!isFullscreen && (
+              <TopBar
+                onSelectEvent={() => navigate("events")}
+                onOpenAccount={() => navigate("login")}
+              />
             )}
 
             {/* Screen content */}
@@ -279,6 +300,7 @@ function AppInner() {
                   {screen === "booth-manager" && <BoothManagerScreen navigate={navigate} />}
                   {screen === "trigger-config" && <TriggerConfigScreen navigate={navigate} />}
                   {screen === "gopro" && <GoProScreen navigate={navigate} />}
+                  {screen === "login" && <LoginScreen navigate={navigate} />}
                   </ErrorBoundary>
                 </Suspense>
               </motion.div>

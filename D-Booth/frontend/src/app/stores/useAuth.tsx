@@ -24,7 +24,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, full_name?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -75,9 +75,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(email, password);
   }, [login]);
 
-  const logout = useCallback(() => {
-    tokenStorage.clear();
-    setUser(null);
+  const logout = useCallback(async () => {
+    // 先请求后端撤销 refresh token（后端对撤销失败 fail-closed 返回 503），
+    // 无论撤销结果如何都清除本地令牌；撤销失败的异常向调用方传播以便提示。
+    const refreshToken = tokenStorage.refresh;
+    try {
+      if (refreshToken) {
+        await request("/auth/logout", {
+          method: "POST",
+          body: { refresh_token: refreshToken },
+          skipRefresh: true,
+          retry: false,
+        });
+      }
+    } finally {
+      tokenStorage.clear();
+      setUser(null);
+    }
   }, []);
 
   return (
